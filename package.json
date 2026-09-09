@@ -1,0 +1,53 @@
+{
+  "name": "safanoor",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node --import tsx src/db/migrate.ts",
+    "db:seed": "node --import tsx src/db/seed/index.ts",
+    "db:migrate:node": "node --experimental-strip-types src/db/migrate.ts",
+    "db:seed:node": "node --experimental-strip-types src/db/seed/index.ts",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
+    "@iconify/react": "^6.0.2",
+    "argon2": "^0.44.0",
+    "better-sqlite3": "^12.4.1",
+    "bidi-shaper": "^0.1.2",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "drizzle-orm": "^0.44.6",
+    "lucide-react": "^0.544.0",
+    "next": "16.3.4",
+    "pdfkit": "^0.20.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-hook-form": "^7.63.0",
+    "tailwind-merge": "^3.3.1",
+    "zod": "^4.1.11"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^20",
+    "@types/pdfkit": "^0.17.6",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.5",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.4",
+    "tailwindcss": "^4",
+    "tsx": "^4.20.5",
+    "typescript": "^5",
+    "vitest": "^3.2.4"
+  }
+}

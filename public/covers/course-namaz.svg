@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="640" viewBox="0 0 480 640" role="img" aria-label="Ashnayi ba namaz">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f3d34"/>
+      <stop offset="45%" stop-color="#0f766e"/>
+      <stop offset="100%" stop-color="#5eead4"/>
+    </linearGradient>
+    <pattern id="stars" width="36" height="36" patternUnits="userSpaceOnUse">
+      <circle cx="6" cy="8" r="1.4" fill="#ffffff" fill-opacity="0.14"/>
+      <circle cx="22" cy="24" r="1" fill="#ffffff" fill-opacity="0.1"/>
+    </pattern>
+  </defs>
+  <rect width="480" height="640" fill="url(#bg)"/>
+  <rect width="480" height="640" fill="url(#stars)"/>
+  <circle cx="400" cy="80" r="110" fill="#ffffff" fill-opacity="0.1"/>
+  <circle cx="60" cy="560" r="95" fill="#ccfbf1" fill-opacity="0.16"/>
+  <!-- mihrab / prayer niche -->
+  <g fill="none" stroke="#ecfeff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M140 420 V260 c0-70 50-120 100-120 s100 50 100 120 V420"/>
+    <path d="M170 420 V275 c0-50 35-85 70-85 s70 35 70 85 V420"/>
+    <path d="M210 300 h60 M225 340 h30"/>
+    <path d="M240 150 v20 M220 165 h40"/>
+  </g>
+  <ellipse cx="240" cy="450" rx="70" ry="14" fill="#f0fdfa" fill-opacity="0.18"/>
+</svg>

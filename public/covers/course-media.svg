@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="640" viewBox="0 0 480 640" role="img" aria-label="Yadgiri chandresanei maaref">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#064e3b"/>
+      <stop offset="50%" stop-color="#0f766e"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+    <pattern id="dots" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="4" cy="4" r="1.5" fill="#ffffff" fill-opacity="0.12"/>
+    </pattern>
+  </defs>
+  <rect width="480" height="640" fill="url(#bg)"/>
+  <rect width="480" height="640" fill="url(#dots)"/>
+  <circle cx="90" cy="120" r="85" fill="#ffffff" fill-opacity="0.1"/>
+  <circle cx="400" cy="520" r="95" fill="#fef3c7" fill-opacity="0.12"/>
+  <!-- layered media frames + play glyph -->
+  <g fill="none" stroke="#ecfdf5" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="120" y="180" width="240" height="160" rx="18"/>
+    <rect x="145" y="205" width="190" height="110" rx="12"/>
+    <path d="M215 240 L275 260 L215 280 Z"/>
+  </g>
+  <g fill="none" stroke="#fde68a" stroke-width="5" stroke-linecap="round">
+    <path d="M150 400 h180"/>
+    <path d="M150 430 h120"/>
+    <circle cx="360" cy="415" r="22"/>
+    <path d="M352 415 h16 M360 407 v16"/>
+  </g>
+  <path d="M200 500 L240 530 L280 500" fill="none" stroke="#a7f3d0" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

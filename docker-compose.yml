@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_PATH: /data/app.db
+      NODE_ENV: production
+      RUN_SEED: "true"
+    volumes:
+      - safanoor_data:/data
+    restart: unless-stopped
+
+volumes:
+  safanoor_data:

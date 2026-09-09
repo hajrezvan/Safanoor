@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="640" viewBox="0 0 480 640" role="img" aria-label="اخلاق اسلامی">
+  <defs>
+    <linearGradient id="akhBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14532d"/>
+      <stop offset="55%" stop-color="#15803d"/>
+      <stop offset="100%" stop-color="#86efac"/>
+    </linearGradient>
+    <radialGradient id="akhGlow" cx="50%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#bbf7d0" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#bbf7d0" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="480" height="640" fill="url(#akhBg)"/>
+  <rect width="480" height="640" fill="url(#akhGlow)"/>
+  <circle cx="430" cy="60" r="95" fill="#ffffff" fill-opacity="0.1"/>
+  <circle cx="30" cy="590" r="100" fill="#dcfce7" fill-opacity="0.15"/>
+  <rect x="52" y="60" width="376" height="520" rx="26" fill="#052e16" fill-opacity="0.22" stroke="#bbf7d0" stroke-opacity="0.4" stroke-width="2"/>
+  <g transform="translate(240 260)" fill="none" stroke="#ecfdf5" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="0" cy="0" r="100"/>
+    <circle cx="0" cy="0" r="58" stroke="#86efac" stroke-width="5"/>
+    <path d="M0 -72 V72 M-72 0 H72"/>
+    <path d="M-51 -51 L51 51 M51 -51 L-51 51" stroke="#bbf7d0" stroke-width="5"/>
+    <circle cx="0" cy="0" r="18" fill="#4ade80" stroke="#ecfdf5" stroke-width="4"/>
+  </g>
+  <rect x="130" y="420" width="220" height="5" rx="2.5" fill="#bbf7d0" fill-opacity="0.75"/>
+  <text x="240" y="485" text-anchor="middle" fill="#ecfdf5" font-family="Tahoma, Arial, sans-serif" font-size="32" font-weight="700">اخلاق اسلامی</text>
+  <text x="240" y="525" text-anchor="middle" fill="#bbf7d0" font-family="Tahoma, Arial, sans-serif" font-size="15">برای نوجوان</text>
+</svg>
