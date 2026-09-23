@@ -1,4 +1,4 @@
-import { sqliteTable, text, uniqueIndex, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, index } from "drizzle-orm/sqlite-core";
 import { users } from "./auth";
 import { students } from "./students";
 
@@ -62,8 +62,12 @@ export const actions = sqliteTable(
   "actions",
   {
     id: text("id").primaryKey(),
-    planId: text("plan_id").references(() => individualPlans.id, { onDelete: "set null" }),
-    goalId: text("goal_id").references(() => goals.id, { onDelete: "set null" }),
+    planId: text("plan_id").references(() => individualPlans.id, {
+      onDelete: "set null",
+    }),
+    goalId: text("goal_id").references(() => goals.id, {
+      onDelete: "set null",
+    }),
     studentId: text("student_id")
       .notNull()
       .references(() => students.id, { onDelete: "cascade" }),

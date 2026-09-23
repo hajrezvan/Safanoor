@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { Icon } from "@iconify/react";
 import { Drawer } from "@/components/patterns/drawer";
 import { InfoFieldRow } from "@/components/patterns/info-field-row";
@@ -26,11 +26,12 @@ export function StudentFamilyInfoCard({
   profile,
 }: StudentFamilyInfoCardProps) {
   const [open, setOpen] = useState(false);
-  const [state, action, pending] = useActionState(updateStudentSelfProfileAction, initial);
-
-  useEffect(() => {
-    if (state.success) setOpen(false);
-  }, [state.success]);
+  async function updateFamily(previous: ActionState, formData: FormData) {
+    const next = await updateStudentSelfProfileAction(previous, formData);
+    if (next.success) setOpen(false);
+    return next;
+  }
+  const [state, action, pending] = useActionState(updateFamily, initial);
 
   const siblings = parseSiblingsJson(profile?.siblingsJson);
 

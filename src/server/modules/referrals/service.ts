@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { referrals, students, users } from "@/db/schema";
+import { referrals, students } from "@/db/schema";
 import { createId, nowIso } from "@/lib/id";
 import {
   PRIORITY,
@@ -23,7 +23,12 @@ const statusEnum = z.enum([
   REFERRAL_STATUS.CANCELLED,
 ]);
 
-const priorityEnum = z.enum([PRIORITY.LOW, PRIORITY.MEDIUM, PRIORITY.HIGH, PRIORITY.URGENT]);
+const priorityEnum = z.enum([
+  PRIORITY.LOW,
+  PRIORITY.MEDIUM,
+  PRIORITY.HIGH,
+  PRIORITY.URGENT,
+]);
 const optionalText = z.string().optional().or(z.literal(""));
 
 export const createReferralSchema = z.object({
@@ -44,7 +49,10 @@ export const updateReferralStatusSchema = z.object({
 });
 
 /** گذارهای مجاز وضعیت ارجاع */
-export const REFERRAL_STATUS_TRANSITIONS: Record<ReferralStatus, ReferralStatus[]> = {
+export const REFERRAL_STATUS_TRANSITIONS: Record<
+  ReferralStatus,
+  ReferralStatus[]
+> = {
   [REFERRAL_STATUS.OPEN]: [
     REFERRAL_STATUS.IN_REVIEW,
     REFERRAL_STATUS.RESOLVED,
@@ -118,9 +126,12 @@ export type ReferralFilters = {
 
 function buildConditions(filters: ReferralFilters) {
   const conditions = [];
-  if (filters.studentId) conditions.push(eq(referrals.studentId, filters.studentId));
-  if (filters.assignedTo) conditions.push(eq(referrals.assignedTo, filters.assignedTo));
-  if (filters.createdBy) conditions.push(eq(referrals.createdBy, filters.createdBy));
+  if (filters.studentId)
+    conditions.push(eq(referrals.studentId, filters.studentId));
+  if (filters.assignedTo)
+    conditions.push(eq(referrals.assignedTo, filters.assignedTo));
+  if (filters.createdBy)
+    conditions.push(eq(referrals.createdBy, filters.createdBy));
   if (filters.studentIds) {
     conditions.push(
       filters.studentIds.length > 0
@@ -130,23 +141,32 @@ function buildConditions(filters: ReferralFilters) {
   }
   if (filters.openOnly) {
     conditions.push(
-      inArray(referrals.status, [REFERRAL_STATUS.OPEN, REFERRAL_STATUS.IN_REVIEW]),
+      inArray(referrals.status, [
+        REFERRAL_STATUS.OPEN,
+        REFERRAL_STATUS.IN_REVIEW,
+      ]),
     );
   } else if (filters.status) {
-    const statuses = Array.isArray(filters.status) ? filters.status : [filters.status];
+    const statuses = Array.isArray(filters.status)
+      ? filters.status
+      : [filters.status];
     conditions.push(inArray(referrals.status, statuses));
   }
   return conditions.length ? and(...conditions) : undefined;
 }
 
-export function listReferrals(filters: ReferralFilters = {}): ReferralListItem[] {
+export function listReferrals(
+  filters: ReferralFilters = {},
+): ReferralListItem[] {
   return referralQuery()
     .where(buildConditions(filters))
     .orderBy(desc(referrals.createdAt))
     .all() as ReferralListItem[];
 }
 
-export function listOpenReferralsForMentor(mentorUserId?: string): ReferralListItem[] {
+export function listOpenReferralsForMentor(
+  mentorUserId?: string,
+): ReferralListItem[] {
   const rows = listReferrals({ openOnly: true });
   if (!mentorUserId) return rows;
   return rows.filter(
@@ -155,11 +175,18 @@ export function listOpenReferralsForMentor(mentorUserId?: string): ReferralListI
 }
 
 export function getReferralById(id: string): ReferralListItem | undefined {
-  return referralQuery().where(eq(referrals.id, id)).get() as ReferralListItem | undefined;
+  return referralQuery().where(eq(referrals.id, id)).get() as
+    ReferralListItem | undefined;
 }
 
 export function createReferral(input: z.infer<typeof createReferralSchema>) {
-  if (!db.select({ id: students.id }).from(students).where(eq(students.id, input.studentId)).get()) {
+  if (
+    !db
+      .select({ id: students.id })
+      .from(students)
+      .where(eq(students.id, input.studentId))
+      .get()
+  ) {
     throw new Error("دانش‌آموز یافت نشد.");
   }
 
@@ -185,7 +212,10 @@ export function createReferral(input: z.infer<typeof createReferralSchema>) {
   return getReferralById(id)!;
 }
 
-export function assertReferralTransition(from: ReferralStatus, to: ReferralStatus) {
+export function assertReferralTransition(
+  from: ReferralStatus,
+  to: ReferralStatus,
+) {
   if (from === to) return;
   const allowed = REFERRAL_STATUS_TRANSITIONS[from] ?? [];
   if (!allowed.includes(to)) {
@@ -204,7 +234,11 @@ export function updateReferralStatus(
   actorUserId: string,
   actorRole: RoleKey,
 ) {
-  const existing = db.select().from(referrals).where(eq(referrals.id, input.id)).get();
+  const existing = db
+    .select()
+    .from(referrals)
+    .where(eq(referrals.id, input.id))
+    .get();
   if (!existing) throw new Error("ارجاع یافت نشد.");
 
   const from = existing.status as ReferralStatus;
@@ -230,7 +264,10 @@ export function updateReferralStatus(
     }
   }
 
-  if (to === REFERRAL_STATUS.RESOLVED && !(input.response || existing.response)?.trim()) {
+  if (
+    to === REFERRAL_STATUS.RESOLVED &&
+    !(input.response || existing.response)?.trim()
+  ) {
     throw new Error("برای حل ارجاع، ثبت پاسخ الزامی است.");
   }
 
@@ -238,12 +275,20 @@ export function updateReferralStatus(
   db.update(referrals)
     .set({
       status: to,
-      response: input.response !== undefined && input.response !== "" ? input.response : existing.response,
+      response:
+        input.response !== undefined && input.response !== ""
+          ? input.response
+          : existing.response,
       assignedTo:
         input.assignedTo !== undefined && input.assignedTo !== ""
           ? input.assignedTo
           : existing.assignedTo,
-      resolvedAt: to === REFERRAL_STATUS.RESOLVED ? now : to === REFERRAL_STATUS.OPEN ? null : existing.resolvedAt,
+      resolvedAt:
+        to === REFERRAL_STATUS.RESOLVED
+          ? now
+          : to === REFERRAL_STATUS.OPEN
+            ? null
+            : existing.resolvedAt,
       updatedAt: now,
     })
     .where(eq(referrals.id, input.id))

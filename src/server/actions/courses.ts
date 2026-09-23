@@ -21,7 +21,7 @@ import {
 import { createBook, createBookSchema, createReadingPlan } from "@/server/modules/books/service";
 import { saveUpload, UploadError, UPLOAD_FOLDERS } from "@/server/uploads";
 
-export type SimpleState = { error?: string; success?: string };
+export type SimpleState = { error?: string; success?: string; id?: string };
 
 async function requireClassesManager() {
   const actor = await requireUser();
@@ -49,6 +49,8 @@ async function resolveCoverFromForm(formData: FormData): Promise<
 }
 
 function revalidateCoursePaths(courseId?: string) {
+  revalidatePath("/staff/school", "layout");
+  revalidatePath("/student/school", "layout");
   revalidatePath("/admin/courses");
   revalidatePath("/staff/classes");
   revalidatePath("/student/school");
@@ -87,7 +89,7 @@ export async function createCourseAction(
     );
   }
   revalidateCoursePaths(course.id);
-  return { success: "دوره ایجاد شد." };
+  return { success: "دوره ایجاد شد.", id: course.id };
 }
 
 export async function updateCourseAction(
@@ -225,11 +227,8 @@ export async function markLessonCompleteAction(formData: FormData): Promise<void
   const user = await requireRole(ROLE_KEYS.STUDENT);
   const lessonId = String(formData.get("lessonId") ?? "");
   if (!lessonId) return;
-  const { getStudentByUserId } = await import("@/server/modules/students/service");
-  const { markLessonCompleted } = await import("@/server/modules/courses/service");
-  const student = getStudentByUserId(user.id);
-  if (!student) return;
-  markLessonCompleted(student.id, lessonId, user.id);
+  const { completeLesson } = await import("@/server/modules/school/service");
+  completeLesson(user, lessonId);
   revalidatePath("/student/school");
   revalidatePath(`/student/school/lessons/${lessonId}`);
 }

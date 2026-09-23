@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  experimental: { serverActions: { bodySizeLimit: "21mb" } },
   serverExternalPackages: ["better-sqlite3", "argon2", "pdfkit", "bidi-shaper"],
   async redirects() {
     return [

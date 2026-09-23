@@ -141,11 +141,14 @@ function mapExamRow(row: typeof exams.$inferSelect): ExamListItem {
 }
 
 export function toStudentExam(exam: ExamListItem): StudentExamItem {
-  const { correctOptionKey: _hidden, ...rest } = exam;
+  const { correctOptionKey, ...rest } = exam;
+  void correctOptionKey;
   return rest;
 }
 
-export function createExam(input: z.infer<typeof createExamSchema>): ExamListItem {
+export function createExam(
+  input: z.infer<typeof createExamSchema>,
+): ExamListItem {
   const now = nowIso();
   const id = createId("exm");
   db.insert(exams)
@@ -180,7 +183,9 @@ export type ExamBankQuestion = {
   ordering: number;
 };
 
-function mapQuestionRow(row: typeof examQuestions.$inferSelect): ExamBankQuestion {
+function mapQuestionRow(
+  row: typeof examQuestions.$inferSelect,
+): ExamBankQuestion {
   return {
     id: row.id,
     examId: row.examId,
@@ -280,7 +285,9 @@ export function ensureExamBankQuestion(
   examId: string,
   input: { prompt: string; options: ExamOption[]; correctOptionKey: string },
 ): ExamBankQuestion {
-  const existing = listExamBankQuestions(examId).find((q) => q.prompt === input.prompt);
+  const existing = listExamBankQuestions(examId).find(
+    (q) => q.prompt === input.prompt,
+  );
   if (existing && !existing.id.startsWith("legacy:")) return existing;
   return insertExamQuestion(examId, input);
 }
@@ -294,7 +301,11 @@ const mcqContentSchema = z
   .superRefine((data, ctx) => {
     const keys = data.options.map((o) => o.key);
     if (new Set(keys).size !== keys.length) {
-      ctx.addIssue({ code: "custom", message: "کلید گزینه‌ها تکراری است.", path: ["options"] });
+      ctx.addIssue({
+        code: "custom",
+        message: "کلید گزینه‌ها تکراری است.",
+        path: ["options"],
+      });
     }
     if (!keys.includes(data.correctOptionKey)) {
       ctx.addIssue({
@@ -372,11 +383,16 @@ export function getExamById(id: string): ExamListItem | undefined {
   return row ? mapExamRow(row) : undefined;
 }
 
-export function listExamsForRelated(relatedType: string, relatedId: string): ExamListItem[] {
+export function listExamsForRelated(
+  relatedType: string,
+  relatedId: string,
+): ExamListItem[] {
   return db
     .select()
     .from(exams)
-    .where(and(eq(exams.relatedType, relatedType), eq(exams.relatedId, relatedId)))
+    .where(
+      and(eq(exams.relatedType, relatedType), eq(exams.relatedId, relatedId)),
+    )
     .orderBy(desc(exams.createdAt))
     .all()
     .map(mapExamRow);
@@ -421,8 +437,7 @@ function submissionQuery() {
 
 export function getSubmissionById(id: string): ExamSubmissionItem | undefined {
   return submissionQuery().where(eq(examSubmissions.id, id)).get() as
-    | ExamSubmissionItem
-    | undefined;
+    ExamSubmissionItem | undefined;
 }
 
 export function listSubmissionsForExam(examId: string): ExamSubmissionItem[] {
@@ -432,7 +447,9 @@ export function listSubmissionsForExam(examId: string): ExamSubmissionItem[] {
     .all() as ExamSubmissionItem[];
 }
 
-export function listSubmissionsForStudent(studentId: string): ExamSubmissionItem[] {
+export function listSubmissionsForStudent(
+  studentId: string,
+): ExamSubmissionItem[] {
   return submissionQuery()
     .where(eq(examSubmissions.studentId, studentId))
     .orderBy(desc(examSubmissions.createdAt))
@@ -442,7 +459,10 @@ export function listSubmissionsForStudent(studentId: string): ExamSubmissionItem
 export function getStudentSubmission(examId: string, studentId: string) {
   return submissionQuery()
     .where(
-      and(eq(examSubmissions.examId, examId), eq(examSubmissions.studentId, studentId)),
+      and(
+        eq(examSubmissions.examId, examId),
+        eq(examSubmissions.studentId, studentId),
+      ),
     )
     .get() as ExamSubmissionItem | undefined;
 }
@@ -452,7 +472,9 @@ function optionLabel(exam: ExamListItem, key: string) {
   return opt ? `${opt.key}. ${opt.text}` : key;
 }
 
-export function submitExamAnswer(input: z.infer<typeof submitExamSchema>): ExamSubmissionItem {
+export function submitExamAnswer(
+  input: z.infer<typeof submitExamSchema>,
+): ExamSubmissionItem {
   const exam = getExamById(input.examId);
   if (!exam) throw new Error("آزمون یافت نشد.");
   if (exam.options.length === 0) {
@@ -462,15 +484,23 @@ export function submitExamAnswer(input: z.infer<typeof submitExamSchema>): ExamS
     throw new Error("گزینهٔ انتخاب‌شده معتبر نیست.");
   }
 
-  const student = db.select().from(students).where(eq(students.id, input.studentId)).get();
+  const student = db
+    .select()
+    .from(students)
+    .where(eq(students.id, input.studentId))
+    .get();
   if (!student) throw new Error("دانش‌آموز یافت نشد.");
 
   const now = nowIso();
   const answerText = optionLabel(exam, input.selectedOption);
   const isCorrect =
-    exam.correctOptionKey != null && input.selectedOption === exam.correctOptionKey;
+    exam.correctOptionKey != null &&
+    input.selectedOption === exam.correctOptionKey;
   const autoScore = exam.correctOptionKey ? (isCorrect ? 100 : 0) : null;
-  const status = autoScore != null ? EXAM_SUBMISSION_STATUS.REVIEWED : EXAM_SUBMISSION_STATUS.SUBMITTED;
+  const status =
+    autoScore != null
+      ? EXAM_SUBMISSION_STATUS.REVIEWED
+      : EXAM_SUBMISSION_STATUS.SUBMITTED;
 
   const existing = db
     .select()
@@ -484,7 +514,10 @@ export function submitExamAnswer(input: z.infer<typeof submitExamSchema>): ExamS
     .get();
 
   if (existing) {
-    if (existing.status === EXAM_SUBMISSION_STATUS.REVIEWED && existing.score != null) {
+    if (
+      existing.status === EXAM_SUBMISSION_STATUS.REVIEWED &&
+      existing.score != null
+    ) {
       throw new Error("پاسخ بازبینی‌شده قابل ویرایش نیست.");
     }
     db.update(examSubmissions)
@@ -493,7 +526,8 @@ export function submitExamAnswer(input: z.infer<typeof submitExamSchema>): ExamS
         selectedOption: input.selectedOption,
         status,
         score: autoScore,
-        feedback: autoScore != null ? (isCorrect ? "پاسخ صحیح" : "پاسخ نادرست") : null,
+        feedback:
+          autoScore != null ? (isCorrect ? "پاسخ صحیح" : "پاسخ نادرست") : null,
         reviewedBy: null,
         reviewedAt: autoScore != null ? now : null,
         submittedAt: now,
@@ -514,7 +548,8 @@ export function submitExamAnswer(input: z.infer<typeof submitExamSchema>): ExamS
       selectedOption: input.selectedOption,
       status,
       score: autoScore,
-      feedback: autoScore != null ? (isCorrect ? "پاسخ صحیح" : "پاسخ نادرست") : null,
+      feedback:
+        autoScore != null ? (isCorrect ? "پاسخ صحیح" : "پاسخ نادرست") : null,
       reviewedBy: null,
       submittedAt: now,
       reviewedAt: autoScore != null ? now : null,
@@ -525,7 +560,9 @@ export function submitExamAnswer(input: z.infer<typeof submitExamSchema>): ExamS
   return getSubmissionById(id)!;
 }
 
-export function reviewExamSubmission(input: z.infer<typeof reviewExamSchema>): ExamSubmissionItem {
+export function reviewExamSubmission(
+  input: z.infer<typeof reviewExamSchema>,
+): ExamSubmissionItem {
   const existing = db
     .select()
     .from(examSubmissions)
@@ -564,7 +601,9 @@ export function optionsFromFormData(formData: FormData): {
     const text = String(formData.get(`option${key}`) ?? "").trim();
     if (text) options.push({ key, text });
   }
-  const correctOptionKey = String(formData.get("correctOptionKey") ?? "").trim();
+  const correctOptionKey = String(
+    formData.get("correctOptionKey") ?? "",
+  ).trim();
   return { options, correctOptionKey };
 }
 
@@ -620,11 +659,14 @@ export type BookExamProgress = {
   percent: number;
 };
 
-function parseAnswersJson(raw: string | null | undefined): Record<string, string> {
+function parseAnswersJson(
+  raw: string | null | undefined,
+): Record<string, string> {
   if (!raw?.trim()) return {};
   try {
     const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      return {};
     const out: Record<string, string> = {};
     for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
       if (typeof v === "string" && v.trim()) out[k] = v;
@@ -640,7 +682,9 @@ function parseIdListJson(raw: string | null | undefined): string[] {
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((x): x is string => typeof x === "string" && x.trim().length > 0);
+    return parsed.filter(
+      (x): x is string => typeof x === "string" && x.trim().length > 0,
+    );
   } catch {
     return [];
   }
@@ -674,7 +718,9 @@ export function isExamPassed(score: number | null | undefined): boolean {
   return score != null && score >= EXAM_PASS_SCORE;
 }
 
-export function isAttemptFinished(attempt: ExamAttemptItem | undefined | null): boolean {
+export function isAttemptFinished(
+  attempt: ExamAttemptItem | undefined | null,
+): boolean {
   if (!attempt) return false;
   return (
     attempt.status === EXAM_ATTEMPT_STATUS.COMPLETED ||
@@ -775,7 +821,10 @@ export function ensureAttemptQuestionIds(
   const questionIds = bank.slice(0, prep.questionCount).map((q) => q.id);
   if (questionIds.length === 0) return attempt;
 
-  const nextIndex = Math.min(Math.max(0, attempt.currentIndex), questionIds.length - 1);
+  const nextIndex = Math.min(
+    Math.max(0, attempt.currentIndex),
+    questionIds.length - 1,
+  );
   db.update(examAttempts)
     .set({
       questionIdsJson: JSON.stringify(questionIds),
@@ -790,9 +839,13 @@ export function ensureAttemptQuestionIds(
 }
 
 /** @deprecated Prefer questionsForAttempt with attempt.questionIds */
-export function getExamQuestionsForStudent(exam: ExamListItem): ExamQuestionForStudent[] {
+export function getExamQuestionsForStudent(
+  exam: ExamListItem,
+): ExamQuestionForStudent[] {
   const bank = listExamBankQuestions(exam.id);
-  const ids = bank.slice(0, Math.min(EXAM_QUESTIONS_PER_ATTEMPT, bank.length)).map((q) => q.id);
+  const ids = bank
+    .slice(0, Math.min(EXAM_QUESTIONS_PER_ATTEMPT, bank.length))
+    .map((q) => q.id);
   return questionsForAttempt(exam.id, ids);
 }
 
@@ -817,16 +870,27 @@ export function getExamPrepInfo(examId: string): ExamPrepInfo | null {
   };
 }
 
-export function getAttempt(examId: string, studentId: string): ExamAttemptItem | undefined {
+export function getAttempt(
+  examId: string,
+  studentId: string,
+): ExamAttemptItem | undefined {
   const row = db
     .select()
     .from(examAttempts)
-    .where(and(eq(examAttempts.examId, examId), eq(examAttempts.studentId, studentId)))
+    .where(
+      and(
+        eq(examAttempts.examId, examId),
+        eq(examAttempts.studentId, studentId),
+      ),
+    )
     .get();
   return row ? mapAttemptRow(row) : undefined;
 }
 
-export function remainingMs(attempt: ExamAttemptItem, now = Date.now()): number {
+export function remainingMs(
+  attempt: ExamAttemptItem,
+  now = Date.now(),
+): number {
   return Math.max(0, new Date(attempt.expiresAt).getTime() - now);
 }
 
@@ -866,7 +930,12 @@ function syncSubmissionFromAttempt(
   const existing = db
     .select()
     .from(examSubmissions)
-    .where(and(eq(examSubmissions.examId, exam.id), eq(examSubmissions.studentId, studentId)))
+    .where(
+      and(
+        eq(examSubmissions.examId, exam.id),
+        eq(examSubmissions.studentId, studentId),
+      ),
+    )
     .get();
 
   if (existing) {
@@ -916,7 +985,12 @@ export function completeAttempt(
   const row = db
     .select()
     .from(examAttempts)
-    .where(and(eq(examAttempts.examId, examId), eq(examAttempts.studentId, studentId)))
+    .where(
+      and(
+        eq(examAttempts.examId, examId),
+        eq(examAttempts.studentId, studentId),
+      ),
+    )
     .get();
   if (!row) throw new Error("تلاشی برای این آزمون یافت نشد.");
 
@@ -932,7 +1006,9 @@ export function completeAttempt(
   const score = scoreAttemptAnswers(examId, questionIds, answers);
   const now = nowIso();
   const status =
-    reason === "expired" ? EXAM_ATTEMPT_STATUS.EXPIRED : EXAM_ATTEMPT_STATUS.COMPLETED;
+    reason === "expired"
+      ? EXAM_ATTEMPT_STATUS.EXPIRED
+      : EXAM_ATTEMPT_STATUS.COMPLETED;
   const seen = Array.from(
     new Set([...parseIdListJson(row.seenQuestionIdsJson), ...questionIds]),
   );
@@ -953,7 +1029,10 @@ export function completeAttempt(
 }
 
 /** If in progress and time is up, auto-complete as expired. */
-export function syncAttemptExpiry(examId: string, studentId: string): ExamAttemptItem | undefined {
+export function syncAttemptExpiry(
+  examId: string,
+  studentId: string,
+): ExamAttemptItem | undefined {
   const attempt = getAttempt(examId, studentId);
   if (!attempt) return undefined;
   if (attempt.status !== EXAM_ATTEMPT_STATUS.IN_PROGRESS) return attempt;
@@ -969,8 +1048,13 @@ function beginAttemptRow(input: {
   prep: ExamPrepInfo;
 }): ExamAttemptItem {
   const bank = listExamBankQuestions(input.examId);
-  const questionIds = drawQuestionIds(bank, input.seenQuestionIds, input.prep.questionCount);
-  if (questionIds.length === 0) throw new Error("بانک سوالات این آزمون خالی است.");
+  const questionIds = drawQuestionIds(
+    bank,
+    input.seenQuestionIds,
+    input.prep.questionCount,
+  );
+  if (questionIds.length === 0)
+    throw new Error("بانک سوالات این آزمون خالی است.");
 
   const now = Date.now();
   const startedAt = new Date(now).toISOString();
@@ -1031,16 +1115,26 @@ function beginAttemptRow(input: {
  * Passed attempts cannot be restarted. Failed / expired attempts may retake
  * with a fresh random draw (preferring unused bank questions).
  */
-export function startOrResumeAttempt(examId: string, studentId: string): ExamAttemptItem {
+export function startOrResumeAttempt(
+  examId: string,
+  studentId: string,
+): ExamAttemptItem {
   const prep = getExamPrepInfo(examId);
   if (!prep) throw new Error("آزمون یافت نشد.");
 
-  const student = db.select().from(students).where(eq(students.id, studentId)).get();
+  const student = db
+    .select()
+    .from(students)
+    .where(eq(students.id, studentId))
+    .get();
   if (!student) throw new Error("دانش‌آموز یافت نشد.");
 
   const existing = syncAttemptExpiry(examId, studentId);
   if (existing) {
-    if (existing.status === EXAM_ATTEMPT_STATUS.IN_PROGRESS && remainingMs(existing) > 0) {
+    if (
+      existing.status === EXAM_ATTEMPT_STATUS.IN_PROGRESS &&
+      remainingMs(existing) > 0
+    ) {
       if (existing.questionIds.length > 0) return existing;
       // legacy in-progress attempt without drawn bank → redraw
       return beginAttemptRow({
@@ -1056,7 +1150,9 @@ export function startOrResumeAttempt(examId: string, studentId: string): ExamAtt
     }
     // failed or expired without pass → retake
     if (isAttemptFinished(existing) && !isExamPassed(existing.score)) {
-      const seen = Array.from(new Set([...existing.seenQuestionIds, ...existing.questionIds]));
+      const seen = Array.from(
+        new Set([...existing.seenQuestionIds, ...existing.questionIds]),
+      );
       return beginAttemptRow({
         examId,
         studentId,
@@ -1107,7 +1203,10 @@ export function saveAttemptAnswer(input: {
     throw new Error("گزینهٔ انتخاب‌شده معتبر نیست.");
   }
 
-  const answers = { ...attempt.answers, [String(input.questionIndex)]: input.selectedOption };
+  const answers = {
+    ...attempt.answers,
+    [String(input.questionIndex)]: input.selectedOption,
+  };
   let nextIndex = attempt.currentIndex;
   if (typeof input.goToIndex === "number") {
     if (!attempt.allowBack && input.goToIndex < attempt.currentIndex) {
@@ -1145,7 +1244,8 @@ export function getBookExamProgress(
 
   let passed = 0;
   for (const exam of bookExams) {
-    const attempt = syncAttemptExpiry(exam.id, studentId) ?? getAttempt(exam.id, studentId);
+    const attempt =
+      syncAttemptExpiry(exam.id, studentId) ?? getAttempt(exam.id, studentId);
     if (isAttemptFinished(attempt) && isExamPassed(attempt?.score)) passed += 1;
   }
   return {
@@ -1154,4 +1254,3 @@ export function getBookExamProgress(
     percent: Math.round((passed / total) * 100),
   };
 }
-

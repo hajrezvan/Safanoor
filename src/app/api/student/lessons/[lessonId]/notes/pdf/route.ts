@@ -25,6 +25,8 @@ export async function GET(
       return new NextResponse("درس یافت نشد.", { status: 404 });
     }
 
+    const { lessonAccess } = await import("@/server/modules/school/service");
+    lessonAccess(student.id, lessonId);
     const note = getLessonNoteForStudent(student.id, lessonId);
     const pdf = await buildLessonNotePdf({
       lessonTitle: lesson.title,

@@ -1,7 +1,24 @@
-import { sqliteTable, text, integer, uniqueIndex, index } from "drizzle-orm/sqlite-core";
+import {
+  sqliteTable,
+  text,
+  integer,
+  uniqueIndex,
+  index,
+} from "drizzle-orm/sqlite-core";
 import { students } from "./students";
 
 export const courses = sqliteTable("courses", {
+  isStandaloneCollection: integer("is_standalone_collection", {
+    mode: "boolean",
+  })
+    .notNull()
+    .default(false),
+  isPublic: integer("is_public", { mode: "boolean" }).notNull().default(true),
+  issueCertificate: integer("issue_certificate", { mode: "boolean" })
+    .notNull()
+    .default(true),
+  parentCourseId: text("parent_course_id"),
+  isGroup: integer("is_group", { mode: "boolean" }).notNull().default(false),
   id: text("id").primaryKey(),
   title: text("title").notNull(),
   description: text("description"),
@@ -24,13 +41,17 @@ export const coursePrerequisites = sqliteTable(
   },
   (table) => [
     index("course_prerequisites_course_id_idx").on(table.courseId),
-    uniqueIndex("course_prerequisites_unique").on(table.courseId, table.prerequisiteCourseId),
+    uniqueIndex("course_prerequisites_unique").on(
+      table.courseId,
+      table.prerequisiteCourseId,
+    ),
   ],
 );
 
 export const courseChapters = sqliteTable(
   "course_chapters",
   {
+    status: text("status").notNull().default("published"),
     id: text("id").primaryKey(),
     courseId: text("course_id")
       .notNull()
@@ -45,11 +66,20 @@ export const courseChapters = sqliteTable(
 export const lessons = sqliteTable(
   "lessons",
   {
+    status: text("status").notNull().default("published"),
+    durationMinutes: integer("duration_minutes").notNull().default(0),
+    audioUrl: text("audio_url"),
+    isPreview: integer("is_preview", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    viewCount: integer("view_count").notNull().default(0),
     id: text("id").primaryKey(),
     courseId: text("course_id")
       .notNull()
       .references(() => courses.id, { onDelete: "cascade" }),
-    chapterId: text("chapter_id").references(() => courseChapters.id, { onDelete: "set null" }),
+    chapterId: text("chapter_id").references(() => courseChapters.id, {
+      onDelete: "set null",
+    }),
     title: text("title").notNull(),
     description: text("description"),
     ordering: integer("ordering").notNull(),
@@ -121,7 +151,10 @@ export const readingPlans = sqliteTable(
   (table) => [
     index("reading_plans_student_id_idx").on(table.studentId),
     index("reading_plans_book_id_idx").on(table.bookId),
-    uniqueIndex("reading_plans_student_book_unique").on(table.studentId, table.bookId),
+    uniqueIndex("reading_plans_student_book_unique").on(
+      table.studentId,
+      table.bookId,
+    ),
   ],
 );
 
@@ -143,7 +176,10 @@ export const lessonNotes = sqliteTable(
   (table) => [
     index("lesson_notes_student_id_idx").on(table.studentId),
     index("lesson_notes_lesson_id_idx").on(table.lessonId),
-    uniqueIndex("lesson_notes_student_lesson_unique").on(table.studentId, table.lessonId),
+    uniqueIndex("lesson_notes_student_lesson_unique").on(
+      table.studentId,
+      table.lessonId,
+    ),
   ],
 );
 

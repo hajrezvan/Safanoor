@@ -35,7 +35,9 @@ export function TimedExamTaker({
 }) {
   const [selected, setSelected] = useState(initialSelected ?? "");
   const selectedRef = useRef(selected);
-  selectedRef.current = selected;
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
   const [pending, startTransition] = useTransition();
   const expiresAt = useMemo(() => new Date(expiresAtIso).getTime(), [expiresAtIso]);
   const [remainingSec, setRemainingSec] = useState(() =>

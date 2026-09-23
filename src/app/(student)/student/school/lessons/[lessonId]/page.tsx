@@ -1,17 +1,28 @@
 import Link from "next/link";
+import { eq, and } from "drizzle-orm";
+import { db } from "@/db/client";
+import { schoolAttachments, schoolExams } from "@/db/schema";
+import {
+  lessonAccess,
+  publishedLessons,
+  enrollment,
+} from "@/server/modules/school/service";
+import { SchoolNav } from "@/components/school/nav";
+import { SchoolComments } from "@/components/school/comments";
+import { SchoolForm } from "@/components/school/form";
+import { Panel } from "@/components/school/shared";
+import { LessonViewTracker } from "@/components/school/lesson-view-tracker";
 import { notFound } from "next/navigation";
 import { Check, ChevronLeft } from "lucide-react";
 import { StudentShell } from "@/components/patterns/student-shell";
 import { LessonDetailTabs } from "@/components/learning/lesson-detail-tabs";
 import { LessonMedia } from "@/components/learning/lesson-media";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { EXAM_RELATED_TYPE, LESSON_CONTENT_TYPE, ROLE_KEYS } from "@/lib/enums";
 import { cn } from "@/lib/utils";
 import { requireRole } from "@/server/auth/guards";
-import { markLessonCompleteAction } from "@/server/actions/courses";
 import { submitExamAction } from "@/server/actions/exams";
 import {
-  getAdjacentLessons,
   getLessonById,
   isLessonCompletedByStudent,
 } from "@/server/modules/courses/service";
@@ -34,12 +45,29 @@ export default async function StudentLessonPage({
   const { lessonId } = await params;
   const student = getStudentByUserId(user.id);
   if (!student) notFound();
+  let metadata;
+  try {
+    metadata = lessonAccess(student.id, lessonId);
+  } catch {
+    notFound();
+  }
+  const joined = enrollment(student.id, metadata.courseId);
+  const enrolled =
+    metadata.courseId === "school_standalone" ||
+    (joined && joined.status !== "cancelled");
   const lesson = getLessonById(lessonId);
   if (!lesson) notFound();
   const done = isLessonCompletedByStudent(student.id, lessonId);
-  const { previous, next } = getAdjacentLessons(lesson.courseId, lessonId);
+  const ordered = publishedLessons(lesson.courseId).filter(
+    (l) => enrolled || l.isPreview,
+  );
+  const index = ordered.findIndex((l) => l.id === lessonId);
+  const previous = ordered[index - 1];
+  const next = ordered[index + 1];
 
-  const exams = listExamsForRelated(EXAM_RELATED_TYPE.LESSON, lessonId).map(toStudentExam);
+  const exams = listExamsForRelated(EXAM_RELATED_TYPE.LESSON, lessonId).map(
+    toStudentExam,
+  );
   const examViews = exams.map((exam) => {
     const submission = getStudentSubmission(exam.id, student.id);
     return {
@@ -75,6 +103,14 @@ export default async function StudentLessonPage({
 
   return (
     <StudentShell user={user} title={lesson.title}>
+      <LessonViewTracker lessonId={lessonId} />
+      <SchoolNav />
+      <Link
+        className="mb-4 block text-sm text-[var(--brand)]"
+        href={`/student/school/courses/${lesson.courseId}`}
+      >
+        {lesson.courseTitle} ←
+      </Link>
       <div className="space-y-3">
         <LessonMedia
           contentType={lesson.contentType}
@@ -89,6 +125,9 @@ export default async function StudentLessonPage({
           <div className="flex items-start justify-between gap-3">
             <h1 className="min-w-0 flex-1 text-base font-bold leading-7 text-[var(--foreground)] sm:text-lg sm:leading-8">
               {lesson.title}
+              <span className="ms-2 text-xs font-normal text-[var(--muted-foreground)]">
+                {metadata.viewCount.toLocaleString("fa-IR")} بازدید
+              </span>
             </h1>
             {done ? (
               <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--accent-green-soft)] px-2.5 py-1 text-xs font-medium text-[var(--accent-green)]">
@@ -97,13 +136,19 @@ export default async function StudentLessonPage({
                 </span>
                 مشاهده شد.
               </span>
+            ) : enrolled ? (
+              <SchoolForm
+                operation="complete"
+                hidden={{ lessonId }}
+                submit="تکمیل درس"
+              />
             ) : (
-              <form action={markLessonCompleteAction} className="shrink-0">
-                <input type="hidden" name="lessonId" value={lessonId} />
-                <Button type="submit" size="sm" variant="outline">
-                  تکمیل درس
-                </Button>
-              </form>
+              <Link
+                href={`/student/school/courses/${lesson.courseId}`}
+                className="text-sm text-[var(--brand)]"
+              >
+                ثبت‌نام در دوره
+              </Link>
             )}
           </div>
         </div>
@@ -118,13 +163,23 @@ export default async function StudentLessonPage({
           </Link>
         ) : null}
 
+        {metadata.audioUrl && (
+          <audio
+            controls
+            preload="metadata"
+            className="w-full"
+            src={metadata.audioUrl}
+          />
+        )}
         <LessonDetailTabs
           lessonId={lessonId}
           body={lesson.body}
           description={lesson.description}
-          filePath={showFileInTab ? lesson.filePath ?? lesson.url : null}
+          filePath={showFileInTab ? (lesson.filePath ?? lesson.url) : null}
           fileLabel={
-            lesson.contentType === LESSON_CONTENT_TYPE.PDF ? "دانلود PDF" : "دانلود فایل درس"
+            lesson.contentType === LESSON_CONTENT_TYPE.PDF
+              ? "دانلود PDF"
+              : "دانلود فایل درس"
           }
           exams={examViews}
           examsCompleted={examsCompleted}
@@ -133,6 +188,58 @@ export default async function StudentLessonPage({
           initialNoteUpdatedAt={lessonNote?.updatedAt ?? null}
         />
 
+        {db
+          .select()
+          .from(schoolAttachments)
+          .where(eq(schoolAttachments.lessonId, lessonId))
+          .all()
+          .map((a) => (
+            <a
+              key={a.id}
+              href={a.url}
+              className="block rounded-xl bg-[var(--muted)] p-3 text-sm"
+              target="_blank"
+              rel="noreferrer"
+            >
+              دانلود {a.title}
+            </a>
+          ))}
+        {enrolled && (
+          <>
+            <Panel title="آزمون‌های مدرسه">
+              {db
+                .select()
+                .from(schoolExams)
+                .where(
+                  and(
+                    eq(schoolExams.courseId, lesson.courseId),
+                    eq(schoolExams.status, "published"),
+                  ),
+                )
+                .all()
+                .filter(
+                  (e) =>
+                    e.scope === "course" ||
+                    e.scopeId === lessonId ||
+                    e.scopeId === lesson.chapterId,
+                )
+                .map((e) => (
+                  <Link
+                    key={e.id}
+                    className="block py-2 text-sm text-[var(--brand)]"
+                    href={`/student/school/exams/${e.id}`}
+                  >
+                    {e.title} ←
+                  </Link>
+                ))}
+            </Panel>
+            <SchoolComments
+              actor={user}
+              courseId={lesson.courseId}
+              lessonId={lessonId}
+            />
+          </>
+        )}
         <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
           {previous ? (
             <Link

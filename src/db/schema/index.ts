@@ -10,3 +10,4 @@ export * from "./activities";
 export * from "./knowledge";
 export * from "./ai";
 export * from "./audit";
+export * from "./school";

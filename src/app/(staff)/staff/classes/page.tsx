@@ -25,15 +25,15 @@ export default async function StaffClassesPage() {
       <PageHeader
         title="کلاس‌ها"
         description="دوره‌ها، فصل‌ها و درس‌ها"
-        actions={
-          <Link href="/admin/courses" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-            مدیریت دوره‌ها
+        actions={user.roleKey !== ROLE_KEYS.ASSISTANT_MENTOR ? (
+          <Link href="/staff/classes/new" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+            ایجاد دوره
           </Link>
-        }
+        ) : undefined}
       />
 
       {courses.length === 0 ? (
-        <EmptyState title="کلاسی نیست" description="از مسیر مدیریت دوره‌ها، دوره جدید بسازید." />
+        <EmptyState title="کلاسی نیست" description="مربی می‌تواند یک دوره جدید ایجاد کند." />
       ) : (
         <div className="space-y-3">
           {courses.map((c) => (

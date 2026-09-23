@@ -72,7 +72,7 @@ function SidebarBody({
         <p className="mb-2 px-3 text-[10px] font-bold tracking-wide text-[var(--muted-foreground)]">
           منوی اصلی
         </p>
-        {staffMainNav.map((item) => (
+        {staffMainNav.filter(item => item.href !== "/staff/school" || showMentorAi).map((item) => (
           <NavLink key={item.href} item={item} onNavigate={onNavigate} />
         ))}
       </div>

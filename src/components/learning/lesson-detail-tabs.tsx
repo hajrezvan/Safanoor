@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, type ReactNode } from "react";
+import { useActionState, useState, type ReactNode } from "react";
 import { Check, Download, FileText, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDateTimeFa } from "@/lib/date";
@@ -73,7 +73,11 @@ export function LessonDetailTabs({
   return (
     <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-sm)]">
       <div className="overflow-x-auto border-b border-[var(--border)] bg-[var(--muted)]/60">
-        <div className="flex min-w-max items-stretch" role="tablist" aria-label="بخش‌های درس">
+        <div
+          className="flex min-w-max items-stretch"
+          role="tablist"
+          aria-label="بخش‌های درس"
+        >
           {TABS.map((item) => {
             const active = tab === item.key;
             const showExamCheck = item.key === "exam" && examsCompleted;
@@ -115,10 +119,13 @@ export function LessonDetailTabs({
         {tab === "content" ? (
           <div className="space-y-4">
             <p className="text-xs leading-6 text-[var(--muted-foreground)]">
-              برای هایلایت نکات مهم، متن را انتخاب کنید. هایلایت‌ها فقط روی این دستگاه ذخیره می‌شوند.
+              برای هایلایت نکات مهم، متن را انتخاب کنید. هایلایت‌ها فقط روی این
+              دستگاه ذخیره می‌شوند.
             </p>
             {descriptionText ? (
-              <p className="text-sm leading-7 text-[var(--muted-foreground)]">{descriptionText}</p>
+              <p className="text-sm leading-7 text-[var(--muted-foreground)]">
+                {descriptionText}
+              </p>
             ) : null}
             {bodyText ? (
               <div className="text-sm leading-8 whitespace-pre-wrap text-[var(--foreground)]">
@@ -166,7 +173,9 @@ export function LessonDetailTabs({
                           {submission.score != null
                             ? `نمره ${toFaDigits(submission.score)}`
                             : "بازبینی شد"}
-                          {submission.feedback ? ` · ${submission.feedback}` : ""}
+                          {submission.feedback
+                            ? ` · ${submission.feedback}`
+                            : ""}
                         </p>
                       </div>
                     ) : exam.options.length === 0 ? (
@@ -174,7 +183,10 @@ export function LessonDetailTabs({
                         گزینه‌ای برای این آزمون تعریف نشده است.
                       </p>
                     ) : (
-                      <form action={submitExamAction} className="mt-3 space-y-2">
+                      <form
+                        action={submitExamAction}
+                        className="mt-3 space-y-2"
+                      >
                         <input type="hidden" name="examId" value={exam.id} />
                         <fieldset className="space-y-2">
                           <legend className="sr-only">گزینه‌ها</legend>
@@ -188,7 +200,9 @@ export function LessonDetailTabs({
                                 name="selectedOption"
                                 value={opt.key}
                                 required
-                                defaultChecked={submission?.selectedOption === opt.key}
+                                defaultChecked={
+                                  submission?.selectedOption === opt.key
+                                }
                                 className="mt-1"
                               />
                               <span>
@@ -253,12 +267,13 @@ function LessonNotesPanel({
   initialBody: string;
   initialUpdatedAt: string | null;
 }) {
-  const [state, action, pending] = useActionState(saveLessonNoteAction, initialNoteState);
   const [updatedAt, setUpdatedAt] = useState<string | null>(initialUpdatedAt);
-
-  useEffect(() => {
-    if (state.success) setUpdatedAt(new Date().toISOString());
-  }, [state.success]);
+  async function saveNote(previous: ActionState, formData: FormData) {
+    const next = await saveLessonNoteAction(previous, formData);
+    if (next.success) setUpdatedAt(new Date().toISOString());
+    return next;
+  }
+  const [state, action, pending] = useActionState(saveNote, initialNoteState);
 
   const pdfHref = `/api/student/lessons/${lessonId}/notes/pdf`;
 
@@ -267,7 +282,9 @@ function LessonNotesPanel({
       <input type="hidden" name="lessonId" value={lessonId} />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-[var(--foreground)]">جزوهٔ شخصی این درس</p>
+          <p className="text-sm font-semibold text-[var(--foreground)]">
+            جزوهٔ شخصی این درس
+          </p>
           <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
             {updatedAt
               ? `آخرین ذخیره: ${formatDateTimeFa(updatedAt)}`

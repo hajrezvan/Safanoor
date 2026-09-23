@@ -7,7 +7,6 @@ import {
   NOTE_VISIBILITY,
   NOTE_VISIBILITY_TITLES_FA,
   ROLE_KEYS,
-  type NoteVisibility,
   type RoleKey,
 } from "@/lib/enums";
 import { canStaffAccessStudent } from "@/server/modules/students/service";
@@ -70,7 +69,10 @@ export function canViewerSeeNoteVisibility(
   }
 
   if (visibility === NOTE_VISIBILITY.PRIVATE_STAFF) {
-    return viewerRole === ROLE_KEYS.MENTOR || viewerRole === ROLE_KEYS.ASSISTANT_MENTOR;
+    return (
+      viewerRole === ROLE_KEYS.MENTOR ||
+      viewerRole === ROLE_KEYS.ASSISTANT_MENTOR
+    );
   }
 
   if (visibility === NOTE_VISIBILITY.MENTOR_ONLY) {
@@ -86,7 +88,11 @@ export function assertCanViewNote(
   viewerRole: RoleKey,
 ) {
   if (viewerRole === ROLE_KEYS.STUDENT) {
-    const student = db.select().from(students).where(eq(students.id, note.studentId)).get();
+    const student = db
+      .select()
+      .from(students)
+      .where(eq(students.id, note.studentId))
+      .get();
     if (!student || student.userId !== viewerUserId) {
       throw new Error("دسترسی به این یادداشت مجاز نیست.");
     }
@@ -130,7 +136,13 @@ function noteQuery() {
 }
 
 export function createNote(input: z.infer<typeof createNoteSchema>) {
-  if (!db.select({ id: students.id }).from(students).where(eq(students.id, input.studentId)).get()) {
+  if (
+    !db
+      .select({ id: students.id })
+      .from(students)
+      .where(eq(students.id, input.studentId))
+      .get()
+  ) {
     throw new Error("دانش‌آموز یافت نشد.");
   }
 
@@ -152,8 +164,15 @@ export function createNote(input: z.infer<typeof createNoteSchema>) {
   return getNoteById(id)!;
 }
 
-export function updateNote(input: z.infer<typeof updateNoteSchema>, actorUserId: string) {
-  const existing = db.select().from(mentorNotes).where(eq(mentorNotes.id, input.id)).get();
+export function updateNote(
+  input: z.infer<typeof updateNoteSchema>,
+  actorUserId: string,
+) {
+  const existing = db
+    .select()
+    .from(mentorNotes)
+    .where(eq(mentorNotes.id, input.id))
+    .get();
   if (!existing) throw new Error("یادداشت یافت نشد.");
   if (existing.authorUserId !== actorUserId) {
     throw new Error("فقط نویسنده می‌تواند یادداشت را ویرایش کند.");
@@ -172,8 +191,16 @@ export function updateNote(input: z.infer<typeof updateNoteSchema>, actorUserId:
   return getNoteById(input.id)!;
 }
 
-export function deleteNote(id: string, actorUserId: string, actorRole: RoleKey) {
-  const existing = db.select().from(mentorNotes).where(eq(mentorNotes.id, id)).get();
+export function deleteNote(
+  id: string,
+  actorUserId: string,
+  actorRole: RoleKey,
+) {
+  const existing = db
+    .select()
+    .from(mentorNotes)
+    .where(eq(mentorNotes.id, id))
+    .get();
   if (!existing) throw new Error("یادداشت یافت نشد.");
   if (existing.authorUserId !== actorUserId && actorRole !== ROLE_KEYS.ADMIN) {
     throw new Error("حذف این یادداشت مجاز نیست.");
@@ -183,7 +210,8 @@ export function deleteNote(id: string, actorUserId: string, actorRole: RoleKey) 
 }
 
 export function getNoteById(id: string): MentorNoteListItem | undefined {
-  return noteQuery().where(eq(mentorNotes.id, id)).get() as MentorNoteListItem | undefined;
+  return noteQuery().where(eq(mentorNotes.id, id)).get() as
+    MentorNoteListItem | undefined;
 }
 
 export function listNotesForStudent(
@@ -214,7 +242,9 @@ export function listNotesForStaff(
   const conditions = [];
   if (studentIds) {
     conditions.push(
-      studentIds.length > 0 ? inArray(mentorNotes.studentId, studentIds) : sql`1 = 0`,
+      studentIds.length > 0
+        ? inArray(mentorNotes.studentId, studentIds)
+        : sql`1 = 0`,
     );
   }
 

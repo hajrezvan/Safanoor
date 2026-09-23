@@ -32,6 +32,8 @@ export async function saveLessonNoteAction(
   }
 
   try {
+    const { lessonAccess } = await import("@/server/modules/school/service");
+    lessonAccess(student.id, lessonId);
     upsertLessonNote(parsed.data);
   } catch (e) {
     return { error: e instanceof Error ? e.message : "خطا در ذخیره جزوه" };

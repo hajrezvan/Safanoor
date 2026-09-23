@@ -35,7 +35,7 @@ export const staffMainNav: NavItem[] = [
   { href: "/staff/forces", label: "نیروها", iconify: "mdi:account" },
   { href: "/staff/assistants", label: "کمک‌مربیان", iconify: "mdi:account-group" },
   { href: "/staff/library", label: "کتابخانه", iconify: "mdi:bookshelf" },
-  { href: "/staff/classes", label: "کلاس‌ها", iconify: "mdi:school" },
+  { href: "/staff/school", label: "مدرسه", iconify: "mdi:school" },
   { href: "/staff/announcements", label: "اطلاعیه‌ها", iconify: "mdi:bullhorn" },
 ];
 

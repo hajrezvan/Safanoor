@@ -58,7 +58,10 @@ export function getUploadRoot() {
 }
 
 export function getContentType(fileName: string) {
-  return CONTENT_TYPES[path.extname(fileName).toLowerCase()] ?? "application/octet-stream";
+  return (
+    CONTENT_TYPES[path.extname(fileName).toLowerCase()] ??
+    "application/octet-stream"
+  );
 }
 
 export class UploadError extends Error {
@@ -87,12 +90,18 @@ export async function saveUpload(
     throw new UploadError("فرمت فایل مجاز نیست.");
   }
 
-  const directory = path.join(getUploadRoot(), folder);
+  const directory = path.join(
+    /* turbopackIgnore: true */ getUploadRoot(),
+    folder,
+  );
   await fs.mkdir(directory, { recursive: true });
 
   const fileName = `${createId()}${extension}`;
   const buffer = Buffer.from(await file.arrayBuffer());
-  await fs.writeFile(path.join(directory, fileName), buffer);
+  await fs.writeFile(
+    path.join(/* turbopackIgnore: true */ directory, fileName),
+    buffer,
+  );
 
   return `${UPLOAD_PUBLIC_PREFIX}/${folder}/${fileName}`;
 }
@@ -101,9 +110,12 @@ export async function saveUpload(
 export function resolveUploadPath(segments: string[]): string | null {
   const root = getUploadRoot();
   const target = path.resolve(root, ...segments);
-  const normalizedRoot = path.resolve(root);
+  const normalizedRoot = path.resolve(/* turbopackIgnore: true */ root);
 
-  if (target !== normalizedRoot && !target.startsWith(normalizedRoot + path.sep)) {
+  if (
+    target !== normalizedRoot &&
+    !target.startsWith(normalizedRoot + path.sep)
+  ) {
     return null;
   }
   return target;

@@ -64,6 +64,11 @@ export const upsertLessonContentSchema = z.object({
 });
 
 export type CourseListItem = {
+  isStandaloneCollection: boolean;
+  isPublic: boolean;
+  issueCertificate: boolean;
+  parentCourseId: string | null;
+  isGroup: boolean;
   id: string;
   title: string;
   description: string | null;
@@ -86,6 +91,11 @@ function courseBaseQuery() {
 
   return db
     .select({
+      isStandaloneCollection: courses.isStandaloneCollection,
+      isPublic: courses.isPublic,
+      issueCertificate: courses.issueCertificate,
+      parentCourseId: courses.parentCourseId,
+      isGroup: courses.isGroup,
       id: courses.id,
       title: courses.title,
       description: courses.description,
