@@ -1,0 +1,21 @@
+{
+  "name": "safanoor",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build:shared": "tsc -p packages/shared/tsconfig.json",
+    "test:shared": "tsx --test packages/shared/src/*.spec.ts",
+    "typecheck:shared": "tsc -p packages/shared/tsconfig.json --noEmit",
+    "test:ui": "node --test ui/test/*.test.mjs",
+    "test:e2e": "playwright test",
+    "contract": "npm --prefix api run openapi && corepack yarn --cwd ui api:generate",
+    "check": "node scripts/check.mjs",
+    "test:worker": "node scripts/check-worker.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "@types/node": "^24.0.0"
+  }
+}

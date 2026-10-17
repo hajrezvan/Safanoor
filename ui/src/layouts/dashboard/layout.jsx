@@ -18,6 +18,7 @@ import { useMockedUser } from 'src/auth/hooks';
 import { NavMobile } from './nav-mobile';
 import { VerticalDivider } from './content';
 import { NavVertical } from './nav-vertical';
+import { UI_CONFIG } from '../../global-config';
 import { NavHorizontal } from './nav-horizontal';
 import { _account } from '../nav-config-account';
 import { Searchbar } from '../components/searchbar';
@@ -32,7 +33,6 @@ import { navData as dashboardNavData } from '../nav-config-dashboard';
 import { dashboardLayoutVars, dashboardNavColorVars } from './css-vars';
 import { NotificationsDrawer } from '../components/notifications-drawer';
 import { MainSection, layoutClasses, HeaderSection, LayoutSection } from '../core';
-import { UI_CONFIG } from '../../global-config';
 
 // ----------------------------------------------------------------------
 

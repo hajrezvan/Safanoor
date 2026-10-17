@@ -31,7 +31,7 @@ Members are children, teenagers and university students. Many are under 18. Priv
 - **Authentication.** Short-lived access token plus rotating refresh token (stored hashed), argon2 password hashing, behind a provider interface so an OTP provider can be added later. The web app uses httpOnly Secure cookies with CSRF protection; a future mobile app uses the same endpoints with bearer tokens. Rate limiting and lockout.
 - **The API is the contract.** It is the only way to read or write data, for the web app now and a native app later. The frontend uses a typed client generated from the OpenAPI spec (openapi-typescript or orval), regenerated in CI. If the two templates live in one monorepo, put shared Zod schemas and types in `packages/shared`; otherwise rely on the generated client only.
 - **Frontend (Next.js + MUI).** TypeScript strict, TanStack Query, React Hook Form + Zod. No business or access logic in the frontend, and none in Next.js server actions or route handlers. It renders what the API returns and shows or hides actions from capability flags returned by the API. Redaction of protected fields is always done by the backend.
-- **MUI setup.** Full RTL (emotion cache with a stylis RTL plugin, theme direction rtl, `dir=rtl` on html), Vazirmatn font, MUI X date pickers with a Jalali adapter. Only free (MIT) MUI packages, no Pro or Premium features. Build a fully custom theme (palette, shape, typography, component overrides) so it does not look like stock Material; keep design tokens in one file.
+- **MUI setup.** Full RTL (emotion cache with a stylis RTL plugin, theme direction rtl, `dir=rtl` on html), Vazirmatn font, MUI X date pickers with a Jalali adapter. Only free (MIT) MUI packages, no Pro or Premium features. Build a fully custom theme (palette, shape, typography, component overrides) so it does not look like stock Material; keep design tokens in one file. The visual rules in section 4A are mandatory.
 - **Two experiences in one frontend.** The member app: mobile-first, bottom navigation, large touch targets, friendly modern look for teenagers, installable PWA (manifest, service worker, offline shell). And `/admin`: desktop-first tables and forms for the technical manager and for mentors' management screens.
 - **Dev environment.** A Dockerfile per app and a docker-compose file (Postgres, storage emulator, backend, worker, frontend); environment-based configuration. Serve web and API under the same parent domain through a reverse proxy to keep cookies simple and avoid CORS problems.
 - **Mobile readiness.** Every endpoint must work for a native client: pagination, resumable chunked uploads, no cookie-only assumptions. A native app (likely React Native with Expo) will be built later on this same API.
@@ -43,6 +43,35 @@ Members are children, teenagers and university students. Many are under 18. Priv
 - Money is an integer in one fixed unit (configurable constant, default toman). Never floats for money.
 - Iranian national ID: validate with the standard check-digit algorithm.
 - Search normalizes Persian text (Arabic ya and kaf to Persian, half-space, diacritics, digits).
+
+## 4A. UI and visual design
+
+The interface must look very modern and professional, and every screen must convey quality and trust. Rounded corners everywhere is a hard requirement. Treat design as part of the definition of done, not polish at the end.
+
+**Design tokens (one file, the only place for colors, radii, spacing, shadows, type):**
+
+- **Radius:** cards and sheets 20 to 24 px, dialogs 24 to 28 px, buttons and inputs 14 to 16 px, chips and avatars fully round. No square corners on any surface, image, table container or button.
+- **Spacing:** 4 px base scale (4, 8, 12, 16, 24, 32, 48). Generous whitespace; one consistent page padding.
+- **Elevation:** soft, low-contrast shadows and subtle borders instead of heavy outlines; light layered surfaces.
+- **Color:** a calm, trustworthy palette with one brand color and one accent, neutral grays for surfaces and text, semantic colors for success, warning, error. Do NOT ship the default MUI blue. Meet WCAG AA contrast. Provide light and dark themes from the same tokens. The palette is a default that the owner may change by editing the tokens file.
+- **Typography:** Vazirmatn with a clear scale (display, title, body, caption), comfortable line height for Persian (about 1.7 for body), medium or semibold weights for headings, tabular figures for money and times.
+- **Icons:** one rounded icon family used consistently.
+- **Motion:** subtle 150 to 250 ms transitions, gentle press and hover feedback, skeleton loading instead of spinners where possible, and respect `prefers-reduced-motion`.
+
+**Reference feel.** The owner loves Telegram. Take inspiration from its product feel, not from its branding: instant and fluid interactions with optimistic UI updates; clean, uncluttered lists with avatars, a clear title, a one-line preview, a time and an unread badge (use this pattern for the notification feed and for timelines); soft rounded surfaces; bottom sheets and swipe gestures; smooth transitions; strong light and dark themes built around a single accent color; layouts that work with one thumb. Do NOT copy Telegram's logo, icons, colors or any other branded asset; the product must have its own identity.
+
+**Component rules**
+
+- Build a small internal component library (`ui/`) on top of MUI (Card, Button, Input, Select, Chip, Avatar, BottomSheet, Dialog, Toast, EmptyState, PageHeader, StatCard, DataTable, Tabs, Skeleton) and use only these in screens. Do not style ad hoc with scattered `sx` values or hard-coded colors, radii or spacing; add a lint rule or test that flags them.
+- **Member app (mobile-first):** bottom navigation, large touch targets (at least 44 px), card-based layouts, bottom sheets instead of full-page modals, friendly short copy, clear empty states with a short illustration or icon, and a calm celebratory feel for progress (no leaderboards). No dense tables.
+- **Admin and mentor management screens (desktop-first):** clean rounded containers, sticky table headers, readable density, filters as chips, inline validation, confirm dialogs for destructive actions.
+- Every screen needs loading, empty and error states. Every form shows validation messages inline in Persian.
+- Fully RTL: icons that imply direction are mirrored, no layout breaks, no text overflow, numbers and dates render correctly in RTL.
+- Add a `/dev/design` page (not exposed in production) that shows every `ui/` component and the full token set in light and dark mode.
+
+**Visual quality gate:** at the end of each phase, capture Playwright screenshots of the main screens at 390 px and 1440 px width (light and dark) into `docs/screens/`, check them yourself for alignment, overflow, contrast, RTL mistakes and square corners, and fix what you find before committing.
+
+---
 
 ## 5. Organization model
 
@@ -337,7 +366,7 @@ AI API calls, face recognition, the automated permit approval workflow, SMS or m
 
 ## 12. Phases
 
-1. **Foundation:** inspect and extend both templates (backend module structure, auth, OpenAPI generation, generated frontend client, MUI RTL theme and design tokens, Jalali utilities, i18n, PWA shell), Docker and CI, person, group, membership, hierarchy, `can()`, access policy and grants, audit log, consent, notifications, admin area skeleton, bulk import, seed data, policy test matrix.
+1. **Foundation:** inspect and extend both templates (backend module structure, auth, OpenAPI generation, generated frontend client, MUI RTL theme, design tokens and the `ui/` component library with the `/dev/design` page, Jalali utilities, i18n, PWA shell), Docker and CI, person, group, membership, hierarchy, `can()`, access policy and grants, audit log, consent, notifications, admin area skeleton, bulk import, seed data, policy test matrix.
 2. **Weekly schedule:** events, RSVP, attendance, conflicts, common free time, member and assistant dashboards.
 3. **Consultations and camps:** consultations with parent release; camps (permit PDF, joint camps, parent panel, participant notice, emergency card, per-day attendance).
 4. **Finance and projects:** wallets, ledger, hand-overs, settlement, reports; projects and tasks; mentor, head mentor and supervisor dashboards.
@@ -346,7 +375,7 @@ AI API calls, face recognition, the automated permit approval workflow, SMS or m
 
 ## 13. Definition of done (every phase)
 
-Typecheck, lint and tests pass; migrations apply from scratch; the seed runs; the policy matrix is updated; docs are updated; `docs/OPEN_QUESTIONS.md` lists every assumption; one commit per phase at least.
+Typecheck, lint and tests pass; migrations apply from scratch; the seed runs; the policy matrix is updated; the visual quality gate (section 4A) is done; docs are updated; `docs/OPEN_QUESTIONS.md` lists every assumption; one commit per phase at least.
 
 ## 14. Open questions
 

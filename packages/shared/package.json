@@ -1,0 +1,21 @@
+{
+  "name": "@safanoor/shared",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "3.25.76",
+    "jalaali-js": "^1.2.8"
+  },
+  "devDependencies": {
+    "@types/jalaali-js": "^1.2.0"
+  }
+}

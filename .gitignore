@@ -25,3 +25,8 @@ logs/
 # Operating system files
 .DS_Store
 Thumbs.db
+
+# 🔒 Private storage and browser artifacts
+.storage/
+test-results/
+playwright-report/

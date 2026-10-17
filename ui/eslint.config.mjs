@@ -1,4 +1,5 @@
 import globals from 'globals';
+import tseslint from 'typescript-eslint';
 import eslintJs from '@eslint/js';
 import reactPlugin from 'eslint-plugin-react';
 import importPlugin from 'eslint-plugin-import';
@@ -161,7 +162,7 @@ export const customConfig = {
     'import/resolver': {
       alias: {
         map: [['src', './src']],
-        extensions: ['.js', '.jsx', '.json'],
+        extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
       },
     },
   },
@@ -187,4 +188,12 @@ export default [
   eslintJs.configs.recommended,
   reactPlugin.configs.flat.recommended,
   customConfig,
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/api/generated/**'],
+    languageOptions: { parser: tseslint.parser },
+    plugins: { '@typescript-eslint': tseslint.plugin },
+    rules: { 'no-undef':'off', 'no-unused-vars':'off', '@typescript-eslint/no-unused-vars':['error',{argsIgnorePattern:'^_',varsIgnorePattern:'^_'}], '@typescript-eslint/no-explicit-any':'error' },
+  },
+  { ignores: ['src/api/generated/**'] },
 ];

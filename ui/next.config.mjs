@@ -1,42 +1,16 @@
-/**
- * Static Exports in Next.js
- *
- * 1. Set `isStaticExport = true` in `next.config.{mjs|ts}`.
- * 2. This allows `generateStaticParams()` to pre-render dynamic routes at build time.
- *
- * For more details, see:
- * https://nextjs.org/docs/app/building-your-application/deploying/static-exports
- *
- * NOTE: Remove all "generateStaticParams()" functions if not using static exports.
- */
-const isStaticExport = false;
-
-// ----------------------------------------------------------------------
-
+import { fileURLToPath } from 'node:url';
+const root=fileURLToPath(new URL('../',import.meta.url));
 const nextConfig = {
-  trailingSlash: true,
-  output: isStaticExport ? 'export' : undefined,
-  env: {
-    BUILD_STATIC_EXPORT: JSON.stringify(isStaticExport),
+  output: 'standalone',
+  devIndicators:false,
+  outputFileTracingRoot: root,
+  turbopack:{root},
+  transpilePackages: ['@safanoor/shared'],
+  async rewrites() {
+    return [{ source: '/api/:path*', destination: `${process.env.API_INTERNAL_URL || 'http://localhost:3001'}/api/:path*` }];
   },
-  // Without --turbopack (next dev)
-  webpack(config) {
-    config.module.rules.push({
-      test: /\.svg$/,
-      use: ['@svgr/webpack'],
-    });
-
-    return config;
-  },
-  // With --turbopack (next dev --turbopack)
-  turbopack: {
-    rules: {
-      '*.svg': {
-        loaders: ['@svgr/webpack'],
-        as: '*.js',
-      },
-    },
+  async headers() {
+    return [{ source: '/:path*', headers: [{key:'X-Content-Type-Options',value:'nosniff'}, {key:'Referrer-Policy',value:'same-origin'}, {key:'X-Frame-Options',value:'DENY'}] }];
   },
 };
-
 export default nextConfig;

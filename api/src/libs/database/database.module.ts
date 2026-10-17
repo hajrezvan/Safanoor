@@ -1,28 +1,20 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigService } from '@nestjs/config';
-import { ConfigModule } from '../config/config.module'; // relative import
+import { DataSource } from 'typeorm';
+import { databaseOptions } from './data-source';
 
+const docsOnly = process.env.OPENAPI_ONLY === 'true';
+@Global()
 @Module({
-  imports: [
-    ConfigModule, // depends on your own ConfigModule
-    TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
-        const dbConfig = configService.get('database');
-        return {
-          type: 'postgres',
-          host: dbConfig.host,
-          port: dbConfig.port,
-          username: dbConfig.username,
-          password: dbConfig.password,
-          database: dbConfig.name,
-          autoLoadEntities: dbConfig.autoLoadEntities,
-          synchronize: dbConfig.synchronize, // Comment on production
-        };
-      },
-    }),
-  ],
+  imports: docsOnly ? [] : [TypeOrmModule.forRoot(databaseOptions)],
+  providers: docsOnly
+    ? [
+        {
+          provide: DataSource,
+          useFactory: () => new DataSource(databaseOptions),
+        },
+      ]
+    : [],
+  exports: docsOnly ? [DataSource] : [TypeOrmModule],
 })
 export class DatabaseModule {}
