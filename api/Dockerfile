@@ -1,4 +1,4 @@
-FROM node:24-alpine AS build
+FROM node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f AS build
 WORKDIR /app
 COPY packages/shared/package*.json packages/shared/
 RUN npm ci --prefix packages/shared
@@ -8,7 +8,7 @@ COPY packages/shared packages/shared
 RUN api/node_modules/.bin/tsc -p packages/shared/tsconfig.json
 COPY api api
 RUN npm --prefix api run build && npm prune --omit=dev --prefix api
-FROM node:24-alpine AS runtime
+FROM node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f AS runtime
 RUN apk add --no-cache ffmpeg
 WORKDIR /app
 COPY --from=build --chown=node:node /app /app

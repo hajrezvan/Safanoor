@@ -4,6 +4,7 @@ import type { ReactNode, ChangeEventHandler } from 'react';
 import type { TextKey } from 'src/locales/fa';
 
 import Link from 'next/link';
+import { useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { formatNumber } from '@safanoor/shared';
 
@@ -605,15 +606,35 @@ export function Pagination({
     </Spread>
   );
 }
+const FileName = styled(Typography)({ minWidth: 0, overflowWrap: 'anywhere' });
 export function FileInput({ onChange }: { onChange: (file: File | null) => void }) {
   const t = useFa();
+  const input = useRef<HTMLInputElement>(null);
+  const [name, setName] = useState('');
   return (
-    <TextField
-      type="file"
-      label={t('file')}
-      slotProps={{ inputLabel: { shrink: true }, htmlInput: { accept: '.csv,.xlsx' } }}
-      onChange={(event) => onChange((event.target as HTMLInputElement).files?.[0] ?? null)}
-    />
+    <Stack>
+      <Text variant="caption">{t('file')}</Text>
+      <Row>
+        <Button variant="outlined" icon="imports" onClick={() => input.current?.click()}>
+          {t('chooseFile')}
+        </Button>
+        <FileName variant="caption" color="text.secondary">
+          {name || t('noFile')}
+        </FileName>
+      </Row>
+      <input
+        ref={input}
+        type="file"
+        accept=".csv,.xlsx"
+        hidden
+        aria-label={t('file')}
+        onChange={(event) => {
+          const file = event.target.files?.[0] ?? null;
+          setName(file?.name ?? '');
+          onChange(file);
+        }}
+      />
+    </Stack>
   );
 }
 export function ThemeSwitch() {

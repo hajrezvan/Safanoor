@@ -85,6 +85,14 @@ Compose روی http://localhost:8080: Postgres، S3Proxy خصوصی، migration�
 docker compose run --rm -e NODE_ENV=development backend node dist/seed.js
 ```
 
+برای پُر کردن حساب‌های آزمایشی جهت ارائه، پس از build تصویر backend اجرا کنید:
+
+```sh
+docker compose run --rm -e NODE_ENV=development backend node dist/seed-demo.js
+```
+
+در اجرای بدون Docker، معادل آن `npm --prefix api run seed:demo` است. این دستور را می‌توان دوباره اجرا کرد؛ ویرایش‌ها و وضعیت خواندن پیام‌ها حفظ می‌شوند. [راهنمای نقش‌ها و دادهٔ ارائه](docs/DEMO.md).
+
 برای نخستین حساب واقعی، چهار متغیر `BOOTSTRAP_ADMIN_PHONE`، `BOOTSTRAP_ADMIN_PASSWORD` (حداقل ۱۲ نویسه)، `BOOTSTRAP_ADMIN_FIRST_NAME` و `BOOTSTRAP_ADMIN_LAST_NAME` را در محیط امن تنظیم و `npm --prefix api run bootstrap` یا در container `node dist/bootstrap-admin.js` اجرا کنید. ابزار بعد از وجود اولین مدیر متوقف می‌شود. مدیر تازه در اولین ورود باید رضایت را ثبت کند. رمز واقعی را در آرگومان shell، کد یا Git قرار ندهید.
 
 برای production: TLS در reverse proxy بیرونی، APP_ORIGIN واقعی، کلیدهای مستقل و نسخه‌دار، رمزهای مستقل پایگاه داده/S3 و S3_PUBLIC_ENDPOINT قابل دسترس کاربر را تنظیم کنید. فایل‌های env در image و Git نیستند. `.gitlab-ci.yml` مراحل بررسی را برای Hamgit/GitLab تعریف می‌کند؛ اجرای pipeline به runner مخزن نیاز دارد.

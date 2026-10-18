@@ -26,7 +26,8 @@
     "openapi": "ts-node src/openapi.ts",
     "worker": "ts-node src/worker.ts",
     "worker:prod": "node dist/worker.js",
-    "bootstrap": "ts-node src/bootstrap-admin.ts"
+    "bootstrap": "ts-node src/bootstrap-admin.ts",
+    "seed:demo": "ts-node src/seed-demo.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
