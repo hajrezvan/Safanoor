@@ -12,6 +12,7 @@ import {
   Button,
   ChatCenter,
   ChatInset,
+  ChatPage,
   ChatPane,
   ChatSearchPad,
   ChatSplit,
@@ -25,7 +26,6 @@ import {
   QueryState,
   Search,
   Skeleton,
-  Stack,
   ThreadListItem,
   ThreadListScroll,
   useCompactLayout,
@@ -128,8 +128,18 @@ export function CommunicationsScreen() {
   const showList = !isMobile || !mobileChatOpen;
   const showChat = !isMobile || mobileChatOpen;
   const messageCount = messages.data?.total ?? active?.messageCount ?? 0;
+  /** Own messages (or first participant when viewing as outsider) sit on one side. */
+  const outgoingAuthorIds = useMemo(() => {
+    const items = messages.data?.items ?? [];
+    const mineAuthors = new Set(items.filter((item) => item.mine).map((item) => item.authorId));
+    if (mineAuthors.size > 0) return mineAuthors;
+    const firstParticipant = active?.participants?.[0]?.id;
+    if (firstParticipant) return new Set([firstParticipant]);
+    const firstAuthor = items[0]?.authorId;
+    return firstAuthor ? new Set([firstAuthor]) : new Set<string>();
+  }, [active?.participants, messages.data?.items]);
   return (
-    <Stack>
+    <ChatPage>
       <QueryState
         loading={threads.isLoading}
         error={threads.error}
@@ -197,7 +207,6 @@ export function CommunicationsScreen() {
                   kind={active.kind}
                   title={active.title}
                   participants={active.participants ?? []}
-                  threadId={active.id}
                   messageCount={messageCount}
                   lastActivity={
                     active.lastMessageAt
@@ -212,7 +221,6 @@ export function CommunicationsScreen() {
                       : undefined
                   }
                   backLabel={t('backToThreads')}
-                  idLabel={t('threadId')}
                   countLabel={t('messageCount')}
                   activityLabel={t('lastActivity')}
                   groupLabel={t('groupThread')}
@@ -249,7 +257,9 @@ export function CommunicationsScreen() {
                         author={message.authorName}
                         body={message.body}
                         time={formatDate(message.createdAt, true)}
-                        mine={message.mine}
+                        mine={
+                          message.mine || outgoingAuthorIds.has(message.authorId)
+                        }
                       />
                     ))}
                     <div ref={bottom} />
@@ -289,6 +299,6 @@ export function CommunicationsScreen() {
           </ChatPane>
         </ChatSplit>
       </QueryState>
-    </Stack>
+    </ChatPage>
   );
 }

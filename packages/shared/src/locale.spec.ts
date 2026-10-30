@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ageOn, formatRelativeTime, gregorianToJalali, jalaliToGregorian, latinDigits, normalizePersian, normalizePhone, validGregorianDate, validNationalId } from './locale';
+import { ageOn, formatJalaliYmd, formatRelativeTime, gregorianToJalali, jalaliToGregorian, latinDigits, normalizePersian, normalizePhone, persianDigits, validGregorianDate, validNationalId } from './locale';
 
 test('Persian normalization handles Arabic letters, digits, joiners and marks', () => {
   assert.equal(normalizePersian('  كِيان‌ ياس ۱۲٣ '), 'کیان یاس 123');
@@ -35,4 +35,10 @@ test('formatRelativeTime uses Persian auto relative units', () => {
   assert.equal(formatRelativeTime('2026-10-29T12:00:00+03:30', now), 'دیروز');
   const weekAgo = formatRelativeTime('2026-10-23T12:00:00+03:30', now);
   assert.ok(/روز|هفته/.test(weekAgo), weekAgo);
+});
+
+test('persianDigits and formatJalaliYmd use Persian numerals', () => {
+  assert.equal(persianDigits(3), '۳');
+  assert.equal(persianDigits('12'), '۱۲');
+  assert.equal(formatJalaliYmd('2024-03-20'), '۱۴۰۳/۰۱/۰۱');
 });

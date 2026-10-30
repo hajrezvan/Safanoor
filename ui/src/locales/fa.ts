@@ -78,6 +78,7 @@ export const fa = {
   classesEmptyHint: 'وقتی مربی کلاس ضبط‌شده را منتشر کند، اینجا می‌بینی.',
   classSpeaker: 'سخنران: {{name}}',
   classHeldAt: 'برگزارشده در {{date}}',
+  classHeldStatus: 'برگزار شده',
   classSummary: 'خلاصهٔ کلاس',
   classAudio: 'پخش صوت کلاس',
   classAudioMissing: 'صوت این کلاس هنوز بارگذاری نشده است.',

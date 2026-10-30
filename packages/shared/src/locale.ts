@@ -7,6 +7,11 @@ export function latinDigits(value: string): string {
   return value.replace(/[۰-۹٠-٩]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.includes(digit) ? '۰۱۲۳۴۵۶۷۸۹'.indexOf(digit) : '٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
 }
 
+/** Map ASCII digits to Persian digits (۰–۹). */
+export function persianDigits(value: string | number): string {
+  return String(value).replace(/\d/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]!);
+}
+
 export function normalizePersian(value: string): string {
   return latinDigits(value).normalize('NFKC').replace(/ي|ى/g, 'ی').replace(/ك/g, 'ک').replace(/[\u064B-\u065F\u0670\u0640]/g, '').replace(/[\u200c\u200d]/g, ' ').replace(/\s+/g, ' ').trim().toLocaleLowerCase('fa-IR');
 }
@@ -62,6 +67,20 @@ export function calendarDate(value: Date): string {
 
 export function formatDate(value: string, includeTime = false): string {
   return new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', month: 'long', day: 'numeric', ...(includeTime ? { hour: '2-digit', minute: '2-digit' } as const : {}), timeZone: 'Asia/Tehran' }).format(new Date(value));
+}
+
+/** Jalali calendar date as `yyyy/mm/dd` with Persian digits (Tehran). */
+export function formatJalaliYmd(value: string): string {
+  const raw = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00` : value;
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return '';
+  const ymd = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tehran',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+  return persianDigits(gregorianToJalali(ymd));
 }
 
 function jalaliDayMonth(value: string): string {

@@ -2180,11 +2180,22 @@ export function FeedItem({
     </FeedButton>
   );
 }
+/** Full-height chat shell: fills the main column under the app header. */
+export const ChatPage = styled('div')(({ theme }) => ({
+  display: 'flex',
+  flexDirection: 'column',
+  minHeight: 0,
+  height: `calc(100dvh - 72px - ${tokens.space.page * 2}px)`,
+  [theme.breakpoints.down('sm')]: {
+    height: `calc(100dvh - 72px - ${tokens.space.lg * 2}px - ${tokens.space.huge * 2}px)`,
+  },
+}));
 export const ChatSplit = styled('div')(({ theme }) => ({
   display: 'grid',
   gridTemplateColumns: 'minmax(280px, 340px) minmax(0, 1fr)',
-  minHeight: 'min(78dvh, 720px)',
-  height: 'min(78dvh, 720px)',
+  flex: 1,
+  minHeight: 0,
+  height: '100%',
   borderRadius: tokens.radius.card,
   border: `1px solid ${theme.palette.divider}`,
   background: theme.palette.background.paper,
@@ -2192,7 +2203,6 @@ export const ChatSplit = styled('div')(({ theme }) => ({
   overflow: 'hidden',
   [theme.breakpoints.down('md')]: {
     gridTemplateColumns: '1fr',
-    height: 'min(78dvh, 720px)',
   },
 }));
 export const ChatPane = styled('div')<{ hidden?: boolean }>(({ theme, hidden }) => ({
@@ -2378,16 +2388,27 @@ const ChatHeaderMeta = styled('div')(({ theme }) => ({
   fontSize: tokens.type.caption,
   lineHeight: tokens.type.line,
 }));
+const ChatHeaderMetaItem = styled('span')(({ theme }) => ({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: tokens.space.xs,
+  color: theme.palette.text.secondary,
+  '& .iconify': { flexShrink: 0, opacity: 0.85 },
+}));
+const ChatHeaderMetaSep = styled('span')(({ theme }) => ({
+  display: 'inline-flex',
+  alignItems: 'center',
+  color: theme.palette.divider,
+  lineHeight: 0,
+}));
 export function ChatThreadHeader({
   kind,
   title,
   participants,
-  threadId,
   messageCount,
   lastActivity,
   onBack,
   backLabel,
-  idLabel,
   countLabel,
   activityLabel,
   groupLabel,
@@ -2396,26 +2417,23 @@ export function ChatThreadHeader({
   kind: 'group' | 'direct';
   title: string;
   participants: { id: string; name: string; phone?: string | null }[];
-  threadId: string;
   messageCount: number;
   lastActivity?: string | null;
   onBack?: () => void;
   backLabel?: string;
-  idLabel: string;
   countLabel: string;
   activityLabel: string;
   groupLabel: string;
   directLabel: string;
 }) {
-  const shortId = threadId.replace(/-/g, '').slice(-6);
   const people =
     kind === 'group'
-      ? [{ id: 'group', name: title, phone: null as string | null }]
+      ? [{ id: 'group', name: title }]
       : participants.length >= 2
         ? participants.slice(0, 2)
         : participants.length > 0
           ? [participants[0]!]
-          : [{ id: 'group', name: title, phone: null as string | null }];
+          : [{ id: 'group', name: title }];
   return (
     <ChatHeaderRoot>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: tokens.space.sm }}>
@@ -2442,21 +2460,9 @@ export function ChatThreadHeader({
                     <Typography variant="subtitle1" fontWeight={650} noWrap lineHeight={1.4}>
                       {person.name}
                     </Typography>
-                    {person.phone ? (
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        dir="ltr"
-                        display="block"
-                        sx={{ direction: 'ltr', unicodeBidi: 'isolate' }}
-                      >
-                        {person.phone}
-                      </Typography>
-                    ) : (
-                      <Typography variant="caption" color="text.secondary">
-                        {kind === 'group' ? groupLabel : directLabel}
-                      </Typography>
-                    )}
+                    <Typography variant="caption" color="text.secondary">
+                      {kind === 'group' ? groupLabel : directLabel}
+                    </Typography>
                   </Box>
                 </ChatHeaderPerson>
               </Box>
@@ -2465,20 +2471,21 @@ export function ChatThreadHeader({
         </Box>
       </Box>
       <ChatHeaderMeta>
-        <span>
-          {idLabel}:{' '}
-          <Box component="span" dir="ltr" sx={{ direction: 'ltr', unicodeBidi: 'isolate' }}>
-            {shortId}
-          </Box>
-        </span>
-        <span>
+        <ChatHeaderMetaItem>
+          <Iconify icon="solar:chat-round-line-bold" width={16} height={16} className="" sx={{}} />
           {countLabel}: {formatNumber(messageCount)}
-        </span>
-        {lastActivity && (
-          <span>
-            {activityLabel}: {lastActivity}
-          </span>
-        )}
+        </ChatHeaderMetaItem>
+        {lastActivity ? (
+          <>
+            <ChatHeaderMetaSep aria-hidden>
+              <Iconify icon="solar:alt-arrow-left-linear" width={14} height={14} className="" sx={{}} />
+            </ChatHeaderMetaSep>
+            <ChatHeaderMetaItem>
+              <Iconify icon="solar:clock-circle-bold" width={16} height={16} className="" sx={{}} />
+              {activityLabel}: {lastActivity}
+            </ChatHeaderMetaItem>
+          </>
+        ) : null}
       </ChatHeaderMeta>
     </ChatHeaderRoot>
   );
@@ -2494,11 +2501,11 @@ export const MessageList = styled('div')({
 });
 const BubbleRow = styled('div')<{ mine?: boolean }>(({ mine }) => ({
   display: 'flex',
-  flexDirection: mine ? 'row-reverse' : 'row',
+  width: '100%',
+  justifyContent: mine ? 'flex-end' : 'flex-start',
   alignItems: 'flex-start',
   gap: tokens.space.sm,
-  alignSelf: mine ? 'flex-end' : 'flex-start',
-  maxWidth: 'min(100%, 560px)',
+  flexDirection: mine ? 'row-reverse' : 'row',
 }));
 const BubbleColumn = styled('div')<{ mine?: boolean }>(({ mine }) => ({
   display: 'flex',
@@ -2506,6 +2513,7 @@ const BubbleColumn = styled('div')<{ mine?: boolean }>(({ mine }) => ({
   gap: tokens.space.xs,
   alignItems: mine ? 'flex-end' : 'flex-start',
   minWidth: 0,
+  maxWidth: 'min(78%, 420px)',
 }));
 const Bubble = styled('div')<{ mine?: boolean }>(({ theme, mine }) => ({
   maxWidth: '100%',
@@ -2515,8 +2523,13 @@ const Bubble = styled('div')<{ mine?: boolean }>(({ theme, mine }) => ({
     ? theme.palette.mode === 'light'
       ? tokens.palette.light.elevated
       : tokens.palette.dark.elevated
-    : theme.palette.action.hover,
+    : theme.palette.mode === 'light'
+      ? theme.palette.grey[100]
+      : theme.palette.grey[800],
   color: theme.palette.text.primary,
+  border: `1px solid ${
+    mine ? theme.palette.primary.light : theme.palette.divider
+  }`,
   display: 'flex',
   flexDirection: 'column',
   gap: tokens.space.xs,

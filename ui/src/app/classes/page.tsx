@@ -4,7 +4,7 @@ import type { components } from 'src/api/generated/schema';
 
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { formatDate } from '@safanoor/shared';
+import { formatJalaliYmd, formatNumber } from '@safanoor/shared';
 
 import { api, client, unwrap } from 'src/api/client';
 import { Session, useSession } from 'src/features/session';
@@ -28,6 +28,7 @@ import {
   Notice,
   PageHeader,
   QueryState,
+  Row,
   Stack,
   Text,
 } from 'src/components/ui';
@@ -75,10 +76,13 @@ function SessionPlayer({ session }: { session: ClassSession }) {
       {session.speaker ? (
         <Text muted>{t('classSpeaker', { name: session.speaker })}</Text>
       ) : null}
-      <Chip>
-        {t('classSessionLabel', { n: session.sessionNumber })} ·{' '}
-        {t('classHeldAt', { date: formatDate(session.heldAt) })}
-      </Chip>
+      <Row>
+        <Chip>
+          {t('classSessionLabel', { n: formatNumber(session.sessionNumber) })}
+        </Chip>
+        <Chip tone="success">{t('classHeldStatus')}</Chip>
+        <Chip>{formatJalaliYmd(session.heldAt)}</Chip>
+      </Row>
       <Text variant="subtitle">{t('classSummary')}</Text>
       {session.summary ? (
         <Text>{session.summary}</Text>
@@ -128,7 +132,7 @@ function ClassDetail({
         title={data?.title ?? t('classes')}
         hint={
           data
-            ? t('classSessionCount', { count: data.sessionCount })
+            ? t('classSessionCount', { count: formatNumber(data.sessionCount) })
             : undefined
         }
         action={
@@ -161,7 +165,9 @@ function ClassDetail({
                     onClick={() => setSessionId(session.id)}
                   >
                     <Text variant="caption">
-                      {t('classSessionLabel', { n: session.sessionNumber })}
+                      {t('classSessionLabel', {
+                        n: formatNumber(session.sessionNumber),
+                      })}
                     </Text>
                     <Text variant="subtitle">{session.title}</Text>
                     {session.speaker ? (
@@ -242,13 +248,20 @@ function ClassesList({
                     </Text>
                   ) : null}
                   <CoverCardAction>
-                    <Chip>
-                      {item.sessionCount > 1
-                        ? t('classSessionCount', { count: item.sessionCount })
-                        : t('classHeldAt', {
-                            date: formatDate(item.heldAt),
+                    <Row>
+                      {item.sessionCount > 1 ? (
+                        <Chip>
+                          {t('classSessionCount', {
+                            count: formatNumber(item.sessionCount),
                           })}
-                    </Chip>
+                        </Chip>
+                      ) : (
+                        <>
+                          <Chip tone="success">{t('classHeldStatus')}</Chip>
+                          <Chip>{formatJalaliYmd(item.heldAt)}</Chip>
+                        </>
+                      )}
+                    </Row>
                     <Button
                       variant="outlined"
                       onClick={() => onOpen(item.id)}
