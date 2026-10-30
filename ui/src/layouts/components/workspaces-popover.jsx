@@ -117,7 +117,9 @@ export function WorkspacesPopover({ data = [], sx, ...other }) {
               onClick={() => handleChangeWorkspace(option)}
               sx={{ height: 48 }}
             >
-              <Avatar alt={option.name} src={option.logo} sx={{ width: 24, height: 24 }} />
+              <Avatar alt={option.name} src={option.logo} sx={{ width: 24, height: 24 }}>
+                <Iconify icon="solar:user-rounded-bold" width={14} />
+              </Avatar>
 
               <Typography
                 noWrap

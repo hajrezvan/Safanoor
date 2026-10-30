@@ -3,6 +3,7 @@ import { m } from 'framer-motion';
 import Avatar from '@mui/material/Avatar';
 import IconButton from '@mui/material/IconButton';
 
+import { Iconify } from 'src/components/iconify';
 import { varTap, varHover, AnimateBorder, transitionTap } from 'src/components/animate';
 
 // ----------------------------------------------------------------------
@@ -26,7 +27,7 @@ export function AccountButton({ photoURL, displayName, sx, ...other }) {
         }}
       >
         <Avatar src={photoURL} alt={displayName} sx={{ width: 1, height: 1 }}>
-          {displayName?.charAt(0).toUpperCase()}
+          <Iconify icon="solar:user-rounded-bold" width={22} />
         </Avatar>
       </AnimateBorder>
     </IconButton>

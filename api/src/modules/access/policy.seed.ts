@@ -23,6 +23,9 @@ export function foundationPolicies(): PolicyRow[] {
   allow('group', 'update', ['groupMentor', 'admin']);
   allow('membership', 'assign', ['groupMentor', 'admin']);
   allow('assignment', 'assign', ['groupMentor', 'admin']);
+  allow('assistant_invite', 'create', ['groupMentor']);
+  allow('assistant_invite', 'read', ['groupMentor', 'self']);
+  allow('assistant_invite', 'update', ['self']);
   allow('policy', 'read', ['admin']);
   allow('audit', 'read', ['admin']);
   allow('admin', 'read', ['admin', 'groupMentor']);
@@ -40,6 +43,14 @@ export function foundationPolicies(): PolicyRow[] {
   allow('import', 'update', ['self']);
   allow('person_file', 'read', ['mentor', 'grant']);
   allow('confidential_note', 'read', ['self', 'mentor', 'grant']);
+  allow('consultation', 'read', [
+    'attendee',
+    'self',
+    'groupMentor',
+    'followingAssistant',
+  ]);
+  allow('consultation', 'create', ['groupMentor', 'otherAssistant']);
+  allow('consultation', 'update', ['self', 'groupMentor']);
   allow('consultation_summary', 'read', [
     'self',
     'mentor',
@@ -54,6 +65,8 @@ export function foundationPolicies(): PolicyRow[] {
     'assistant',
   );
   allow('consultation_private_note', 'read', ['self'], 'detail', 'mentor');
+  allow('consultation_private_note', 'create', ['self']);
+  allow('consultation_private_note', 'update', ['self']);
   allow('schedule', 'read', [
     'self',
     'mentor',
@@ -70,6 +83,9 @@ export function foundationPolicies(): PolicyRow[] {
     'summary',
   );
   allow('meeting', 'read', ['attendee', 'attendeeAncestor']);
+  allow('meeting', 'create', ['groupMentor']);
+  allow('meeting', 'update', ['groupMentor']);
+  allow('photo', 'create', ['hostMentor']);
   allow('photo', 'read', [
     'sameGroup',
     'groupMentor',
@@ -77,6 +93,8 @@ export function foundationPolicies(): PolicyRow[] {
     'supervisor',
   ]);
   allow('photo', 'update', ['hostMentor']);
+  allow('location_option', 'read', ['organization', 'admin']);
+  allow('location_option', 'create', ['groupMentor', 'admin']);
   allow('fund', 'read', ['groupMentor', 'financeOfficer']);
   allow('transparency', 'read', ['organization'], 'summary');
   allow('parent_camp', 'read', ['self', 'parent', 'mentor'], 'summary');
@@ -87,5 +105,20 @@ export function foundationPolicies(): PolicyRow[] {
   ]);
   allow('project_report', 'read', ['self']);
   allow('project_feedback', 'read', ['self', 'authorizedFollower']);
+  allow('chat_thread', 'read', ['attendee', 'groupMentor']);
+  allow('chat_thread', 'create', ['attendee', 'groupMentor']);
+  allow('study_path', 'read', ['sameGroup', 'groupMentor']);
+  allow('study_path', 'create', ['groupMentor']);
+  allow('study_path', 'update', ['groupMentor']);
+  allow('study_path', 'manage', ['groupMentor']);
+  allow('program_event', 'read', ['groupMentor', 'financeOfficer']);
+  allow('program_event', 'create', ['groupMentor']);
+  allow('program_event', 'update', ['groupMentor']);
+  allow('program_event', 'manage', ['groupMentor']);
+  allow('camp', 'read', ['sameGroup', 'groupMentor']);
+  allow('camp', 'create', ['groupMentor']);
+  allow('camp', 'update', ['groupMentor']);
+  allow('camp', 'manage', ['groupMentor']);
+  allow('dashboard', 'read', ['groupMentor', 'admin']);
   return policies;
 }

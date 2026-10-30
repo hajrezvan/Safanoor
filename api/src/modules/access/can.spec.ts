@@ -45,6 +45,7 @@ const matrix: Record<string, { action: Action; expected: string }> = {
   group: { action: 'read', expected: 'D D D D N D D N N D' },
   membership: { action: 'assign', expected: 'N N N D N N N N N D' },
   assignment: { action: 'assign', expected: 'N N N D N N N N N D' },
+  assistant_invite: { action: 'create', expected: 'N N N D N N N N N N' },
   policy: { action: 'read', expected: 'N N N N N N N N N D' },
   grant: { action: 'read', expected: 'D N N D N N N N N N' },
   audit: { action: 'read', expected: 'N N N N N N N N N D' },
@@ -54,6 +55,7 @@ const matrix: Record<string, { action: Action; expected: string }> = {
   admin: { action: 'read', expected: 'N N N D N N N N N D' },
   person_file: { action: 'read', expected: 'N N N D N N N N N N' },
   confidential_note: { action: 'read', expected: 'D N N D N N N N N N' },
+  consultation: { action: 'read', expected: 'D D N D N N N N N N' },
   consultation_summary: { action: 'read', expected: 'D D N D N N N N N N' },
   consultation_private_note: {
     action: 'read',
@@ -63,12 +65,18 @@ const matrix: Record<string, { action: Action; expected: string }> = {
   private_schedule: { action: 'read', expected: 'D S N D N S S N N N' },
   meeting: { action: 'read', expected: 'N N N N N N N N N N' },
   photo: { action: 'read', expected: 'D D D D N D D N N N' },
+  location_option: { action: 'read', expected: 'D D D D D D D N D D' },
   fund: { action: 'read', expected: 'N N N D N N N N N N' },
   transparency: { action: 'read', expected: 'S S S S S S S N S N' },
   parent_camp: { action: 'read', expected: 'S N N S N N N S N N' },
   emergency: { action: 'emergency', expected: 'N D N D N N N N N N' },
   project_report: { action: 'read', expected: 'D N N N N N N N N N' },
   project_feedback: { action: 'read', expected: 'D D N N N N N N N N' },
+  chat_thread: { action: 'read', expected: 'N N N D N N N N N N' },
+  study_path: { action: 'read', expected: 'D D D D N N N N N N' },
+  program_event: { action: 'read', expected: 'N N N D N N N N N N' },
+  camp: { action: 'read', expected: 'D D D D N N N N N N' },
+  dashboard: { action: 'read', expected: 'N N N D N N N N N D' },
 };
 const actor: Actor = {
   userId: 'user',
@@ -145,6 +153,66 @@ describe('explicit organization policy matrix', () => {
         ),
       ).toBe(column === 'self' ? 'detail' : 'none');
   });
+  it('only the private-note author can create or update; mentors cannot write an assistant note', () => {
+    for (const action of ['create', 'update'] as const) {
+      expect(
+        can(
+          actor,
+          action,
+          { type: 'consultation_private_note', ownerRole: 'assistant' },
+          { policies, relations: { ...emptyRelations, self: true } },
+        ),
+      ).toBe('detail');
+      expect(
+        can(
+          actor,
+          action,
+          { type: 'consultation_private_note', ownerRole: 'assistant' },
+          { policies, relations: { ...emptyRelations, mentor: true } },
+        ),
+      ).toBe('none');
+      expect(
+        can(
+          actor,
+          action,
+          { type: 'consultation_private_note', ownerRole: 'mentor' },
+          {
+            policies,
+            relations: { ...emptyRelations, groupMentor: true },
+          },
+        ),
+      ).toBe('none');
+    }
+  });
+  it('assistant private notes are readable by the assistant and their mentor only', () => {
+    expect(
+      can(
+        actor,
+        'read',
+        { type: 'consultation_private_note', ownerRole: 'assistant' },
+        { policies, relations: { ...emptyRelations, self: true } },
+      ),
+    ).toBe('detail');
+    expect(
+      can(
+        actor,
+        'read',
+        { type: 'consultation_private_note', ownerRole: 'assistant' },
+        { policies, relations: { ...emptyRelations, mentor: true } },
+      ),
+    ).toBe('detail');
+    expect(
+      can(
+        actor,
+        'read',
+        { type: 'consultation_private_note', ownerRole: 'assistant' },
+        {
+          policies,
+          relations: { ...emptyRelations, headMentor: true, ancestor: true },
+        },
+      ),
+    ).toBe('none');
+  });
   it('head mentor sees assistant private-block details, while supervisor gets busy summary', () => {
     expect(
       can(
@@ -173,6 +241,124 @@ describe('explicit organization policy matrix', () => {
           { policies, relations: { ...emptyRelations, [relation]: true } },
         ),
       ).toBe('detail');
+  });
+  it('only the host group mentor creates or updates meetings', () => {
+    for (const action of ['create', 'update'] as const) {
+      expect(
+        can(
+          actor,
+          action,
+          { type: 'meeting' },
+          { policies, relations: { ...emptyRelations, groupMentor: true } },
+        ),
+      ).toBe('detail');
+      expect(
+        can(
+          actor,
+          action,
+          { type: 'meeting' },
+          { policies, relations: { ...emptyRelations, attendee: true } },
+        ),
+      ).toBe('none');
+    }
+  });
+  it('consultation attendees and following assistants can read shared consultation records', () => {
+    for (const relation of ['attendee', 'followingAssistant'] as const)
+      expect(
+        can(
+          actor,
+          'read',
+          { type: 'consultation' },
+          { policies, relations: { ...emptyRelations, [relation]: true } },
+        ),
+      ).toBe('detail');
+    expect(
+      can(
+        actor,
+        'read',
+        { type: 'consultation' },
+        { policies, relations: { ...emptyRelations, attendeeAncestor: true } },
+      ),
+    ).toBe('none');
+  });
+  it('mentor or group assistant can create consultations; only author or mentor updates', () => {
+    expect(
+      can(
+        actor,
+        'create',
+        { type: 'consultation' },
+        { policies, relations: { ...emptyRelations, groupMentor: true } },
+      ),
+    ).toBe('detail');
+    expect(
+      can(
+        actor,
+        'create',
+        { type: 'consultation' },
+        { policies, relations: { ...emptyRelations, otherAssistant: true } },
+      ),
+    ).toBe('detail');
+    expect(
+      can(
+        actor,
+        'create',
+        { type: 'consultation' },
+        { policies, relations: { ...emptyRelations, attendee: true } },
+      ),
+    ).toBe('none');
+    expect(
+      can(
+        actor,
+        'update',
+        { type: 'consultation' },
+        { policies, relations: { ...emptyRelations, self: true } },
+      ),
+    ).toBe('detail');
+    expect(
+      can(
+        actor,
+        'update',
+        { type: 'consultation' },
+        { policies, relations: { ...emptyRelations, groupMentor: true } },
+      ),
+    ).toBe('detail');
+    expect(
+      can(
+        actor,
+        'update',
+        { type: 'consultation' },
+        {
+          policies,
+          relations: { ...emptyRelations, otherAssistant: true },
+        },
+      ),
+    ).toBe('none');
+  });
+  it('chat participants and group mentors can read and post; others cannot', () => {
+    expect(
+      can(
+        actor,
+        'read',
+        { type: 'chat_thread' },
+        { policies, relations: { ...emptyRelations, attendee: true } },
+      ),
+    ).toBe('detail');
+    expect(
+      can(
+        actor,
+        'create',
+        { type: 'chat_thread' },
+        { policies, relations: { ...emptyRelations, groupMentor: true } },
+      ),
+    ).toBe('detail');
+    expect(
+      can(
+        actor,
+        'read',
+        { type: 'chat_thread' },
+        { policies, relations: { ...emptyRelations, sameGroup: true } },
+      ),
+    ).toBe('none');
   });
   it('only camp-day participants can be opened by camp lead', () => {
     expect(
@@ -215,6 +401,111 @@ describe('explicit organization policy matrix', () => {
         { policies, relations: { ...emptyRelations, financeOfficer: true } },
       ),
     ).toBe('detail');
+  });
+  it('only the group mentor can create or manage study paths', () => {
+    for (const action of ['create', 'update', 'manage'] as const) {
+      expect(
+        can(
+          actor,
+          action,
+          { type: 'study_path' },
+          { policies, relations: { ...emptyRelations, groupMentor: true } },
+        ),
+      ).toBe('detail');
+      expect(
+        can(
+          actor,
+          action,
+          { type: 'study_path' },
+          { policies, relations: { ...emptyRelations, sameGroup: true } },
+        ),
+      ).toBe('none');
+    }
+  });
+  it('only the host mentor can upload or retag album photos; group members can read', () => {
+    expect(
+      can(
+        actor,
+        'create',
+        { type: 'photo' },
+        { policies, relations: { ...emptyRelations, hostMentor: true } },
+      ),
+    ).toBe('detail');
+    expect(
+      can(
+        actor,
+        'create',
+        { type: 'photo' },
+        { policies, relations: { ...emptyRelations, sameGroup: true } },
+      ),
+    ).toBe('none');
+    expect(
+      can(
+        actor,
+        'update',
+        { type: 'photo' },
+        { policies, relations: { ...emptyRelations, hostMentor: true } },
+      ),
+    ).toBe('detail');
+    expect(
+      can(
+        actor,
+        'read',
+        { type: 'photo' },
+        { policies, relations: { ...emptyRelations, sameGroup: true } },
+      ),
+    ).toBe('detail');
+  });
+  it('only the group mentor can create or manage camps', () => {
+    for (const action of ['create', 'update', 'manage'] as const) {
+      expect(
+        can(
+          actor,
+          action,
+          { type: 'camp' },
+          { policies, relations: { ...emptyRelations, groupMentor: true } },
+        ),
+      ).toBe('detail');
+      expect(
+        can(
+          actor,
+          action,
+          { type: 'camp' },
+          { policies, relations: { ...emptyRelations, sameGroup: true } },
+        ),
+      ).toBe('none');
+    }
+  });
+  it('only the group mentor manages program finance; finance officer may read', () => {
+    expect(
+      can(
+        actor,
+        'read',
+        { type: 'program_event' },
+        { policies, relations: { ...emptyRelations, financeOfficer: true } },
+      ),
+    ).toBe('detail');
+    for (const action of ['create', 'update', 'manage'] as const) {
+      expect(
+        can(
+          actor,
+          action,
+          { type: 'program_event' },
+          { policies, relations: { ...emptyRelations, groupMentor: true } },
+        ),
+      ).toBe('detail');
+      expect(
+        can(
+          actor,
+          action,
+          { type: 'program_event' },
+          {
+            policies,
+            relations: { ...emptyRelations, financeOfficer: true },
+          },
+        ),
+      ).toBe('none');
+    }
   });
   it('revoked grants and expired parent relationships cannot authorize confidential access', () => {
     const resource: Resource = { type: 'consultation_summary', id: 'summary' };

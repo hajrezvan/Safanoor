@@ -12,9 +12,13 @@
 
 نمونه‌های آیندهٔ خواسته‌شده در seed (اردوی مشترک، بلوک خصوصی، مشاوره و دفتر صندوق) فعلاً یک fixture مصنوعی رمز‌شده در `seed_scenario` هستند، با RLS و بدون endpoint. این انتخاب از پیاده‌سازی زودهنگام فازهای بعد جلوگیری می‌کند. ماتریس `can()` سیاست این منابع را از همین حالا می‌آزماید؛ این fixture جای جدول‌های واقعی مراحل بعد را نمی‌گیرد.
 
+مشاورهٔ MVP: جداول `consultation`، `consultation_member` و `consultation_private_note`؛ ماژول `/api/v1/consultations` و صفحهٔ `/consultations` (کارت‌های فشرده سه‌ستونه، جستجو، انتخاب چندنیرویی با جستجو). نوع حضوری/تلفنی، مدت دقیقه، مکان فقط برای حضوری اجباری، خلاصهٔ مشترک اختیاری. یادداشت خصوصی فقط از `/consultations/:id/private-note`. انتشار خلاصه به والد هنوز نیست.
+
 ## پایگاه داده و مرزبندی
 
-PostgreSQL 17 و migrationهای TypeORM از صفر؛ بدون synchronize. جداول اصلی: person، app_user، auth_session، organization_group، membership، person_ancestors، follow_up_assignment، group_role، access_policy، resource_registry، access_grant، audit_log، emergency_access_log، parent_link، consent_form_version، consent_record، notification و delivery، import_job و import_row، retention_policy، file_record و seed_scenario.
+PostgreSQL 17 و migrationهای TypeORM از صفر؛ بدون synchronize. جداول اصلی: person، app_user، auth_session، organization_group، membership، person_ancestors، follow_up_assignment، group_role، assistant_invite، study_path، study_path_item، program_event، cost_item، access_policy، resource_registry، access_grant، audit_log، emergency_access_log، parent_link، consent_form_version، consent_record، notification و delivery، import_job و import_row، retention_policy، file_record، seed_scenario، و مراودات: chat_thread، chat_thread_participant، chat_message.
+
+مالی MVP مربی: `program_event` مقصد هزینه با `kind` اردو|سفارشی؛ اردو از ماژول `camp` انتخاب و با `camp_id` پیوند می‌شود؛ فیلدهای صحیح تومان `total_amount` و `member_payment_amount` روی مقصد. `cost_item` با `owner_type=program_event` برای جزئیات اختیاری (جمع خط‌ها جایگزین مبلغ کل مقصد نمی‌شود). endpointها تحت `/api/v1/groups/:id/finance/...` و `/api/v1/finance/destinations/...`؛ صفحهٔ `/finance`.
 
 TypeORM مسئول اتصال، تراکنش و migration است. SQL پارامتری برای انتخاب صریح ستون‌ها، CTE بازگشتی و محدودیت‌های پایگاه داده استفاده شده است؛ مدل generic کاربرِ قالب، با دامنهٔ people جایگزین شده تا پاسخ entity یا فیلد رمز‌شده به کلاینت نرسد. تغییرات هویتی تأیید مربی را باطل و فقط تعداد فیلدها را audit می‌کنند.
 
@@ -40,7 +44,7 @@ worker مستقل Nest با pg-boss روی همان PostgreSQL؛ صف‌های �
 
 CSV/XLSX تا ۲ MiB، ۱۰۰۰ ردیف؛ محدودیت ۱۶ MiB برای محتوای بازشدهٔ XLSX، منع فرمول و لینک، headerهای مشخص. تاریخ ورودی جلالی و ذخیرهٔ میلادی است. ابتدا dry-run؛ خطای هر ردیف، کد ملی پوشانده‌شده و شمارنده‌ها. تا تأیید صریح هیچ person ساخته نمی‌شود. hash فایل/عامل/گروه و وضعیت قفل‌شده، اجرای تکراری را بی‌اثر می‌کنند. همهٔ درج‌ها در یک تراکنش و با بررسی مجدد دسترسی عامل انجام می‌شوند. کاربران واردشده حساب فعال خودکار ندارند؛ مدیر رمز اولیه را ایجاد می‌کند.
 
-آداپتور فایل محلی و S3، فایل خصوصی و پیوند حداکثر ۶۰ ثانیه. مسیر محلی مجوز را هنگام دانلود دوباره بررسی می‌کند؛ S3 پیوند قابلیت‌دار دارد و لغو مجوز تا پایان عمر کوتاه URL اثر کامل می‌گذارد. uploadهای چندبخشی و حذف EXIF همراه حوزه‌های رسانه در فاز ۵ می‌آیند.
+آداپتور فایل محلی و S3، فایل خصوصی و پیوند حداکثر ۶۰ ثانیه. مسیر محلی مجوز را هنگام دانلود دوباره بررسی می‌کند؛ S3 پیوند قابلیت‌دار دارد و لغو مجوز تا پایان عمر کوتاه URL اثر کامل می‌گذارد. آلبوم گروهی MVP روی جداول `photo` / `photo_group` / `photo_tag` و endpointهای `/api/v1/album` است؛ بایت تصویر از مسیر authenticated محتوا پس از `can(photo,read)` خوانده می‌شود و URL تولیدی S3 سخت‌کد نیست. حذف EXIF هنگام بارگذاری هنوز باز است. مکان عکس اختیاری از جدول مشترک `location_option` (فهرست/ایجاد در `/api/v1/locations`) با `photo.location_option_id` ذخیره می‌شود؛ متن تازه هنگام بارگذاری upsert می‌شود.
 
 ## رابط و طراحی
 
@@ -49,6 +53,8 @@ CSV/XLSX تا ۲ MiB، ۱۰۰۰ ردیف؛ محدودیت ۱۶ MiB برای مح
 `ui/src/theme/tokens.ts` تنها منبع رنگ، شعاع، فاصله، سایه و مقیاس تایپ رابط فعال است. پوستهٔ اختصاصی سبز، روشن/تیره، وزیرمتن، خانوادهٔ آیکن Rounded، cache راست‌به‌چپ Emotion با stylis و AdapterDateFnsJalali. تاریخ در یک بسته تبدیل می‌شود، هفته از شنبه و اعداد فارسی‌اند. تمام متن‌های ثابت محصول پشت لایهٔ فارسی و i18next هستند.
 
 صفحه‌ها فقط از کتابخانهٔ `src/components/ui` استفاده می‌کنند. تست قرارداد طراحی، import مستقیم MUI، sx/style و رنگ literal در screens را رد می‌کند و کنتراست WCAG AA و شعاع‌ها را می‌سنجد. صفحهٔ `/dev/design` اجزا و توکن‌ها را نشان می‌دهد و در production، 404 می‌دهد. service worker فقط offline.html و آیکن عمومی را cache می‌کند؛ هیچ API، پاسخ احراز هویت یا صفحهٔ شخصی ذخیره نمی‌شود.
+
+خانهٔ مربی (`/` برای `mentor` / `head_mentor`): داشبورد تجمیعی با `GET /api/v1/dashboard/mentor` (منبع `dashboard`، `can()` فقط برای `groupMentor` و `admin`؛ aggregates بدون یادداشت خصوصی). ویجت‌ها: شمارنده‌های نیرو/هویت/مشاوره/اردو/هزینه/اعلان، نمودار میله‌ای مشاوره‌های هفتگی و هزینه‌های مقصد مالی، دونات ترکیب هویت، پیش‌نمایش اردو/جلسه/مراودات و میان‌برها. نمودارها با `@mui/x-charts` (Community/MIT) پشت `BarSeriesChart` / `DonutChart` در `ui/src/components/ui/charts.tsx`. عضو و والد همان خانهٔ ساده را می‌بینند.
 
 ## اجرا و آزمون
 
@@ -63,6 +69,8 @@ Dockerfile جدا برای هر app، worker از تصویر API، Postgres، S3
 تصویر عمومی MinIO هنگام بررسی Compose قابل دریافت نبود. بدون تغییر رابط S3 برنامه، شبیه‌ساز با [S3Proxy](https://github.com/gaul/s3proxy) جایگزین شد: نسخهٔ 4.1.1 از انتشار رسمی با SHA-256 ثابت، Java 25، کاربر فاقد root، دیسک پایدار، احراز درخواست AWS v4 و bucket خصوصی. تصویر آن در مخزن ساخته می‌شود و به تصویر آمادهٔ MinIO وابسته نیست. این سرویس برای توسعه است؛ استقرار عملیاتی می‌تواند از هر سرویس S3 سازگار و مدیریت‌شده استفاده کند.
 
 ایجاد ارجاع در API و تست سیاست پوشش دارد؛ رابط ایجاد ارجاع در کنار پرونده/مشاورهٔ واقعی فاز ۳ اضافه می‌شود. فاز ۱ فهرست و لغو ارجاع‌ها را دارد. فرم‌های فرد/گروه انتخاب نام دارند و مربی والد را با شمارهٔ همراه تأیید می‌کند.
+
+پروندهٔ فرد: مسیر رابط `/admin/people/[id]` و endpoint تجمیعی `GET /api/v1/people/:id/dossier`. با `can(person,read)` پروفایل را می‌دهد و بخش‌های مشاوره/اردو/مراودات/عکس را با همان قواعد دید ماژول مربوطه (بدون یادداشت خصوصی و اضطراری) پر می‌کند؛ کتاب‌ها و پرداخت شخصی تا آماده‌شدن بک‌اند `available:false` برمی‌گردند. کارت‌های «گروه من» با کلیک بدنه به پرونده می‌روند و عملیات ویرایش/تأیید هویت/غیرفعال‌سازی آیکن‌فقط (Iconify) هستند.
 
 ## دادهٔ ارائهٔ فاز اول
 

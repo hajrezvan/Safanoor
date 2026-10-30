@@ -10,7 +10,7 @@ import {
   jalaliToGregorian,
   latinDigits,
   normalizePersian,
-  personSchema,
+  personImportSchema,
 } from '@safanoor/shared';
 import { one, pageOf, rows } from '../../libs/database/database.types';
 import { PaginationDto } from '../../libs/http/http.dto';
@@ -232,7 +232,7 @@ export class ImportsService {
         } catch {
           errors.push('تاریخ تولد جلالی معتبر نیست.');
         }
-        const parsed = personSchema.safeParse({
+        const parsed = personImportSchema.safeParse({
           ...value,
           birthDate,
           nationalId: latinDigits(value.nationalId),

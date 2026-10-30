@@ -39,7 +39,9 @@ export function ContactsPopover({ data = [], sx, ...other }) {
           {data.map((contact) => (
             <MenuItem key={contact.id} sx={{ p: 1 }}>
               <Badge variant={contact.status} badgeContent=" ">
-                <Avatar alt={contact.name} src={contact.avatarUrl} />
+                <Avatar alt={contact.name} src={contact.avatarUrl}>
+                  <Iconify icon="solar:user-rounded-bold" width={22} />
+                </Avatar>
               </Badge>
 
               <ListItemText

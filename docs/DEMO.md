@@ -8,6 +8,8 @@ docker compose run --rm -e NODE_ENV=development backend node dist/seed-demo.js
 
 بدون Docker: `npm --prefix api run seed:demo`. رمز همهٔ حساب‌های اولیه `SafanoorDemo#1405` است؛ این دستور رمزِ ویرایش‌شده را بازنشانی نمی‌کند.
 
+سلسله‌مراتب واقعی صفا (۳۹ نفر، جدا از این جدول): `npm --prefix api run seed:hierarchy` — راهنما در [REAL_HIERARCHY_SEED.md](./REAL_HIERARCHY_SEED.md).
+
 | نقش | شمارهٔ ورود | آنچه می‌توان دید |
 |---|---|---|
 | مدیر فنی | +989100000040 | اعضا، تأییدهای متفاوت هویت، گروه‌ها، سه حالت ورود گروهی، audit |

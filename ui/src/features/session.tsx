@@ -10,11 +10,20 @@ import { api, ApiError } from 'src/api/client';
 
 import { Shell, QueryState, type NavItem } from 'src/components/ui';
 
-const SessionContext = createContext<components['schemas']['MeDto'] | null>(null);
+type SessionValue = {
+  me: components['schemas']['MeDto'];
+  logout: () => Promise<void>;
+};
+const SessionContext = createContext<SessionValue | null>(null);
 export function useSession() {
   const session = useContext(SessionContext);
   if (!session) throw new Error('Session required');
-  return session;
+  return session.me;
+}
+export function useLogout() {
+  const session = useContext(SessionContext);
+  if (!session) throw new Error('Session required');
+  return session.logout;
 }
 export function Session({ children }: { children: React.ReactNode }) {
   const query = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false });
@@ -30,26 +39,36 @@ export function Session({ children }: { children: React.ReactNode }) {
     if (me?.consentRequired && path !== '/consent' && path !== '/notifications')
       router.replace('/consent');
   }, [me, path, router]);
+  const isMentor = me?.person.orgLevel === 'mentor';
   const nav: NavItem[] = me
     ? [
-        { key: 'overview', href: '/admin', icon: 'admin' },
         {
-          key: 'people',
+          key: isMentor ? 'myGroup' : 'people',
           href: '/admin/people',
           icon: 'people',
           visible: me.capabilities.managePeople,
         },
         {
+          key: 'communications',
+          href: '/communications',
+          icon: 'communications',
+          visible:
+            !me.isParent &&
+            ['mentor', 'assistant', 'member'].includes(me.person.orgLevel),
+        },
+        {
           key: 'groups',
           href: '/admin/groups',
           icon: 'groups',
-          visible: me.capabilities.manageGroups || me.capabilities.managePeople,
+          visible:
+            me.person.orgLevel !== 'mentor' &&
+            (me.capabilities.manageGroups || me.capabilities.managePeople),
         },
         {
           key: 'imports',
           href: '/admin/imports',
           icon: 'imports',
-          visible: me.capabilities.importPeople,
+          visible: me.capabilities.manageSettings,
         },
         {
           key: 'access',
@@ -78,11 +97,21 @@ export function Session({ children }: { children: React.ReactNode }) {
     <Shell
       admin={path.startsWith('/admin')}
       nav={nav}
-      canAdmin={me?.capabilities.admin ?? false}
+      user={
+        me
+          ? {
+              name: `${me.person.firstName} ${me.person.lastName}`,
+              role: me.person.orgLevel,
+              groupName: me.person.groupName,
+            }
+          : undefined
+      }
       onLogout={() => void logout()}
     >
       <QueryState loading={query.isLoading} error={query.error} retry={() => void query.refetch()}>
-        {me && <SessionContext.Provider value={me}>{children}</SessionContext.Provider>}
+        {me && (
+          <SessionContext.Provider value={{ me, logout }}>{children}</SessionContext.Provider>
+        )}
       </QueryState>
     </Shell>
   );

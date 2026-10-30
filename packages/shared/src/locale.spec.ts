@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ageOn, gregorianToJalali, jalaliToGregorian, latinDigits, normalizePersian, normalizePhone, validGregorianDate, validNationalId } from './locale';
+import { ageOn, formatRelativeTime, gregorianToJalali, jalaliToGregorian, latinDigits, normalizePersian, normalizePhone, validGregorianDate, validNationalId } from './locale';
 
 test('Persian normalization handles Arabic letters, digits, joiners and marks', () => {
   assert.equal(normalizePersian('  كِيان‌ ياس ۱۲٣ '), 'کیان یاس 123');
@@ -28,4 +28,11 @@ test('age changes precisely on Gregorian UTC birthday', () => {
   assert.equal(ageOn('2008-10-17', new Date('2026-10-17T00:00:00Z')), 18);
   assert.equal(ageOn('2008-02-29', new Date('2026-02-28T12:00:00Z')), 17);
   assert.equal(ageOn('2008-02-29', new Date('2026-03-01T00:00:00Z')), 18);
+});
+
+test('formatRelativeTime uses Persian auto relative units', () => {
+  const now = new Date('2026-10-30T12:00:00+03:30');
+  assert.equal(formatRelativeTime('2026-10-29T12:00:00+03:30', now), 'دیروز');
+  const weekAgo = formatRelativeTime('2026-10-23T12:00:00+03:30', now);
+  assert.ok(/روز|هفته/.test(weekAgo), weekAgo);
 });

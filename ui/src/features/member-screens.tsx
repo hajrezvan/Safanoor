@@ -6,7 +6,7 @@ import type { components } from 'src/api/generated/schema';
 import { z } from 'zod';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -45,7 +45,8 @@ import {
   JalaliInput,
 } from 'src/components/ui';
 
-import { useSession } from './session';
+import { useSession, useLogout } from './session';
+import { MentorHomeDashboard } from './mentor-dashboard';
 import { useWrite, BasicForm } from './shared';
 
 export function LoginScreen() {
@@ -101,10 +102,23 @@ export function LoginScreen() {
 export function HomeScreen() {
   const me = useSession();
   const t = useFa();
-  const notes = useQuery({ queryKey: ['notifications', 1], queryFn: () => api.notifications(1) });
-  const markRead = useWrite(async (id: string) =>
-    unwrap(await client.POST('/api/v1/notifications/{id}/read', { params: { path: { id } } }))
-  );
+  if (
+    me.person.orgLevel === 'mentor' ||
+    me.person.orgLevel === 'head_mentor'
+  ) {
+    return (
+      <>
+        {me.consentRequired && (
+          <Notice tone="warning">
+            <Button href="/consent" variant="text">
+              {t('consentPending')}
+            </Button>
+          </Notice>
+        )}
+        <MentorHomeDashboard name={me.person.firstName} />
+      </>
+    );
+  }
   return (
     <>
       <Hero name={me.person.firstName} />
@@ -152,36 +166,6 @@ export function HomeScreen() {
           </Stack>
         </Card>
       </Grid>
-      <PageHeader
-        title={t('notifications')}
-        hint={t('notificationHint')}
-        action={
-          <Button href="/notifications" variant="text">
-            {t('notifications')}
-          </Button>
-        }
-      />
-      <QueryState
-        loading={notes.isLoading}
-        error={notes.error}
-        empty={notes.data?.items.length === 0}
-        retry={() => void notes.refetch()}
-      >
-        <Card>
-          {notes.data?.items.slice(0, 3).map((note) => (
-            <FeedItem
-              key={note.id}
-              title={notificationText(note.type, t)}
-              time={formatDate(note.createdAt, true)}
-              unread={!note.readAt}
-              onRead={() => {
-                if (!note.readAt) markRead.mutate(note.id);
-              }}
-            />
-          ))}
-        </Card>
-      </QueryState>
-      {markRead.feedback}
     </>
   );
 }
@@ -190,12 +174,24 @@ function notificationText(type: string, t: ReturnType<typeof useFa>) {
   const text = t(key);
   return text === key ? t('notifications') : text;
 }
+function payloadString(payload: Record<string, unknown>, key: string) {
+  const value = payload[key];
+  return typeof value === 'string' ? value : '';
+}
 export function NotificationsScreen() {
   const t = useFa();
   const [page, setPage] = useState(1);
   const cache = useQueryClient();
   const key = ['notifications', page];
   const query = useQuery({ queryKey: key, queryFn: () => api.notifications(page) });
+  const respond = useWrite(async (input: { inviteId: string; decision: 'accepted' | 'rejected' }) =>
+    unwrap(
+      await client.POST('/api/v1/assistant-invites/{id}/respond', {
+        params: { path: { id: input.inviteId } },
+        body: { decision: input.decision },
+      })
+    )
+  );
   const read = async (id: string) => {
     const previous = query.data;
     cache.setQueryData(
@@ -218,6 +214,7 @@ export function NotificationsScreen() {
   return (
     <>
       <PageHeader title={t('notifications')} hint={t('notificationHint')} />
+      {respond.feedback}
       <QueryState
         loading={query.isLoading}
         error={query.error}
@@ -225,17 +222,55 @@ export function NotificationsScreen() {
         retry={() => void query.refetch()}
       >
         <Card>
-          {query.data?.items.map((note) => (
-            <FeedItem
-              key={note.id}
-              title={notificationText(note.type, t)}
-              time={formatDate(note.createdAt, true)}
-              unread={!note.readAt}
-              onRead={() => {
-                if (!note.readAt) void read(note.id);
-              }}
-            />
-          ))}
+          <Stack>
+            {query.data?.items.map((note) => {
+              const inviteId = payloadString(note.payload, 'inviteId');
+              const status = payloadString(note.payload, 'status');
+              const mentorName = payloadString(note.payload, 'mentorName');
+              const groupName = payloadString(note.payload, 'groupName');
+              const pendingInvite =
+                note.type === 'assistant.invite' && inviteId && status !== 'accepted' && status !== 'rejected';
+              const title = notificationText(note.type, t);
+              const detail =
+                note.type === 'assistant.invite' && (mentorName || groupName)
+                  ? [mentorName, groupName].filter(Boolean).join(' · ')
+                  : undefined;
+              return (
+                <Stack key={note.id}>
+                  <FeedItem
+                    title={detail ? `${title} — ${detail}` : title}
+                    time={formatDate(note.createdAt, true)}
+                    unread={!note.readAt}
+                    onRead={() => {
+                      if (!note.readAt) void read(note.id);
+                    }}
+                  />
+                  {pendingInvite && (
+                    <Row>
+                      <Button
+                        disabled={respond.isPending}
+                        onClick={() =>
+                          respond.mutate({ inviteId, decision: 'accepted' })
+                        }
+                      >
+                        {t('acceptInvite')}
+                      </Button>
+                      <Button
+                        color="error"
+                        variant="text"
+                        disabled={respond.isPending}
+                        onClick={() =>
+                          respond.mutate({ inviteId, decision: 'rejected' })
+                        }
+                      >
+                        {t('rejectInvite')}
+                      </Button>
+                    </Row>
+                  )}
+                </Stack>
+              );
+            })}
+          </Stack>
         </Card>
       </QueryState>
       {query.data && (
@@ -246,6 +281,7 @@ export function NotificationsScreen() {
 }
 export function ProfileScreen() {
   const me = useSession();
+  const logout = useLogout();
   const t = useFa();
   const router = useRouter();
   const change = useWrite(
@@ -288,6 +324,9 @@ export function ProfileScreen() {
           {change.feedback}
         </Section>
       </Card>
+      <Button color="error" variant="outlined" icon="logout" onClick={() => void logout()}>
+        {t('logout')}
+      </Button>
     </>
   );
 }
@@ -301,20 +340,27 @@ export function PersonForm({
   onSaved?: () => void;
 }) {
   const t = useFa();
-  const [groupId, setGroupId] = useState(person?.groupId ?? '');
+  const me = useSession();
+  const mentorView = me.person.orgLevel === 'mentor';
+  const mentorGroupId =
+    groups.find((group) => group.ownerPersonId === me.person.id)?.id ??
+    groups.find((group) => group.canManage)?.id ??
+    me.person.groupId ??
+    '';
+  const [groupId, setGroupId] = useState(person?.groupId ?? (mentorView ? mentorGroupId : ''));
   const [orgLevel, setOrgLevel] = useState('member');
-  const schema = person
-    ? personSchema.omit({ orgLevel: true, groupId: true }).partial()
-    : personSchema;
-  const form = useForm<z.input<typeof schema>>({
-    resolver: zodResolver(schema),
+  const form = useForm<Partial<PersonInput>>({
+    resolver: zodResolver(
+      person ? personSchema.omit({ orgLevel: true, groupId: true }).partial() : personSchema
+    ) as Resolver<Partial<PersonInput>>,
     defaultValues: person
       ? {
           firstName: person.firstName,
           lastName: person.lastName,
-          fatherName: person.fatherName,
-          phone: person.phone,
-          birthDate: person.birthDate,
+          fatherName: person.fatherName ?? '',
+          phone: person.phone ?? '',
+          birthDate: person.birthDate ?? '',
+          nationalId: '',
         }
       : {
           firstName: '',
@@ -324,12 +370,15 @@ export function PersonForm({
           nationalId: '',
           birthDate: '',
           orgLevel: 'member',
+          groupId: mentorView ? mentorGroupId : undefined,
         },
   });
-  const write = useWrite(async (values: z.input<typeof schema>) => {
+  const write = useWrite(async (values: Partial<PersonInput>) => {
+    const compact = Object.fromEntries(
+      Object.entries(values).filter(([, value]) => value !== '' && value !== undefined)
+    ) as Partial<PersonInput>;
     if (person) {
-      const { orgLevel: _, groupId: __, ...data } = values as Partial<PersonInput>;
-      if (!data.nationalId) delete data.nationalId;
+      const { orgLevel: _level, groupId: _group, ...data } = compact;
       return unwrap(
         await client.PATCH('/api/v1/people/{id}', {
           params: { path: { id: person.id } },
@@ -337,9 +386,15 @@ export function PersonForm({
         })
       );
     }
+    const nextOrgLevel = mentorView ? 'member' : (compact.orgLevel ?? orgLevel);
+    const nextGroupId = mentorView ? mentorGroupId : compact.groupId || groupId || undefined;
     return unwrap(
       await client.POST('/api/v1/people', {
-        body: { ...values, orgLevel, groupId: groupId || undefined } as PersonInput,
+        body: {
+          ...compact,
+          orgLevel: nextOrgLevel,
+          groupId: nextGroupId,
+        } as PersonInput,
       })
     );
   }, onSaved);
@@ -355,6 +410,7 @@ export function PersonForm({
             render={({ field, fieldState }) => (
               <Input
                 {...field}
+                value={field.value ?? ''}
                 label={t(key)}
                 type={key === 'phone' ? 'tel' : 'text'}
                 error={fieldState.error?.message}
@@ -366,7 +422,12 @@ export function PersonForm({
           name="nationalId"
           control={form.control}
           render={({ field, fieldState }) => (
-            <Input {...field} label={t('nationalId')} error={fieldState.error?.message} />
+            <Input
+              {...field}
+              value={field.value ?? ''}
+              label={t('nationalId')}
+              error={fieldState.error?.message}
+            />
           )}
         />
         <Controller
@@ -383,7 +444,7 @@ export function PersonForm({
             />
           )}
         />
-        {!person && (
+        {!person && !mentorView && (
           <>
             <Controller
               name="orgLevel"

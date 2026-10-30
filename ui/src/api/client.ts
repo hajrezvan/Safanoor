@@ -102,4 +102,24 @@ export const api = {
   consent: async (personId?: string) =>
     unwrap(await client.GET('/api/v1/consent', { params: { query: { personId } } })),
   overview: async () => unwrap(await client.GET('/api/v1/admin/overview')),
+  mentorDashboard: async () => unwrap(await client.GET('/api/v1/dashboard/mentor')),
+  chatThreads: async (page = 1) =>
+    unwrap(
+      await client.GET('/api/v1/communications/threads', {
+        params: { query: { page, limit: 50 } },
+      })
+    ),
+  chatMessages: async (threadId: string, page = 1) =>
+    unwrap(
+      await client.GET('/api/v1/communications/threads/{id}/messages', {
+        params: { path: { id: threadId }, query: { page, limit: 50 } },
+      })
+    ),
+  postChatMessage: async (threadId: string, body: string) =>
+    unwrap(
+      await client.POST('/api/v1/communications/threads/{id}/messages', {
+        params: { path: { id: threadId } },
+        body: { body },
+      })
+    ),
 };

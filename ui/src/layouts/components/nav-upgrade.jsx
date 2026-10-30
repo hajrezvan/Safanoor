@@ -11,6 +11,7 @@ import { paths } from 'src/routes/paths';
 import { CONFIG } from 'src/global-config';
 
 import { Label } from 'src/components/label';
+import { Iconify } from 'src/components/iconify';
 
 import { useMockedUser } from 'src/auth/hooks';
 
@@ -27,7 +28,7 @@ export function NavUpgrade({ sx, ...other }) {
       <Box sx={{ display: 'flex', alignItems: 'center', flexDirection: 'column' }}>
         <Box sx={{ position: 'relative' }}>
           <Avatar src={user?.photoURL} alt={user?.displayName} sx={{ width: 48, height: 48 }}>
-            {user?.displayName?.charAt(0).toUpperCase()}
+            <Iconify icon="solar:user-rounded-bold" width={26} />
           </Avatar>
 
           <Label

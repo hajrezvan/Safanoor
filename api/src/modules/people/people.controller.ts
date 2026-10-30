@@ -18,6 +18,7 @@ import {
   CreatePersonDto,
   MeDto,
   PeoplePageDto,
+  PersonDossierDto,
   PersonDto,
   UpdatePersonDto,
 } from './people.dto';
@@ -42,6 +43,15 @@ export class PeopleController {
     @Query() query: PaginationDto,
   ): Promise<PeoplePageDto> {
     return this.people.list(actor, query);
+  }
+  @Get(':id/dossier')
+  @Policy('person', 'read')
+  @ApiOkResponse({ type: PersonDossierDto })
+  dossier(
+    @CurrentActor() actor: Actor,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<PersonDossierDto> {
+    return this.people.dossier(actor, id);
   }
   @Get(':id')
   @Policy('person', 'read')

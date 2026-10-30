@@ -13,6 +13,7 @@ import { Actor } from '../access/access.types';
 export interface NotificationRow {
   id: string;
   type: string;
+  payload: Record<string, unknown>;
   createdAt: string;
   readAt: string | null;
 }
@@ -27,11 +28,12 @@ export class NotificationsService {
     type: string,
     dedupeKey?: string,
     transaction: Database = this.db,
+    payload: Record<string, unknown> = {},
   ): Promise<void> {
     const notification = await one<{ id: string }>(
       transaction,
-      'INSERT INTO notification(recipient_id,type,dedupe_key) VALUES($1,$2,$3) ON CONFLICT(dedupe_key) DO NOTHING RETURNING id',
-      [recipientId, type, dedupeKey ?? null],
+      'INSERT INTO notification(recipient_id,type,dedupe_key,payload) VALUES($1,$2,$3,$4::jsonb) ON CONFLICT(dedupe_key) DO NOTHING RETURNING id',
+      [recipientId, type, dedupeKey ?? null, JSON.stringify(payload)],
     );
     if (notification)
       await rows(
@@ -52,7 +54,7 @@ export class NotificationsService {
     );
     const items = await rows<NotificationRow>(
       this.db,
-      'SELECT id,type,created_at AS "createdAt",read_at AS "readAt" FROM notification WHERE recipient_id=$1 ORDER BY created_at DESC,id LIMIT $2 OFFSET $3',
+      'SELECT id,type,payload,created_at AS "createdAt",read_at AS "readAt" FROM notification WHERE recipient_id=$1 ORDER BY created_at DESC,id LIMIT $2 OFFSET $3',
       [actor.personId, query.limit, (query.page - 1) * query.limit],
     );
     return pageOf(items, query.page, query.limit, Number(count?.count ?? 0));

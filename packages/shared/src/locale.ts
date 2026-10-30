@@ -64,6 +64,21 @@ export function formatDate(value: string, includeTime = false): string {
   return new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', month: 'long', day: 'numeric', ...(includeTime ? { hour: '2-digit', minute: '2-digit' } as const : {}), timeZone: 'Asia/Tehran' }).format(new Date(value));
 }
 
+/** Compact Persian relative time (دیروز، ۷ روز پیش، …). */
+export function formatRelativeTime(value: string, now: Date = new Date()): string {
+  const then = new Date(value).getTime();
+  if (Number.isNaN(then)) return '';
+  const diffSec = Math.round((then - now.getTime()) / 1000);
+  const abs = Math.abs(diffSec);
+  const rtf = new Intl.RelativeTimeFormat('fa-IR', { numeric: 'auto' });
+  if (abs < 60) return rtf.format(0, 'second');
+  if (abs < 3600) return rtf.format(Math.round(diffSec / 60), 'minute');
+  if (abs < 86400) return rtf.format(Math.round(diffSec / 3600), 'hour');
+  if (abs < 86400 * 30) return rtf.format(Math.round(diffSec / 86400), 'day');
+  if (abs < 86400 * 365) return rtf.format(Math.round(diffSec / (86400 * 30)), 'month');
+  return rtf.format(Math.round(diffSec / (86400 * 365)), 'year');
+}
+
 export function formatNumber(value: number): string {
   return new Intl.NumberFormat('fa-IR').format(value);
 }

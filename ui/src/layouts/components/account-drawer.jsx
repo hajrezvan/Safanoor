@@ -47,7 +47,7 @@ export function AccountDrawer({ data = [], sx, ...other }) {
       }}
     >
       <Avatar src={user?.photoURL} alt={user?.displayName} sx={{ width: 1, height: 1 }}>
-        {user?.displayName?.charAt(0).toUpperCase()}
+        <Iconify icon="solar:user-rounded-bold" width={48} />
       </Avatar>
     </AnimateBorder>
   );

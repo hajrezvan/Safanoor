@@ -16,17 +16,23 @@ import { PageMetaDto } from '../../libs/http/http.dto';
 export class CreatePersonDto {
   @ApiProperty() @IsString() @Length(2, 80) firstName!: string;
   @ApiProperty() @IsString() @Length(2, 100) lastName!: string;
-  @ApiProperty() @IsString() @Length(2, 80) fatherName!: string;
-  @ApiProperty({ format: 'date' })
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(2, 80)
+  fatherName?: string;
+  @ApiPropertyOptional({ format: 'date' })
+  @IsOptional()
   @IsDateString({ strict: true })
-  birthDate!: string;
-  @ApiProperty()
+  birthDate?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? latinDigits(value) : value,
+    typeof value === 'string' && value.trim() !== '' ? latinDigits(value) : undefined,
   )
   @Matches(/^\d{10}$/)
-  nationalId!: string;
+  nationalId?: string;
   @ApiProperty()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? normalizePhone(value) : value,
@@ -74,6 +80,48 @@ export class PersonDto {
 }
 export class PeoplePageDto extends PageMetaDto {
   @ApiProperty({ type: [PersonDto] }) items!: PersonDto[];
+}
+
+/** Compact timeline row for the person dossier (no private notes / emergency). */
+export class PersonDossierItemDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() title!: string;
+  @ApiPropertyOptional({ nullable: true, type: String })
+  subtitle!: string | null;
+  @ApiPropertyOptional({ nullable: true, type: String })
+  at!: string | null;
+  @ApiPropertyOptional({ nullable: true, type: String })
+  href!: string | null;
+}
+
+export class PersonDossierSectionDto {
+  @ApiProperty({
+    enum: [
+      'books',
+      'payments',
+      'camps',
+      'consultations',
+      'communications',
+      'photos',
+    ],
+  })
+  key!:
+    | 'books'
+    | 'payments'
+    | 'camps'
+    | 'consultations'
+    | 'communications'
+    | 'photos';
+  /** False when the backing store/API is not ready yet — UI shows a Persian placeholder. */
+  @ApiProperty() available!: boolean;
+  @ApiProperty({ type: [PersonDossierItemDto] })
+  items!: PersonDossierItemDto[];
+}
+
+export class PersonDossierDto {
+  @ApiProperty({ type: PersonDto }) person!: PersonDto;
+  @ApiProperty({ type: [PersonDossierSectionDto] })
+  sections!: PersonDossierSectionDto[];
 }
 export class MeCapabilitiesDto {
   @ApiProperty() createGroups!: boolean;

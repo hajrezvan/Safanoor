@@ -21,18 +21,27 @@ import {
   Text,
   Input,
   Stack,
+  Avatar,
   Button,
+  CardNav,
   Dialog,
-  Notice,
   Search,
   Select,
   Section,
-  StatCard,
   DataTable,
   FileInput,
+  IconAction,
   PageHeader,
   Pagination,
+  EmptyState,
   QueryState,
+  PersonCardRow,
+  PersonCardMeta,
+  PeopleCardBody,
+  PeopleCardChips,
+  PeopleCardsGrid,
+  PeopleCardActions,
+  PeoplePersonCard,
 } from 'src/components/ui';
 
 import { useSession } from './session';
@@ -41,62 +50,62 @@ import { PersonPicker } from './person-picker';
 import { useWrite, BasicForm, Permission } from './shared';
 
 type Person = components['schemas']['PersonDto'];
-export function OverviewScreen() {
-  const t = useFa();
-  const query = useQuery({ queryKey: ['overview'], queryFn: api.overview });
-  return (
-    <>
-      <PageHeader title={t('overview')} hint={t('overviewHint')} />
-      <QueryState loading={query.isLoading} error={query.error} retry={() => void query.refetch()}>
-        {query.data && (
-          <>
-            <Grid>
-              {(
-                [
-                  'peopleCount',
-                  'groupCount',
-                  'assistantCount',
-                  'consentPending',
-                  'importPending',
-                  'unreadCount',
-                ] as const
-              ).map((key) => (
-                <StatCard
-                  key={key}
-                  title={t(key === 'consentPending' ? 'consentPendingCount' : key)}
-                  value={query.data![key]}
-                />
-              ))}
-            </Grid>
-            {!query.data.organizationReady && (
-              <Notice tone="warning">{t('organizationPending')}</Notice>
-            )}
-            <Card>
-              <Row>
-                <Text variant="subtitle">{t('private')}</Text>
-                <Text muted>{t('privacyHint')}</Text>
-              </Row>
-            </Card>
-          </>
-        )}
-      </QueryState>
-    </>
-  );
+
+function inviteStatusTone(status: string): 'warning' | 'success' | 'error' | 'default' {
+  if (status === 'pending') return 'warning';
+  if (status === 'accepted') return 'success';
+  if (status === 'rejected') return 'error';
+  return 'default';
+}
+function inviteStatusKey(status: string): TextKey {
+  if (status === 'accepted') return 'inviteAccepted';
+  if (status === 'rejected') return 'inviteRejected';
+  return 'invitePending';
 }
 export function PeopleScreen() {
   const t = useFa();
   const me = useSession();
+  const [tab, setTab] = useState('forces');
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Person | null | undefined>(undefined);
   const [deleting, setDeleting] = useState<Person>();
   const [account, setAccount] = useState<Person>();
   const [parentChild, setParentChild] = useState<Person>();
+  const [inviting, setInviting] = useState(false);
+  const [inviteeId, setInviteeId] = useState('');
+  const [candidateSearch, setCandidateSearch] = useState('');
   const query = useQuery({
     queryKey: ['people', page, search],
     queryFn: () => api.people(page, search),
   });
   const groups = useQuery({ queryKey: ['groups'], queryFn: () => api.groups() });
+  const managedGroup = groups.data?.items.find(
+    (group) => group.ownerPersonId === me.person.id
+  );
+  const invites = useQuery({
+    queryKey: ['assistant-invites', managedGroup?.id],
+    enabled: tab === 'coaching' && !!managedGroup?.id,
+    queryFn: async () =>
+      unwrap(
+        await client.GET('/api/v1/groups/{id}/assistant-invites', {
+          params: { path: { id: managedGroup!.id }, query: { page: 1, limit: 100 } },
+        })
+      ),
+  });
+  const candidates = useQuery({
+    queryKey: ['assistant-invite-candidates', managedGroup?.id, candidateSearch],
+    enabled: inviting && !!managedGroup?.id,
+    queryFn: async () =>
+      unwrap(
+        await client.GET('/api/v1/groups/{id}/assistant-invite-candidates', {
+          params: {
+            path: { id: managedGroup!.id },
+            query: { page: 1, limit: 30, search: candidateSearch },
+          },
+        })
+      ),
+  });
   const verify = useWrite(async (id: string) =>
     unwrap(await client.POST('/api/v1/people/{id}/verify', { params: { path: { id } } }))
   );
@@ -127,95 +136,233 @@ export function PeopleScreen() {
       ),
     () => setParentChild(undefined)
   );
+  const sendInvite = useWrite(
+    async () =>
+      unwrap(
+        await client.POST('/api/v1/groups/{id}/assistant-invites', {
+          params: { path: { id: managedGroup!.id } },
+          body: { inviteePersonId: inviteeId },
+        })
+      ),
+    () => {
+      setInviting(false);
+      setInviteeId('');
+    }
+  );
+  const mentorView = me.person.orgLevel === 'mentor';
+  const people = mentorView
+    ? (query.data?.items ?? []).filter((person) => person.orgLevel === 'member')
+    : (query.data?.items ?? []);
+  const total = mentorView ? people.length : (query.data?.total ?? 0);
   return (
     <Permission allowed={me.capabilities.managePeople}>
       <PageHeader
-        title={t('people')}
-        hint={t('peopleHint')}
+        title={t(mentorView ? 'myGroup' : 'people')}
+        hint={mentorView ? undefined : t('peopleHint')}
         action={
-          <Button icon="add" onClick={() => setEditing(null)}>
-            {t('create')}
-          </Button>
+          tab === 'forces' ? (
+            <Button icon="add" iconOnlyOnMobile onClick={() => setEditing(null)}>
+              {t('create')}
+            </Button>
+          ) : managedGroup ? (
+            <Button
+              icon="add"
+              iconOnlyOnMobile
+              onClick={() => {
+                setInviteeId('');
+                setCandidateSearch('');
+                setInviting(true);
+              }}
+            >
+              {t('inviteAssistant')}
+            </Button>
+          ) : undefined
         }
       />
-      <Search
-        value={search}
-        onChange={(value) => {
-          setSearch(value);
-          setPage(1);
-        }}
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        items={[
+          { value: 'forces', label: t('forces') },
+          { value: 'coaching', label: t('coachingTeam') },
+        ]}
       />
-      {verify.feedback}
-      <QueryState
-        loading={query.isLoading}
-        error={query.error}
-        empty={query.data?.items.length === 0}
-        retry={() => void query.refetch()}
-      >
-        <DataTable
-          rows={query.data?.items ?? []}
-          rowKey={(person) => person.id}
-          columns={[
-            {
-              label: t('name'),
-              render: (p) => (
-                <Stack>
-                  <Text>
-                    {p.firstName} {p.lastName}
-                  </Text>
-                  <Text variant="caption" muted>
-                    {p.groupName}
-                  </Text>
-                </Stack>
-              ),
-            },
-            { label: t('orgLevel'), render: (p) => <Chip>{t(p.orgLevel as TextKey)}</Chip> },
-            {
-              label: t('status'),
-              render: (p) => (
-                <Chip tone={p.verified ? 'success' : 'warning'}>
-                  {t(p.verified ? 'verified' : 'unverified')}
-                </Chip>
-              ),
-            },
-            {
-              label: t('actions'),
-              render: (p) => (
-                <Row>
-                  {p.capabilities.update && (
-                    <Button variant="text" onClick={() => setEditing(p)}>
-                      {t('edit')}
-                    </Button>
-                  )}
-                  {p.capabilities.linkParent && (
-                    <Button variant="text" onClick={() => setParentChild(p)}>
-                      {t('parentLink')}
-                    </Button>
-                  )}
-                  {p.capabilities.verify && !p.verified && (
-                    <Button variant="text" onClick={() => verify.mutate(p.id)}>
-                      {t('verify')}
-                    </Button>
-                  )}
-                  {p.capabilities.deactivate && (
-                    <Button color="error" variant="text" onClick={() => setDeleting(p)}>
-                      {t('deactivate')}
-                    </Button>
-                  )}
-                  {me.capabilities.manageSettings && (
-                    <Button variant="text" onClick={() => setAccount(p)}>
-                      {t('account')}
-                    </Button>
-                  )}
-                </Row>
-              ),
-            },
-          ]}
-        />
-      </QueryState>
-      {query.data && (
-        <Pagination page={page} total={query.data.total} limit={15} onChange={setPage} />
+      {tab === 'forces' ? (
+        <>
+          <Search
+            value={search}
+            onChange={(value) => {
+              setSearch(value);
+              setPage(1);
+            }}
+          />
+          {verify.feedback}
+          <QueryState
+            loading={query.isLoading}
+            error={query.error}
+            empty={people.length === 0}
+            retry={() => void query.refetch()}
+          >
+            <Stack>
+              <Text muted>
+                {t('total')}: {formatNumber(total)}
+              </Text>
+              <PeopleCardsGrid>
+                {people.map((person) => {
+                  const fullName = `${person.firstName} ${person.lastName}`;
+                  return (
+                    <PeoplePersonCard key={person.id}>
+                      <PeopleCardBody>
+                        <CardNav href={`/admin/people/${person.id}`} label={t('openPersonDossier')}>
+                          <PersonCardRow>
+                            <Avatar name={fullName} size={40} />
+                            <PersonCardMeta>
+                              <Text variant="subtitle">{fullName}</Text>
+                              {person.phone && (
+                                <Text variant="caption" muted dir="ltr">
+                                  {person.phone}
+                                </Text>
+                              )}
+                              <PeopleCardChips>
+                                {!mentorView && (
+                                  <Chip>{t(person.orgLevel as TextKey)}</Chip>
+                                )}
+                                <Chip tone={person.verified ? 'success' : 'warning'}>
+                                  {t(person.verified ? 'verified' : 'unverified')}
+                                </Chip>
+                              </PeopleCardChips>
+                            </PersonCardMeta>
+                          </PersonCardRow>
+                        </CardNav>
+                        <PeopleCardActions>
+                          {person.capabilities.update && (
+                            <IconAction
+                              label={t('edit')}
+                              icon="solar:pen-bold"
+                              onClick={() => setEditing(person)}
+                            />
+                          )}
+                          {person.capabilities.linkParent && (
+                            <IconAction
+                              label={t('parentLink')}
+                              icon="solar:users-group-rounded-bold"
+                              onClick={() => setParentChild(person)}
+                            />
+                          )}
+                          {person.capabilities.verify && !person.verified && (
+                            <IconAction
+                              label={t('verify')}
+                              icon="solar:verified-check-bold"
+                              color="primary"
+                              onClick={() => verify.mutate(person.id)}
+                            />
+                          )}
+                          {person.capabilities.deactivate && (
+                            <IconAction
+                              label={t('deactivate')}
+                              icon="solar:user-block-bold"
+                              color="error"
+                              onClick={() => setDeleting(person)}
+                            />
+                          )}
+                          {me.capabilities.manageSettings && (
+                            <IconAction
+                              label={t('account')}
+                              icon="solar:lock-password-outline"
+                              onClick={() => setAccount(person)}
+                            />
+                          )}
+                        </PeopleCardActions>
+                      </PeopleCardBody>
+                    </PeoplePersonCard>
+                  );
+                })}
+              </PeopleCardsGrid>
+            </Stack>
+          </QueryState>
+          {query.data && query.data.total > 15 && (
+            <Pagination
+              page={page}
+              total={query.data.total}
+              limit={15}
+              onChange={setPage}
+              hideTotal
+            />
+          )}
+        </>
+      ) : !managedGroup ? (
+        <Card>
+          <EmptyState title={t('coachingTeam')} hint={t('noManagedGroup')} />
+        </Card>
+      ) : (
+        <>
+          {sendInvite.feedback}
+          <QueryState
+            loading={invites.isLoading || groups.isLoading}
+            error={invites.error}
+            retry={() => void invites.refetch()}
+          >
+            {(invites.data?.items.length ?? 0) === 0 ? (
+              <Card>
+                <EmptyState title={t('coachingTeam')} hint={t('coachingTeamHint')} />
+              </Card>
+            ) : (
+              <Stack>
+                <Grid>
+                  {(invites.data?.items ?? []).map((invite) => (
+                    <Card key={invite.id}>
+                      <PersonCardRow>
+                        <Avatar name={invite.inviteeName} size={40} />
+                        <PersonCardMeta>
+                          <Text variant="subtitle">{invite.inviteeName}</Text>
+                          <Chip tone={inviteStatusTone(invite.status)}>
+                            {t(inviteStatusKey(invite.status))}
+                          </Chip>
+                        </PersonCardMeta>
+                      </PersonCardRow>
+                    </Card>
+                  ))}
+                </Grid>
+              </Stack>
+            )}
+          </QueryState>
+        </>
       )}
+      <Dialog
+        open={inviting}
+        title={t('inviteAssistant')}
+        onClose={() => setInviting(false)}
+        actions={
+          <>
+            <Button variant="text" onClick={() => setInviting(false)}>
+              {t('cancel')}
+            </Button>
+            <Button
+              disabled={!inviteeId || sendInvite.isPending}
+              onClick={() => sendInvite.mutate(undefined)}
+            >
+              {t('sendInvite')}
+            </Button>
+          </>
+        }
+      >
+        <Stack>
+          <Text muted>{t('inviteAssistantHint')}</Text>
+          <PersonPicker
+            label="pickInvitee"
+            value={inviteeId}
+            onChange={setInviteeId}
+            onSearch={setCandidateSearch}
+            loading={candidates.isLoading}
+            error={!!candidates.error}
+            options={(candidates.data?.items ?? []).map((person) => ({
+              value: person.id,
+              label: `${person.firstName} ${person.lastName}`,
+            }))}
+          />
+          {sendInvite.feedback}
+        </Stack>
+      </Dialog>
       <Dialog
         open={editing !== undefined}
         title={t(editing ? 'edit' : 'create')}

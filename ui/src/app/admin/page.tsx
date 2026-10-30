@@ -1,3 +1,5 @@
-import { OverviewScreen } from 'src/features/admin-screens';
+import { redirect } from 'next/navigation';
 
-export default OverviewScreen;
+export default function Page() {
+  redirect('/');
+}

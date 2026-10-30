@@ -22,6 +22,8 @@ import { NotificationsService } from './notifications.service';
 export class NotificationDto {
   @ApiProperty() id!: string;
   @ApiProperty() type!: string;
+  @ApiProperty({ type: 'object', additionalProperties: true })
+  payload!: Record<string, unknown>;
   @ApiProperty() createdAt!: string;
   @ApiProperty({ nullable: true, type: String }) readAt!: string | null;
 }

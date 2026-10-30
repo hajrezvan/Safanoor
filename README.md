@@ -51,6 +51,8 @@ corepack yarn --cwd ui dev
 
 Seed تکرارپذیر است؛ ۱ ناظر، ۱ سرمربی، ۲ مربی، ۳ کمک‌مربی، ۱۲ عضو، ۲ والد و ۱ مدیر بیرونی. fixture حوزه‌های آینده رمز‌شده و بدون API است. پنج ناظر واقعی باید توسط سازمان تکمیل شوند؛ readiness تا آن زمان false است.
 
+برای سلسله‌مراتب واقعیٔ تست محلی (گروه‌های صفا، تلفن‌های `+98912…`): `npm --prefix api run seed:hierarchy` — جزئیات در [docs/REAL_HIERARCHY_SEED.md](docs/REAL_HIERARCHY_SEED.md).
+
 ## بررسی‌ها
 
 ```sh

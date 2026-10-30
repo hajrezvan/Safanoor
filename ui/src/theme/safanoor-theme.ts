@@ -1,10 +1,24 @@
 import { faIR } from '@mui/material/locale';
-import { createTheme } from '@mui/material/styles';
+import { alpha, createTheme } from '@mui/material/styles';
 
 import { tokens, type Mode } from './tokens';
 
 export function makeTheme(mode: Mode) {
   const p = tokens.palette[mode];
+  const onTone = p.onBrand;
+  const toneAlert = (tone: string) => ({
+    backgroundColor: p.surface,
+    color: tone,
+    border: `1px solid ${alpha(tone, mode === 'light' ? 0.45 : 0.55)}`,
+    '& .MuiAlert-icon': { color: tone },
+  });
+  const filledAlert = (tone: string) => ({
+    backgroundColor: tone,
+    color: onTone,
+    border: `1px solid ${tone}`,
+    boxShadow: tokens.shadow[mode],
+    '& .MuiAlert-icon': { color: onTone },
+  });
   return createTheme(
     {
       direction: 'rtl',
@@ -17,10 +31,10 @@ export function makeTheme(mode: Mode) {
         background: { default: p.bg, paper: p.surface },
         text: { primary: p.text, secondary: p.secondary },
         divider: p.border,
-        info: { main: p.brand },
-        success: { main: p.success },
-        warning: { main: p.warning },
-        error: { main: p.error },
+        info: { main: p.brand, contrastText: onTone },
+        success: { main: p.success, contrastText: onTone },
+        warning: { main: p.warning, contrastText: onTone },
+        error: { main: p.error, contrastText: onTone },
       },
       typography: {
         fontFamily: tokens.type.font,
@@ -63,6 +77,12 @@ export function makeTheme(mode: Mode) {
               paddingInline: tokens.space.xl,
               transition: `all ${tokens.motion.duration}ms ease`,
             },
+            sizeSmall: {
+              minHeight: tokens.layout.touch - tokens.space.md,
+              paddingInline: tokens.space.md,
+              paddingBlock: tokens.space.xs,
+              fontSize: tokens.type.caption,
+            },
           },
         },
         MuiIconButton: {
@@ -98,7 +118,22 @@ export function makeTheme(mode: Mode) {
         },
         MuiSkeleton: { styleOverrides: { root: { borderRadius: tokens.radius.input } } },
         MuiTabs: { styleOverrides: { root: { minHeight: tokens.layout.touch } } },
-        MuiAlert: { styleOverrides: { root: { borderRadius: tokens.radius.input } } },
+        MuiAlert: {
+          styleOverrides: {
+            root: {
+              borderRadius: tokens.radius.input,
+              fontWeight: 600,
+            },
+            standardSuccess: toneAlert(p.success),
+            standardWarning: toneAlert(p.warning),
+            standardError: toneAlert(p.error),
+            standardInfo: toneAlert(p.brand),
+            filledSuccess: filledAlert(p.success),
+            filledWarning: filledAlert(p.warning),
+            filledError: filledAlert(p.error),
+            filledInfo: filledAlert(p.brand),
+          },
+        },
       },
     },
     faIR

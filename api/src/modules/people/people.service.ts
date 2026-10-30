@@ -16,6 +16,9 @@ import {
   CreatePersonDto,
   MeDto,
   PeoplePageDto,
+  PersonDossierDto,
+  PersonDossierItemDto,
+  PersonDossierSectionDto,
   PersonDto,
   UpdatePersonDto,
 } from './people.dto';
@@ -107,6 +110,196 @@ export class PeopleService {
       },
     };
   }
+  /**
+   * Aggregate person history for the dossier UI. Reuses visibility rules of each
+   * domain (never private notes / emergency). Missing backends return available=false.
+   */
+  async dossier(actor: Actor, id: string): Promise<PersonDossierDto> {
+    const person = await this.get(actor, id);
+    const limit = 30;
+    const [consultations, camps, photos, communications] = await Promise.all([
+      this.dossierConsultations(actor, id, limit),
+      this.dossierCamps(actor, id, limit),
+      this.dossierPhotos(actor, id, limit),
+      this.dossierCommunications(actor, id, limit),
+    ]);
+    const sections: PersonDossierSectionDto[] = [
+      { key: 'books', available: false, items: [] },
+      { key: 'payments', available: false, items: [] },
+      { key: 'camps', available: true, items: camps },
+      { key: 'consultations', available: true, items: consultations },
+      { key: 'communications', available: true, items: communications },
+      { key: 'photos', available: true, items: photos },
+    ];
+    return { person, sections };
+  }
+
+  private async dossierConsultations(
+    actor: Actor,
+    personId: string,
+    limit: number,
+  ): Promise<PersonDossierItemDto[]> {
+    if (actor.isParent || actor.external) return [];
+    const visible = `(
+      c.author_id=$1
+      OR EXISTS(
+        SELECT 1 FROM consultation_member m
+        WHERE m.consultation_id=c.id AND m.person_id=$1
+      )
+      OR EXISTS(
+        SELECT 1 FROM organization_group g
+        WHERE g.id=c.group_id AND g.owner_person_id=$1
+      )
+      OR EXISTS(
+        SELECT 1 FROM consultation_member m
+        JOIN follow_up_assignment f
+          ON f.member_person_id=m.person_id
+         AND f.assistant_person_id=$1
+         AND f.to_date IS NULL
+        WHERE m.consultation_id=c.id
+      )
+    )`;
+    return rows<PersonDossierItemDto>(
+      this.db,
+      `SELECT c.id,
+        COALESCE(NULLIF(left(c.shared_summary, 80), ''), g.name) AS title,
+        author.first_name||' '||author.last_name AS subtitle,
+        c.held_at::text AS at,
+        '/consultations' AS href
+       FROM consultation c
+       JOIN organization_group g ON g.id=c.group_id
+       JOIN person author ON author.id=c.author_id
+       WHERE ${visible}
+         AND EXISTS(
+           SELECT 1 FROM consultation_member m
+           WHERE m.consultation_id=c.id AND m.person_id=$2
+         )
+       ORDER BY c.held_at DESC, c.id
+       LIMIT $3`,
+      [actor.personId, personId, limit],
+    );
+  }
+
+  private async dossierCamps(
+    actor: Actor,
+    personId: string,
+    limit: number,
+  ): Promise<PersonDossierItemDto[]> {
+    if (actor.isParent || actor.external) return [];
+    const visible = `(
+      EXISTS(
+        SELECT 1 FROM organization_group g
+        WHERE g.id=c.group_id AND g.owner_person_id=$1
+      )
+      OR EXISTS(
+        SELECT 1 FROM membership m
+        WHERE m.group_id=c.group_id AND m.person_id=$1 AND m.valid_to IS NULL
+      )
+    )`;
+    return rows<PersonDossierItemDto>(
+      this.db,
+      `SELECT c.id, c.title,
+        COALESCE(c.place, c.status) AS subtitle,
+        c.starts_on::text AS at,
+        '/camp-attendance' AS href
+       FROM camp c
+       WHERE ${visible}
+         AND EXISTS(
+           SELECT 1 FROM camp_participant p
+           WHERE p.camp_id=c.id AND p.person_id=$2
+         )
+       ORDER BY c.starts_on DESC, c.id
+       LIMIT $3`,
+      [actor.personId, personId, limit],
+    );
+  }
+
+  private async dossierPhotos(
+    actor: Actor,
+    personId: string,
+    limit: number,
+  ): Promise<PersonDossierItemDto[]> {
+    const accessible = await rows<{ id: string }>(
+      this.db,
+      `SELECT DISTINCT g.id FROM organization_group g
+       WHERE g.owner_person_id=$1
+          OR EXISTS(
+            SELECT 1 FROM membership m
+            WHERE m.group_id=g.id AND m.person_id=$1 AND m.valid_to IS NULL
+          )`,
+      [actor.personId],
+    );
+    const groupIds = accessible.map((row) => row.id);
+    if (groupIds.length === 0) return [];
+    return rows<PersonDossierItemDto>(
+      this.db,
+      `SELECT DISTINCT ON (p.created_at, p.id) p.id,
+        COALESCE(NULLIF(p.title, ''), g.name) AS title,
+        COALESCE(loc.label, p.event_note) AS subtitle,
+        p.created_at::text AS at,
+        '/group-album' AS href
+       FROM photo p
+       JOIN photo_group pg ON pg.photo_id=p.id AND pg.hidden_by_group=false
+       JOIN organization_group g ON g.id=p.host_group_id
+       LEFT JOIN location_option loc ON loc.id=p.location_option_id
+       WHERE pg.group_id=ANY($1::uuid[])
+         AND EXISTS(
+           SELECT 1 FROM photo_tag t
+           WHERE t.photo_id=p.id AND t.person_id=$2
+         )
+       ORDER BY p.created_at DESC, p.id
+       LIMIT $3`,
+      [groupIds, personId, limit],
+    );
+  }
+
+  private async dossierCommunications(
+    actor: Actor,
+    personId: string,
+    limit: number,
+  ): Promise<PersonDossierItemDto[]> {
+    return rows<PersonDossierItemDto>(
+      this.db,
+      `SELECT t.id,
+        CASE
+          WHEN t.kind='group' THEN g.name
+          ELSE COALESCE(
+            (SELECT string_agg(p.first_name||' '||p.last_name, '، ' ORDER BY p.first_name)
+               FROM chat_thread_participant cp JOIN person p ON p.id=cp.person_id
+               WHERE cp.thread_id=t.id AND cp.person_id<>$2),
+            g.name
+          )
+        END AS title,
+        (SELECT m.body FROM chat_message m
+          WHERE m.thread_id=t.id
+          ORDER BY m.created_at DESC, m.id DESC LIMIT 1) AS subtitle,
+        (SELECT m.created_at::text FROM chat_message m
+          WHERE m.thread_id=t.id
+          ORDER BY m.created_at DESC, m.id DESC LIMIT 1) AS at,
+        '/communications' AS href
+       FROM chat_thread t
+       JOIN organization_group g ON g.id=t.group_id
+       WHERE EXISTS(
+           SELECT 1 FROM chat_thread_participant cp
+           WHERE cp.thread_id=t.id AND cp.person_id=$2
+         )
+         AND (
+           g.owner_person_id=$1
+           OR EXISTS(
+             SELECT 1 FROM chat_thread_participant cp
+             WHERE cp.thread_id=t.id AND cp.person_id=$1
+           )
+         )
+       ORDER BY COALESCE(
+         (SELECT m.created_at FROM chat_message m
+           WHERE m.thread_id=t.id ORDER BY m.created_at DESC LIMIT 1),
+         t.created_at
+       ) DESC, t.id
+       LIMIT $3`,
+      [actor.personId, personId, limit],
+    );
+  }
+
   async me(actor: Actor): Promise<MeDto> {
     const checks = await Promise.all([
       this.access.level(actor, 'read', { type: 'admin' }),
@@ -168,10 +361,12 @@ export class PeopleService {
         [
           input.firstName,
           input.lastName,
-          input.fatherName,
-          input.birthDate,
-          this.crypto.encrypt(input.nationalId, 'national-id'),
-          this.crypto.nationalIdHash(input.nationalId),
+          input.fatherName ?? null,
+          input.birthDate ?? null,
+          input.nationalId
+            ? this.crypto.encrypt(input.nationalId, 'national-id')
+            : null,
+          input.nationalId ? this.crypto.nationalIdHash(input.nationalId) : null,
           input.phone,
           input.orgLevel,
           normalizePersian(`${input.firstName} ${input.lastName}`),
