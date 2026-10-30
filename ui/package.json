@@ -5,7 +5,8 @@
   "description": "Next Starter & JavaScript",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3033 --turbopack",
+    "dev": "next dev -p 3033",
+    "dev:turbo": "next dev -p 3033 --turbopack",
     "start": "next start -p 3033",
     "build": "next build",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",

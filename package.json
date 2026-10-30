@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
+    "dev": "node scripts/dev.mjs",
     "build:shared": "tsc -p packages/shared/tsconfig.json",
     "test:shared": "tsx --test packages/shared/src/*.spec.ts",
     "typecheck:shared": "tsc -p packages/shared/tsconfig.json --noEmit",

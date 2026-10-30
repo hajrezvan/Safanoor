@@ -23,7 +23,13 @@ npm --prefix api run migration:run
 npm --prefix api run seed
 ```
 
-در سه ترمینال:
+بعد از نصب وابستگی‌ها و اولین migration/seed، برای بالا آوردن کل استک توسعه (Postgres + API + worker + UI) از ریشهٔ مخزن:
+
+```sh
+npm run dev
+```
+
+Ctrl+C همه را با هم متوقف می‌کند. معادل دستی در سه ترمینال:
 
 ```sh
 npm --prefix api run start:dev
