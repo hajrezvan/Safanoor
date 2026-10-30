@@ -8,7 +8,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useForm, Controller, type UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { calendarDate, campSchema, formatDate, formatNumber } from '@safanoor/shared';
+import {
+  calendarDate,
+  campSchema,
+  formatCompactDate,
+  formatDate,
+  formatNumber,
+} from '@safanoor/shared';
 
 import { api, client, unwrap } from 'src/api/client';
 import { Session, useSession } from 'src/features/session';
@@ -19,6 +25,7 @@ import {
   Card,
   Check,
   Chip,
+  CompactClickableCard,
   Dialog,
   EmptyState,
   FileInput,
@@ -27,6 +34,7 @@ import {
   JalaliInput,
   Notice,
   PageHeader,
+  PersonCardMeta,
   QueryState,
   Row,
   Spread,
@@ -591,30 +599,37 @@ function CampList({
             }
           />
         ) : (
-          list.data?.items.map((camp: CampSummary) => (
-            <Card key={camp.id}>
-              <Stack>
+          <Stack>
+            {list.data?.items.map((camp: CampSummary) => (
+              <CompactClickableCard
+                key={camp.id}
+                type="button"
+                onClick={() => onOpen(camp.id)}
+              >
                 <Spread>
-                  <Stack>
+                  <PersonCardMeta>
                     <Text variant="subtitle">{camp.title}</Text>
-                    <Text muted>
-                      {formatDate(camp.startsOn)} — {formatDate(camp.endsOn)}
+                    <Text muted variant="caption">
+                      {[
+                        `${formatCompactDate(camp.startsOn)} — ${formatCompactDate(camp.endsOn)}`,
+                        camp.place,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
                     </Text>
-                    {camp.place && <Text muted>{camp.place}</Text>}
-                  </Stack>
-                  <Stack>
+                  </PersonCardMeta>
+                  <Row>
                     <Chip>{statusLabel(t, camp.status)}</Chip>
                     <Chip>
-                      {t('campParticipantCount', { count: camp.participantCount })}
+                      {t('campParticipantCount', {
+                        count: camp.participantCount,
+                      })}
                     </Chip>
-                  </Stack>
+                  </Row>
                 </Spread>
-                <Button variant="outlined" onClick={() => onOpen(camp.id)}>
-                  {t('openCamp')}
-                </Button>
-              </Stack>
-            </Card>
-          ))
+              </CompactClickableCard>
+            ))}
+          </Stack>
         )}
       </QueryState>
       {create.feedback}

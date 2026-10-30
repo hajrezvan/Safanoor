@@ -3,7 +3,7 @@
 import type { components } from 'src/api/generated/schema';
 
 import { z } from 'zod';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,23 +14,40 @@ import { Session, useSession } from 'src/features/session';
 import { useWrite } from 'src/features/shared';
 import { useFa } from 'src/locales/fa-provider';
 import {
+  BookCardActions,
+  BookCardBody,
+  BookCoverButton,
+  BookCoverPlaceholder,
+  BookCoverThumb,
   Button,
-  Card,
+  CardsGrid,
   Chip,
+  CoverCard,
+  CoverCardAction,
+  CoverCardBody,
+  CoverCardMedia,
+  CoverCardMediaPlaceholder,
   Dialog,
   EmptyState,
   Form,
+  Icon,
+  IconAction,
+  IconActionRow,
   Input,
   Notice,
   PageHeader,
+  PathSequence,
+  PathSequenceCard,
+  PathSequenceNode,
+  PathSequenceStep,
   QueryState,
   Row,
-  Spread,
   Stack,
   Text,
 } from 'src/components/ui';
 
 type StudyPathSummary = components['schemas']['StudyPathSummaryDto'];
+type StudyPathItem = components['schemas']['StudyPathItemDto'];
 
 function useLibraryGroup() {
   const me = useSession();
@@ -183,6 +200,144 @@ function AddBookDialog({
   );
 }
 
+function BookStepCard({
+  item,
+  index,
+  total,
+  canManage,
+  busyReorder,
+  busyRemove,
+  onMove,
+  onRemove,
+  onCover,
+  onPdfUpload,
+  onPdfRemove,
+}: {
+  item: StudyPathItem;
+  index: number;
+  total: number;
+  canManage: boolean;
+  busyReorder: boolean;
+  busyRemove: boolean;
+  onMove: (delta: number) => void;
+  onRemove: () => void;
+  onCover: (file: File) => void;
+  onPdfUpload: (file: File) => void;
+  onPdfRemove: () => void;
+}) {
+  const t = useFa();
+  const coverInput = useRef<HTMLInputElement>(null);
+  const pdfInput = useRef<HTMLInputElement>(null);
+  return (
+    <PathSequenceStep>
+      <PathSequenceNode>{index + 1}</PathSequenceNode>
+      <PathSequenceCard>
+        <BookCoverButton
+          type="button"
+          disabled={!canManage}
+          aria-label={t('bookCoverUpload')}
+          onClick={() => {
+            if (canManage) coverInput.current?.click();
+          }}
+        >
+          {item.coverUrl ? (
+            <BookCoverThumb src={item.coverUrl} alt={t('bookCover')} />
+          ) : (
+            <BookCoverPlaceholder>
+              <Icon name="library" />
+            </BookCoverPlaceholder>
+          )}
+        </BookCoverButton>
+        <input
+          ref={coverInput}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          hidden
+          aria-label={t('bookCoverUpload')}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) onCover(file);
+            event.target.value = '';
+          }}
+        />
+        <input
+          ref={pdfInput}
+          type="file"
+          accept="application/pdf"
+          hidden
+          aria-label={t('bookPdfUpload')}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) onPdfUpload(file);
+            event.target.value = '';
+          }}
+        />
+        <BookCardBody>
+          <Text variant="subtitle">{item.bookTitle}</Text>
+          {item.bookAuthor ? <Text muted>{item.bookAuthor}</Text> : null}
+          {item.notes ? (
+            <Text muted variant="caption">
+              {item.notes}
+            </Text>
+          ) : null}
+          <BookCardActions>
+            <IconActionRow>
+              <IconAction
+                label={item.pdfUrl ? t('bookPdfOpen') : t('bookPdfMissing')}
+                icon="solar:document-text-bold"
+                disabled={!item.pdfUrl}
+                onClick={() => {
+                  if (item.pdfUrl)
+                    window.open(item.pdfUrl, '_blank', 'noopener,noreferrer');
+                }}
+              />
+              {canManage ? (
+                <>
+                  <IconAction
+                    label={t('bookPdfUpload')}
+                    icon="solar:upload-minimalistic-bold"
+                    onClick={() => pdfInput.current?.click()}
+                  />
+                  <IconAction
+                    label={t('bookPdfDelete')}
+                    icon="solar:trash-bin-minimalistic-bold"
+                    color="error"
+                    disabled={!item.pdfUrl}
+                    onClick={onPdfRemove}
+                  />
+                </>
+              ) : null}
+            </IconActionRow>
+            {canManage ? (
+              <IconActionRow>
+                <IconAction
+                  label={t('moveUp')}
+                  icon="solar:arrow-up-bold"
+                  disabled={index === 0 || busyReorder}
+                  onClick={() => onMove(-1)}
+                />
+                <IconAction
+                  label={t('moveDown')}
+                  icon="solar:arrow-down-bold"
+                  disabled={index === total - 1 || busyReorder}
+                  onClick={() => onMove(1)}
+                />
+                <IconAction
+                  label={t('deleteBook')}
+                  icon="solar:trash-bin-trash-bold"
+                  color="error"
+                  disabled={busyRemove}
+                  onClick={onRemove}
+                />
+              </IconActionRow>
+            ) : null}
+          </BookCardActions>
+        </BookCardBody>
+      </PathSequenceCard>
+    </PathSequenceStep>
+  );
+}
+
 function PathDetail({ pathId, onBack }: { pathId: string; onBack: () => void }) {
   const t = useFa();
   const cache = useQueryClient();
@@ -245,6 +400,43 @@ function PathDetail({ pathId, onBack }: { pathId: string; onBack: () => void }) 
       })
     );
   }, onBack);
+  const uploadCover = useWrite(
+    async (input: { itemId: string; file: File }) => {
+      const data = new FormData();
+      data.append('file', input.file);
+      return unwrap(
+        await client.POST('/api/v1/study-paths/{id}/items/{itemId}/cover', {
+          params: { path: { id: pathId, itemId: input.itemId } },
+          body: data as unknown as { file: string },
+          bodySerializer: (body) => body as unknown as FormData,
+        })
+      );
+    },
+    invalidate
+  );
+  const uploadPdf = useWrite(
+    async (input: { itemId: string; file: File }) => {
+      const data = new FormData();
+      data.append('file', input.file);
+      return unwrap(
+        await client.POST('/api/v1/study-paths/{id}/items/{itemId}/pdf', {
+          params: { path: { id: pathId, itemId: input.itemId } },
+          body: data as unknown as { file: string },
+          bodySerializer: (body) => body as unknown as FormData,
+        })
+      );
+    },
+    invalidate
+  );
+  const removePdf = useWrite(
+    async (itemId: string) =>
+      unwrap(
+        await client.DELETE('/api/v1/study-paths/{id}/items/{itemId}/pdf', {
+          params: { path: { id: pathId, itemId } },
+        })
+      ),
+    invalidate
+  );
   const move = (index: number, delta: number) => {
     if (!path) return;
     const ids = path.items.map((item) => item.id);
@@ -288,56 +480,39 @@ function PathDetail({ pathId, onBack }: { pathId: string; onBack: () => void }) 
             {path.items.length === 0 ? (
               <EmptyState title={t('studyPathsEmpty')} hint={t('studyPathsEmptyHint')} />
             ) : (
-              path.items.map((item, index) => (
-                <Card key={item.id}>
-                  <Stack>
-                    <Spread>
-                      <Stack>
-                        <Text variant="subtitle">
-                          {index + 1}. {item.bookTitle}
-                        </Text>
-                        {item.bookAuthor && <Text muted>{item.bookAuthor}</Text>}
-                        {item.notes && <Text muted>{item.notes}</Text>}
-                      </Stack>
-                      <Chip>{index + 1}</Chip>
-                    </Spread>
-                    {path.canManage && (
-                      <Row>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          disabled={index === 0 || reorder.isPending}
-                          onClick={() => move(index, -1)}
-                        >
-                          {t('moveUp')}
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          disabled={index === path.items.length - 1 || reorder.isPending}
-                          onClick={() => move(index, 1)}
-                        >
-                          {t('moveDown')}
-                        </Button>
-                        <Button
-                          size="small"
-                          color="error"
-                          variant="text"
-                          disabled={removeItem.isPending}
-                          onClick={() => removeItem.mutate(item.id)}
-                        >
-                          {t('deleteBook')}
-                        </Button>
-                      </Row>
-                    )}
-                  </Stack>
-                </Card>
-              ))
+              <>
+                <Text muted>{t('studyPathSequenceHint')}</Text>
+                <PathSequence>
+                  {path.items.map((item: StudyPathItem, index) => (
+                    <BookStepCard
+                      key={item.id}
+                      item={item}
+                      index={index}
+                      total={path.items.length}
+                      canManage={path.canManage}
+                      busyReorder={reorder.isPending}
+                      busyRemove={removeItem.isPending}
+                      onMove={(delta) => move(index, delta)}
+                      onRemove={() => removeItem.mutate(item.id)}
+                      onCover={(file) =>
+                        uploadCover.mutate({ itemId: item.id, file })
+                      }
+                      onPdfUpload={(file) =>
+                        uploadPdf.mutate({ itemId: item.id, file })
+                      }
+                      onPdfRemove={() => removePdf.mutate(item.id)}
+                    />
+                  ))}
+                </PathSequence>
+              </>
             )}
             {addItem.feedback}
             {removeItem.feedback}
             {reorder.feedback}
             {removePath.feedback}
+            {uploadCover.feedback}
+            {uploadPdf.feedback}
+            {removePdf.feedback}
           </>
         )}
       </QueryState>
@@ -433,22 +608,34 @@ function PathList({
             }
           />
         ) : (
-          list.data?.items.map((path: StudyPathSummary) => (
-            <Card key={path.id}>
-              <Stack>
-                <Spread>
-                  <Stack>
-                    <Text variant="subtitle">{path.title}</Text>
-                    {path.description && <Text muted>{path.description}</Text>}
-                  </Stack>
-                  <Chip>{t('bookCount', { count: path.itemCount })}</Chip>
-                </Spread>
-                <Button variant="outlined" onClick={() => onOpen(path.id)}>
-                  {t('openStudyPath')}
-                </Button>
-              </Stack>
-            </Card>
-          ))
+          <CardsGrid>
+            {list.data?.items.map((path: StudyPathSummary) => (
+              <CoverCard key={path.id}>
+                {path.coverUrl ? (
+                  <CoverCardMedia src={path.coverUrl} alt={path.title} />
+                ) : (
+                  <CoverCardMediaPlaceholder>
+                    <Icon name="library" />
+                  </CoverCardMediaPlaceholder>
+                )}
+                <CoverCardBody>
+                  <Text variant="subtitle">{path.title}</Text>
+                  {path.description ? (
+                    <Text muted>{path.description}</Text>
+                  ) : null}
+                  <CoverCardAction>
+                    <Chip>{t('bookCount', { count: path.itemCount })}</Chip>
+                    <Button
+                      variant="outlined"
+                      onClick={() => onOpen(path.id)}
+                    >
+                      {t('openStudyPath')}
+                    </Button>
+                  </CoverCardAction>
+                </CoverCardBody>
+              </CoverCard>
+            ))}
+          </CardsGrid>
         )}
       </QueryState>
       {create.feedback}

@@ -1,13 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   Length,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator';
 import { PageMetaDto } from '../../libs/http/http.dto';
 
@@ -22,10 +25,21 @@ function parseUuidList(value: unknown): string[] | unknown {
   }
 }
 
+/** Sentinel album key for photos without an album_title. */
+export const OTHER_ALBUM_KEY = '__other__';
+
 export class UploadPhotoDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID('4')
   groupId!: string;
+
+  @ApiPropertyOptional({
+    description: 'Program/event album name; photos with the same title form one album',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 200)
+  albumTitle?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -69,6 +83,45 @@ export class UpdatePhotoTagsDto {
   taggedPersonIds!: string[];
 }
 
+export class ListPhotosQueryDto {
+  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page: number = 1;
+
+  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit: number = 20;
+
+  @ApiPropertyOptional({
+    description:
+      'Album key from GET /album/albums (exact album title, or __other__ for untitled)',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  albumKey?: string;
+}
+
+export class ListAlbumsQueryDto {
+  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page: number = 1;
+
+  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit: number = 20;
+}
+
 export class PhotoTagDto {
   @ApiProperty() personId!: string;
   @ApiProperty() firstName!: string;
@@ -81,6 +134,8 @@ export class PhotoSummaryDto {
   @ApiProperty() hostGroupName!: string;
   @ApiProperty() fileId!: string;
   @ApiProperty() contentUrl!: string;
+  @ApiPropertyOptional({ nullable: true, type: String })
+  albumTitle!: string | null;
   @ApiPropertyOptional({ nullable: true, type: String })
   title!: string | null;
   @ApiPropertyOptional({ nullable: true, type: String })
@@ -102,4 +157,21 @@ export class PhotoDetailDto extends PhotoSummaryDto {
 
 export class PhotosPageDto extends PageMetaDto {
   @ApiProperty({ type: [PhotoSummaryDto] }) items!: PhotoSummaryDto[];
+}
+
+export class AlbumSummaryDto {
+  @ApiProperty({
+    description: 'Stable album key (album title, or __other__ when untitled)',
+  })
+  key!: string;
+  @ApiProperty() title!: string;
+  @ApiProperty() photoCount!: number;
+  @ApiProperty({ format: 'uuid' }) coverPhotoId!: string;
+  @ApiProperty() coverContentUrl!: string;
+  @ApiProperty({ description: 'Newest photo created_at in this album' })
+  latestAt!: string;
+}
+
+export class AlbumsPageDto extends PageMetaDto {
+  @ApiProperty({ type: [AlbumSummaryDto] }) items!: AlbumSummaryDto[];
 }

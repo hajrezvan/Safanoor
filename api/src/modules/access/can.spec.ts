@@ -41,7 +41,7 @@ const relationMap: Record<(typeof columns)[number], Partial<Relations>> = {
 };
 const matrix: Record<string, { action: Action; expected: string }> = {
   file: { action: 'read', expected: 'D N N N N N N N N N' },
-  person: { action: 'read', expected: 'D S N D N N N N N S' },
+  person: { action: 'read', expected: 'D S N D N S S N N S' },
   group: { action: 'read', expected: 'D D D D N D D N N D' },
   membership: { action: 'assign', expected: 'N N N D N N N N N D' },
   assignment: { action: 'assign', expected: 'N N N D N N N N N D' },
@@ -74,6 +74,7 @@ const matrix: Record<string, { action: Action; expected: string }> = {
   project_feedback: { action: 'read', expected: 'D D N N N N N N N N' },
   chat_thread: { action: 'read', expected: 'N N N D N N N N N N' },
   study_path: { action: 'read', expected: 'D D D D N N N N N N' },
+  lms_item: { action: 'read', expected: 'D D D D N N N N N N' },
   program_event: { action: 'read', expected: 'N N N D N N N N N N' },
   camp: { action: 'read', expected: 'D D D D N N N N N N' },
   dashboard: { action: 'read', expected: 'N N N D N N N N N D' },
@@ -417,6 +418,26 @@ describe('explicit organization policy matrix', () => {
           actor,
           action,
           { type: 'study_path' },
+          { policies, relations: { ...emptyRelations, sameGroup: true } },
+        ),
+      ).toBe('none');
+    }
+  });
+  it('only the group mentor can create or manage lms items', () => {
+    for (const action of ['create', 'update', 'manage'] as const) {
+      expect(
+        can(
+          actor,
+          action,
+          { type: 'lms_item' },
+          { policies, relations: { ...emptyRelations, groupMentor: true } },
+        ),
+      ).toBe('detail');
+      expect(
+        can(
+          actor,
+          action,
+          { type: 'lms_item' },
           { policies, relations: { ...emptyRelations, sameGroup: true } },
         ),
       ).toBe('none');

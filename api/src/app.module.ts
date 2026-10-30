@@ -24,6 +24,7 @@ import { GroupsModule } from './modules/groups/groups.module';
 import { ImportsModule } from './modules/imports/imports.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { LibraryModule } from './modules/library/library.module';
+import { LmsModule } from './modules/lms/lms.module';
 import { LocationsModule } from './modules/locations/locations.module';
 import { MeetingsModule } from './modules/meetings/meetings.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -42,6 +43,7 @@ import { PeopleModule } from './modules/people/people.module';
     CampsModule,
     CommunicationsModule,
     LibraryModule,
+    LmsModule,
     MeetingsModule,
     ConsultationsModule,
     FinanceModule,

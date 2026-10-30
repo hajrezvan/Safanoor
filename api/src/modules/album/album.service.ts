@@ -7,13 +7,16 @@ import {
 import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
 import { one, pageOf, rows } from '../../libs/database/database.types';
-import { PaginationDto } from '../../libs/http/http.dto';
 import { AccessService } from '../access/access.service';
 import { Actor } from '../access/access.types';
 import { AuditService } from '../audit/audit.service';
 import { STORAGE, StorageAdapter } from '../files/storage';
 import { LocationsService } from '../locations/locations.service';
 import {
+  AlbumsPageDto,
+  ListAlbumsQueryDto,
+  ListPhotosQueryDto,
+  OTHER_ALBUM_KEY,
   PhotoDetailDto,
   PhotoSummaryDto,
   PhotoTagDto,
@@ -34,23 +37,115 @@ export class AlbumService {
     @Inject(STORAGE) private readonly storage: StorageAdapter,
   ) {}
 
-  async list(actor: Actor, query: PaginationDto): Promise<PhotosPageDto> {
+  async listAlbums(
+    actor: Actor,
+    query: ListAlbumsQueryDto,
+  ): Promise<AlbumsPageDto> {
     const accessible = await this.accessibleGroupIds(actor.personId);
     if (accessible.length === 0)
       return pageOf([], query.page, query.limit, 0);
+
+    const count = await one<{ count: string }>(
+      this.db,
+      `SELECT count(*)::text AS count FROM (
+         SELECT COALESCE(NULLIF(BTRIM(p.album_title), ''), $2) AS album_key
+         FROM photo p
+         JOIN photo_group pg ON pg.photo_id=p.id AND pg.hidden_by_group=false
+         WHERE pg.group_id=ANY($1::uuid[])
+         GROUP BY 1
+       ) albums`,
+      [accessible, OTHER_ALBUM_KEY],
+    );
+
+    const items = await rows<{
+      key: string;
+      title: string;
+      photoCount: number;
+      coverPhotoId: string;
+      coverContentUrl: string;
+      latestAt: string;
+    }>(
+      this.db,
+      `SELECT
+          album_key AS key,
+          CASE WHEN album_key = $2 THEN '' ELSE album_key END AS title,
+          photo_count AS "photoCount",
+          cover_photo_id AS "coverPhotoId",
+          '' AS "coverContentUrl",
+          latest_at AS "latestAt"
+       FROM (
+         SELECT
+           COALESCE(NULLIF(BTRIM(p.album_title), ''), $2) AS album_key,
+           count(DISTINCT p.id)::int AS photo_count,
+           (array_agg(p.id ORDER BY p.created_at DESC, p.id DESC))[1] AS cover_photo_id,
+           max(p.created_at) AS latest_at
+         FROM photo p
+         JOIN photo_group pg ON pg.photo_id=p.id AND pg.hidden_by_group=false
+         WHERE pg.group_id=ANY($1::uuid[])
+         GROUP BY 1
+       ) grouped
+       ORDER BY latest_at DESC, key
+       LIMIT $3 OFFSET $4`,
+      [accessible, OTHER_ALBUM_KEY, query.limit, (query.page - 1) * query.limit],
+    );
+
+    return pageOf(
+      items.map((item) => ({
+        ...item,
+        coverContentUrl: `/api/v1/album/photos/${item.coverPhotoId}/content`,
+      })),
+      query.page,
+      query.limit,
+      Number(count?.count ?? 0),
+    );
+  }
+
+  async list(actor: Actor, query: ListPhotosQueryDto): Promise<PhotosPageDto> {
+    const accessible = await this.accessibleGroupIds(actor.personId);
+    if (accessible.length === 0)
+      return pageOf([], query.page, query.limit, 0);
+
+    const albumClause =
+      !query.albumKey
+        ? 'TRUE'
+        : query.albumKey === OTHER_ALBUM_KEY
+          ? `(p.album_title IS NULL OR BTRIM(p.album_title) = '')`
+          : `NULLIF(BTRIM(p.album_title), '') = $2`;
+
+    const countParams: unknown[] =
+      query.albumKey && query.albumKey !== OTHER_ALBUM_KEY
+        ? [accessible, query.albumKey.trim()]
+        : [accessible];
+
     const count = await one<{ count: string }>(
       this.db,
       `SELECT count(DISTINCT p.id)::text AS count
        FROM photo p
        JOIN photo_group pg ON pg.photo_id=p.id AND pg.hidden_by_group=false
-       WHERE pg.group_id=ANY($1::uuid[])`,
-      [accessible],
+       WHERE pg.group_id=ANY($1::uuid[])
+         AND (${albumClause})`,
+      countParams,
     );
+
+    const listParams: unknown[] = [accessible, actor.personId];
+    let listAlbumClause = 'TRUE';
+    if (query.albumKey === OTHER_ALBUM_KEY) {
+      listAlbumClause = `(p.album_title IS NULL OR BTRIM(p.album_title) = '')`;
+    } else if (query.albumKey) {
+      listParams.push(query.albumKey.trim());
+      listAlbumClause = `NULLIF(BTRIM(p.album_title), '') = $3`;
+    }
+    const limitPh = `$${listParams.length + 1}`;
+    const offsetPh = `$${listParams.length + 2}`;
+    listParams.push(query.limit, (query.page - 1) * query.limit);
+
     const items = await rows<PhotoSummaryDto>(
       this.db,
       `SELECT DISTINCT ON (p.created_at,p.id)
           p.id,p.host_group_id AS "hostGroupId",g.name AS "hostGroupName",
-          p.file_id AS "fileId",p.title,p.event_note AS "eventNote",
+          p.file_id AS "fileId",
+          NULLIF(BTRIM(p.album_title), '') AS "albumTitle",
+          p.title,p.event_note AS "eventNote",
           p.location_option_id AS "locationOptionId",
           loc.label AS "placeLabel",
           p.uploaded_by AS "uploadedBy",
@@ -65,10 +160,12 @@ export class AlbumService {
        JOIN person up ON up.id=p.uploaded_by
        LEFT JOIN location_option loc ON loc.id=p.location_option_id
        WHERE pg.group_id=ANY($1::uuid[])
+         AND (${listAlbumClause})
        ORDER BY p.created_at DESC,p.id
-       LIMIT $3 OFFSET $4`,
-      [accessible, actor.personId, query.limit, (query.page - 1) * query.limit],
+       LIMIT ${limitPh} OFFSET ${offsetPh}`,
+      listParams,
     );
+
     return pageOf(
       items.map((item) => this.withContentUrl(item)),
       query.page,
@@ -124,6 +221,7 @@ export class AlbumService {
     );
     await this.requireHostMentor(actor, input.groupId);
     this.assertImage(file);
+    const albumTitle = input.albumTitle?.trim() || null;
     const title = input.title?.trim() || null;
     const eventNote = input.eventNote?.trim() || null;
     const locationOptionId = await this.resolvePlace(
@@ -145,12 +243,13 @@ export class AlbumService {
       );
       const photo = await one<{ id: string }>(
         manager,
-        `INSERT INTO photo(host_group_id,file_id,uploaded_by,title,event_note,location_option_id)
-         VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
+        `INSERT INTO photo(host_group_id,file_id,uploaded_by,album_title,title,event_note,location_option_id)
+         VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
         [
           input.groupId,
           fileId,
           actor.personId,
+          albumTitle,
           title,
           eventNote,
           locationOptionId,
@@ -173,7 +272,7 @@ export class AlbumService {
         'photo.uploaded',
         'photo',
         photo.id,
-        { groupId: input.groupId },
+        { groupId: input.groupId, albumTitle },
         manager,
       );
       return photo.id;
@@ -267,7 +366,9 @@ export class AlbumService {
     const photo = await one<PhotoSummaryDto>(
       this.db,
       `SELECT p.id,p.host_group_id AS "hostGroupId",g.name AS "hostGroupName",
-        p.file_id AS "fileId",p.title,p.event_note AS "eventNote",
+        p.file_id AS "fileId",
+        NULLIF(BTRIM(p.album_title), '') AS "albumTitle",
+        p.title,p.event_note AS "eventNote",
         p.location_option_id AS "locationOptionId",
         loc.label AS "placeLabel",
         p.uploaded_by AS "uploadedBy",

@@ -9,7 +9,12 @@ import { useRouter } from 'next/navigation';
 import { Controller, useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { calendarDate, formatDate, formatNumber } from '@safanoor/shared';
+import {
+  calendarDate,
+  formatCompactStamp,
+  formatDate,
+  formatNumber,
+} from '@safanoor/shared';
 
 import { client, unwrap } from 'src/api/client';
 import { useFa } from 'src/locales/fa-provider';
@@ -18,7 +23,9 @@ import {
   Card,
   Check,
   Chip,
+  CompactClickableCard,
   Dialog,
+  DualAvatar,
   EmptyState,
   Form,
   FormGrid,
@@ -27,9 +34,12 @@ import {
   Notice,
   PageHeader,
   Pagination,
+  PersonCardMeta,
   QueryState,
   Row,
   Select,
+  SoftIcon,
+  Spread,
   Stack,
   Text,
 } from 'src/components/ui';
@@ -67,13 +77,12 @@ function combineHeldAt(date: Date, time: string): string {
   return next.toISOString();
 }
 
-function previewAttendees(preview: string, count: number, t: ReturnType<typeof useFa>) {
-  if (!preview) return t('meetingAttendeeCount', { count: formatNumber(count) });
-  const names = preview.split('، ').filter(Boolean);
-  if (names.length <= 3 && names.length >= count)
-    return names.join('، ');
-  const shown = names.slice(0, 3).join('، ');
-  return `${shown} · ${t('meetingAttendeeCount', { count: formatNumber(count) })}`;
+function attendeeNames(preview: string): string[] {
+  return preview
+    .split('، ')
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .slice(0, 2);
 }
 
 function MeetingCard({
@@ -84,27 +93,45 @@ function MeetingCard({
   onOpen: () => void;
 }) {
   const t = useFa();
+  const kindLabel = t(
+    meeting.kind === 'public' ? 'meetingKindPublic' : 'meetingKindWorkgroup',
+  );
   return (
-    <Card>
-      <Stack>
-        <Row>
-          <Text variant="subtitle">{meeting.title}</Text>
-          <Chip tone={meeting.kind === 'public' ? 'success' : 'default'}>
-            {t(meeting.kind === 'public' ? 'meetingKindPublic' : 'meetingKindWorkgroup')}
-          </Chip>
-        </Row>
-        <Text muted>
-          {formatDate(meeting.heldAt, true)}
-          {meeting.place ? ` · ${meeting.place}` : ''}
-        </Text>
-        <Text muted variant="caption">
-          {previewAttendees(meeting.attendeePreview, meeting.attendeeCount, t)}
-        </Text>
-        <Button variant="outlined" onClick={onOpen}>
-          {t('meetingAgenda')}
-        </Button>
-      </Stack>
-    </Card>
+    <CompactClickableCard type="button" onClick={onOpen} aria-label={meeting.title}>
+      <Spread sx={{ flexWrap: 'nowrap' }}>
+        <PersonCardMeta>
+          <Row>
+            <Text variant="subtitle">{meeting.title}</Text>
+            <Chip tone={meeting.kind === 'public' ? 'success' : 'default'}>
+              {kindLabel}
+            </Chip>
+          </Row>
+          <Row>
+            <SoftIcon
+              icon="solar:calendar-bold"
+              label={t('meetingHeldAt')}
+              size={14}
+            />
+            <Text muted variant="caption" dir="ltr">
+              {formatCompactStamp(meeting.heldAt)}
+            </Text>
+            {meeting.place ? (
+              <>
+                <SoftIcon
+                  icon="solar:map-point-bold"
+                  label={t('meetingPlace')}
+                  size={14}
+                />
+                <Text muted variant="caption">
+                  {meeting.place}
+                </Text>
+              </>
+            ) : null}
+          </Row>
+        </PersonCardMeta>
+        <DualAvatar names={attendeeNames(meeting.attendeePreview)} />
+      </Spread>
+    </CompactClickableCard>
   );
 }
 
@@ -396,7 +423,9 @@ export function MeetingsScreen() {
     <Stack>
       <PageHeader
         title={t('meetings')}
-        hint={t('meetingsHint')}
+        hint={t('meetingsHint', {
+          count: formatNumber(query.data?.total ?? 0),
+        })}
         action={
           canCreate ? (
             <Button icon="add" onClick={() => setCreating(true)}>

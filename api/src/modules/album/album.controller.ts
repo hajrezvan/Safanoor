@@ -22,10 +22,12 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { PaginationDto } from '../../libs/http/http.dto';
 import { Actor } from '../access/access.types';
 import { CurrentActor, Policy } from '../access/policy.decorator';
 import {
+  AlbumsPageDto,
+  ListAlbumsQueryDto,
+  ListPhotosQueryDto,
   PhotoDetailDto,
   PhotosPageDto,
   UpdatePhotoTagsDto,
@@ -39,12 +41,22 @@ import { AlbumService } from './album.service';
 export class AlbumController {
   constructor(private readonly album: AlbumService) {}
 
+  @Get('albums')
+  @Policy('photo', 'read')
+  @ApiOkResponse({ type: AlbumsPageDto })
+  listAlbums(
+    @CurrentActor() actor: Actor,
+    @Query() query: ListAlbumsQueryDto,
+  ): Promise<AlbumsPageDto> {
+    return this.album.listAlbums(actor, query);
+  }
+
   @Get('photos')
   @Policy('photo', 'read')
   @ApiOkResponse({ type: PhotosPageDto })
   list(
     @CurrentActor() actor: Actor,
-    @Query() query: PaginationDto,
+    @Query() query: ListPhotosQueryDto,
   ): Promise<PhotosPageDto> {
     return this.album.list(actor, query);
   }
@@ -59,6 +71,7 @@ export class AlbumController {
       required: ['groupId', 'file'],
       properties: {
         groupId: { type: 'string', format: 'uuid' },
+        albumTitle: { type: 'string' },
         title: { type: 'string' },
         eventNote: { type: 'string' },
         locationOptionId: { type: 'string', format: 'uuid' },
@@ -73,7 +86,7 @@ export class AlbumController {
   })
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 10 },
+      limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 12 },
     }),
   )
   @ApiOkResponse({ type: PhotoDetailDto })

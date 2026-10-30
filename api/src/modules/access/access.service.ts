@@ -200,6 +200,28 @@ export class AccessService {
       if (path) return { type, id, groupIds: [path.groupId] };
       return { type, id, groupIds: [id] };
     }
+    if (type === 'lms_item' && id) {
+      const item = await one<{ groupId: string }>(
+        this.db,
+        `SELECT r.group_id AS "groupId"
+         FROM lms_item i
+         JOIN class_recording r ON r.id=i.recording_id
+         WHERE i.id=$1`,
+        [id],
+      );
+      if (item) return { type, id, groupIds: [item.groupId] };
+      const course = await one<{ groupId: string }>(
+        this.db,
+        `SELECT r.group_id AS "groupId"
+         FROM lms_item i
+         JOIN class_recording r ON r.id=i.recording_id
+         WHERE i.course_id=$1
+         LIMIT 1`,
+        [id],
+      );
+      if (course) return { type, id, groupIds: [course.groupId] };
+      return { type, id, groupIds: [id] };
+    }
     if (type === 'photo') {
       if (id) {
         const photo = await one<{

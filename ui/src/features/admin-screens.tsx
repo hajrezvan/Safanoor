@@ -5,6 +5,7 @@ import type { components } from 'src/api/generated/schema';
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { formatDate, formatNumber, normalizePhone } from '@safanoor/shared';
 
 import { codeText } from 'src/locales/fa';
@@ -65,7 +66,10 @@ function inviteStatusKey(status: string): TextKey {
 export function PeopleScreen() {
   const t = useFa();
   const me = useSession();
-  const [tab, setTab] = useState('forces');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get('tab') === 'coaching' ? 'coaching' : 'forces';
+  const [tab, setTab] = useState(initialTab);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Person | null | undefined>(undefined);
@@ -181,7 +185,12 @@ export function PeopleScreen() {
       />
       <Tabs
         value={tab}
-        onChange={setTab}
+        onChange={(next) => {
+          setTab(next);
+          router.replace(
+            next === 'coaching' ? '/admin/people?tab=coaching' : '/admin/people'
+          );
+        }}
         items={[
           { value: 'forces', label: t('forces') },
           { value: 'coaching', label: t('coachingTeam') },

@@ -5,7 +5,7 @@ import type { components } from 'src/api/generated/schema';
 
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { formatDate, formatNumber } from '@safanoor/shared';
+import { formatCompactStamp, formatDate, formatNumber } from '@safanoor/shared';
 
 import { api } from 'src/api/client';
 import { useFa } from 'src/locales/fa-provider';
@@ -20,6 +20,8 @@ import {
   Button,
   Section,
   StatCard,
+  StatsGrid,
+  ThreadsFeedGrid,
   FeedItem,
   EmptyState,
   QueryState,
@@ -66,7 +68,7 @@ function MentorDashboardBody({ data }: { data: MentorDashboard }) {
 
   return (
     <Section>
-      <Grid>
+      <StatsGrid>
         <StatCard
           title={t('dashboardMembers')}
           value={data.memberCount}
@@ -97,46 +99,14 @@ function MentorDashboardBody({ data }: { data: MentorDashboard }) {
           icon="finance"
           href="/finance"
         />
-        <StatCard
-          title={t('dashboardUnread')}
-          value={data.unreadNotifications}
-          icon="notifications"
-          href="/notifications"
-        />
-      </Grid>
-
-      <Card>
-        <Stack>
-          <Text variant="subtitle">{t('dashboardShortcuts')}</Text>
-          <Row>
-            <Button href="/admin/people" variant="outlined">
-              {t('myGroup')}
-            </Button>
-            <Button href="/consultations" variant="outlined">
-              {t('consultations')}
-            </Button>
-            <Button href="/finance" variant="outlined">
-              {t('finance')}
-            </Button>
-            <Button href="/camp-attendance" variant="outlined">
-              {t('campAttendance')}
-            </Button>
-            <Button href="/communications" variant="outlined">
-              {t('communications')}
-            </Button>
-            <Button href="/meetings" variant="outlined">
-              {t('meetings')}
-            </Button>
-          </Row>
-        </Stack>
-      </Card>
+      </StatsGrid>
 
       {(data.pendingInvitesCount > 0 ||
         data.photoCount > 0 ||
         data.assistantCount > 0) && (
         <Row>
           {data.assistantCount > 0 && (
-            <Chip>
+            <Chip href="/admin/people?tab=coaching">
               {t('dashboardAssistantsChip', {
                 count: formatNumber(data.assistantCount),
               })}
@@ -259,32 +229,35 @@ function MentorDashboardBody({ data }: { data: MentorDashboard }) {
                   {t('dashboardSeeAll')}
                 </Button>
               </Spread>
-              {data.recentThreads.length === 0 ? (
-                <EmptyState
-                  title={t('communicationsEmpty')}
-                  hint={t('communicationsEmptyHint')}
-                />
-              ) : (
-                data.recentThreads.map((thread) => (
-                  <FeedItem
-                    key={thread.id}
-                    title={
-                      thread.preview
-                        ? `${thread.title} — ${thread.preview}`
-                        : thread.title
-                    }
-                    time={
-                      thread.lastMessageAt
-                        ? formatDate(thread.lastMessageAt, true)
-                        : t('empty')
-                    }
-                    unread={false}
-                    onRead={() => {
-                      router.push('/communications');
-                    }}
-                  />
-                ))
-              )}
+              {(() => {
+                const threadsWithMessages = data.recentThreads.filter(
+                  (thread) => Boolean(thread.lastMessageAt),
+                );
+                if (threadsWithMessages.length === 0) {
+                  return (
+                    <EmptyState
+                      title={t('communicationsEmpty')}
+                      hint={t('communicationsEmptyHint')}
+                    />
+                  );
+                }
+                return (
+                  <ThreadsFeedGrid>
+                    {threadsWithMessages.map((thread) => (
+                      <FeedItem
+                        key={thread.id}
+                        title={thread.title}
+                        time={formatCompactStamp(thread.lastMessageAt!)}
+                        unread={false}
+                        avatarsOnly
+                        onRead={() => {
+                          router.push('/communications');
+                        }}
+                      />
+                    ))}
+                  </ThreadsFeedGrid>
+                );
+              })()}
             </Stack>
           </Card>
         </Grid>
@@ -313,8 +286,7 @@ function MentorDashboardBody({ data }: { data: MentorDashboard }) {
   );
 }
 
-export function MentorHomeDashboard({ name }: { name: string }) {
-  const t = useFa();
+export function MentorHomeDashboard(_props: { name: string }) {
   const query = useQuery({
     queryKey: ['dashboard', 'mentor'],
     queryFn: api.mentorDashboard,
@@ -326,29 +298,7 @@ export function MentorHomeDashboard({ name }: { name: string }) {
       error={query.error}
       retry={() => void query.refetch()}
     >
-      {query.data && (
-        <>
-          <Card>
-            <Stack>
-              <Spread>
-                <Stack>
-                  <Chip>{t('hello', { name })}</Chip>
-                  <Text variant="title">{t('mentorDashboardTitle')}</Text>
-                  <Text muted>
-                    {query.data.groupName
-                      ? t('mentorDashboardHint', { group: query.data.groupName })
-                      : t('mentorDashboardHintEmpty')}
-                  </Text>
-                </Stack>
-                {query.data.groupName && (
-                  <Chip tone="success">{query.data.groupName}</Chip>
-                )}
-              </Spread>
-            </Stack>
-          </Card>
-          <MentorDashboardBody data={query.data} />
-        </>
-      )}
+      {query.data && <MentorDashboardBody data={query.data} />}
     </QueryState>
   );
 }

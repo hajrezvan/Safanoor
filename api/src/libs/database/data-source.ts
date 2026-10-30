@@ -17,6 +17,11 @@ import { ConsultationPrivateNote1792195200013 } from './migrations/1792195200013
 import { LocationOption1792195200014 } from './migrations/1792195200014-LocationOption';
 import { ProgramEventAmounts1792195200015 } from './migrations/1792195200015-ProgramEventAmounts';
 import { DashboardPolicy1792195200016 } from './migrations/1792195200016-DashboardPolicy';
+import { PersonAncestorSummary1792195200017 } from './migrations/1792195200017-PersonAncestorSummary';
+import { StudyPathCover1792195200018 } from './migrations/1792195200018-StudyPathCover';
+import { Lms1792195200019 } from './migrations/1792195200019-Lms';
+import { StudyPathItemFiles1792195200020 } from './migrations/1792195200020-StudyPathItemFiles';
+import { PhotoAlbumTitle1792195200021 } from './migrations/1792195200021-PhotoAlbumTitle';
 
 import { PolicySeed1792195200002 } from './migrations/1792195200002-PolicySeed';
 
@@ -45,6 +50,11 @@ export const databaseOptions = {
     LocationOption1792195200014,
     ProgramEventAmounts1792195200015,
     DashboardPolicy1792195200016,
+    PersonAncestorSummary1792195200017,
+    StudyPathCover1792195200018,
+    Lms1792195200019,
+    StudyPathItemFiles1792195200020,
+    PhotoAlbumTitle1792195200021,
   ],
   logging: false,
   ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: true } : false,

@@ -132,13 +132,21 @@ export function Icon({ name }: { name: IconName }) {
   const Component = icons[name];
   return <Component />;
 }
-const BrandMark = styled('img')({
+const BrandMark = styled('img')(({ theme }) => ({
   height: 44,
-  width: 'auto',
+  width: 44,
+  objectFit: 'contain',
   display: 'block',
   flexShrink: 0,
   borderRadius: tokens.radius.button,
-});
+  ...(theme.palette.mode === 'dark'
+    ? {
+        backgroundColor: 'rgba(255,255,255,0.94)',
+        padding: tokens.space.xs,
+        boxShadow: `0 0 0 1px ${theme.palette.divider}`,
+      }
+    : {}),
+}));
 function BrandLogo({ alt }: { alt: string }) {
   return <BrandMark src="/logo.png" alt={alt} />;
 }
@@ -173,19 +181,310 @@ export const Grid = styled('div')(({ theme }) => ({
   gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,260px),1fr))',
   [theme.breakpoints.down('sm')]: { gap: tokens.space.lg },
 }));
+/** Compact dashboard stats: 3 per row on phone, 5 on desktop. */
+export const StatsGrid = styled('div')(({ theme }) => ({
+  display: 'grid',
+  gap: tokens.space.sm,
+  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+  [theme.breakpoints.up('md')]: {
+    gap: tokens.space.md,
+    gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+  },
+}));
+/** Recent threads: two conversation cards per row. */
+export const ThreadsFeedGrid = styled('div')(({ theme }) => ({
+  display: 'grid',
+  gap: tokens.space.md,
+  gridTemplateColumns: '1fr',
+  [theme.breakpoints.up('sm')]: {
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  },
+}));
 export const FormGrid = styled(Grid)({
   gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,220px),1fr))',
 });
-/** Three compact cards per row on desktop; 2 on tablet; 1 on phone. */
+/** Three compact cards per row on desktop; 2 on tablet; 1 on phone. Children stretch to equal height. */
 export const CardsGrid = styled('div')(({ theme }) => ({
   display: 'grid',
   gap: tokens.space.lg,
   gridTemplateColumns: '1fr',
+  alignItems: 'stretch',
   [theme.breakpoints.up('sm')]: {
     gridTemplateColumns: 'repeat(2, 1fr)',
   },
   [theme.breakpoints.up('md')]: {
     gridTemplateColumns: 'repeat(3, 1fr)',
+  },
+  '& > *': { minHeight: 0, height: '100%' },
+}));
+/** Cover-first card shell: equal-height column so actions share a baseline in CardsGrid. */
+export const CoverCard = styled('div')(({ theme }) => ({
+  borderRadius: tokens.radius.card,
+  border: `1px solid ${theme.palette.divider}`,
+  boxShadow: tokens.shadow[theme.palette.mode],
+  backgroundColor: theme.palette.background.paper,
+  padding: 0,
+  overflow: 'hidden',
+  minWidth: 0,
+  minHeight: '100%',
+  height: '100%',
+  alignSelf: 'stretch',
+  display: 'flex',
+  flexDirection: 'column',
+  boxSizing: 'border-box',
+}));
+export const CoverCardButton = styled('button')(({ theme }) => ({
+  appearance: 'none',
+  border: `1px solid ${theme.palette.divider}`,
+  boxShadow: tokens.shadow[theme.palette.mode],
+  backgroundColor: theme.palette.background.paper,
+  borderRadius: tokens.radius.card,
+  padding: 0,
+  overflow: 'hidden',
+  minWidth: 0,
+  width: '100%',
+  minHeight: '100%',
+  height: '100%',
+  alignSelf: 'stretch',
+  display: 'flex',
+  flexDirection: 'column',
+  textAlign: 'start',
+  font: 'inherit',
+  color: 'inherit',
+  cursor: 'pointer',
+  boxSizing: 'border-box',
+  transition: `background-color ${tokens.motion.duration}ms, border-color ${tokens.motion.duration}ms`,
+  '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
+  '&:hover': {
+    backgroundColor: theme.palette.action.hover,
+    borderColor: theme.palette.primary.main,
+  },
+  '&:focus-visible': {
+    outline: `2px solid ${theme.palette.primary.main}`,
+    outlineOffset: 2,
+  },
+}));
+export const CoverCardMedia = styled('img')(({ theme }) => ({
+  width: '100%',
+  aspectRatio: '16 / 10',
+  objectFit: 'cover',
+  display: 'block',
+  flexShrink: 0,
+  backgroundColor: theme.palette.action.hover,
+}));
+export const CoverCardMediaPlaceholder = styled('div')(({ theme }) => ({
+  width: '100%',
+  aspectRatio: '16 / 10',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+  backgroundColor: theme.palette.action.hover,
+  color: theme.palette.text.secondary,
+}));
+export const CoverCardBody = styled('div')({
+  display: 'flex',
+  flexDirection: 'column',
+  flex: '1 1 auto',
+  gap: tokens.space.sm,
+  padding: tokens.space.lg,
+  minWidth: 0,
+  minHeight: 0,
+});
+export const CoverCardAction = styled('div')({
+  marginTop: 'auto',
+  paddingTop: tokens.space.md,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: tokens.space.sm,
+  flexShrink: 0,
+});
+/** Study-path book sequence: 3 per row on desktop, numbered steps for order. */
+export const PathSequence = styled('div')(({ theme }) => ({
+  display: 'grid',
+  gap: tokens.space.lg,
+  gridTemplateColumns: '1fr',
+  alignItems: 'stretch',
+  minWidth: 0,
+  [theme.breakpoints.up('sm')]: {
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  },
+  [theme.breakpoints.up('md')]: {
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+  },
+  '& > *': { minHeight: 0, height: '100%' },
+}));
+export const PathSequenceStep = styled('div')({
+  position: 'relative',
+  display: 'flex',
+  flexDirection: 'column',
+  minWidth: 0,
+  height: '100%',
+});
+export const PathSequenceRail = styled('div')({
+  display: 'none',
+});
+export const PathSequenceNode = styled('div')(({ theme }) => ({
+  position: 'absolute',
+  top: tokens.space.sm,
+  insetInlineStart: tokens.space.sm,
+  width: tokens.space.xxl,
+  height: tokens.space.xxl,
+  borderRadius: tokens.radius.round,
+  backgroundColor: theme.palette.primary.main,
+  color: theme.palette.primary.contrastText,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontWeight: 700,
+  fontSize: tokens.type.caption,
+  flexShrink: 0,
+  zIndex: 2,
+  boxShadow: tokens.shadow[theme.palette.mode],
+}));
+export const PathSequenceConnector = styled('div')({
+  display: 'none',
+});
+export const PathSequenceCard = styled('div')(({ theme }) => ({
+  borderRadius: tokens.radius.card,
+  border: `1px solid ${theme.palette.divider}`,
+  boxShadow: tokens.shadow[theme.palette.mode],
+  backgroundColor: theme.palette.background.paper,
+  padding: 0,
+  minWidth: 0,
+  overflow: 'hidden',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 0,
+  height: '100%',
+  flex: 1,
+}));
+export const BookCoverThumb = styled('img')(({ theme }) => ({
+  width: '100%',
+  aspectRatio: '3 / 4',
+  maxHeight: 220,
+  objectFit: 'cover',
+  display: 'block',
+  flexShrink: 0,
+  backgroundColor: theme.palette.action.hover,
+}));
+export const BookCoverPlaceholder = styled('div')(({ theme }) => ({
+  width: '100%',
+  aspectRatio: '3 / 4',
+  maxHeight: 220,
+  flexShrink: 0,
+  backgroundColor: theme.palette.action.hover,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: theme.palette.text.secondary,
+}));
+export const BookCoverButton = styled('button')(({ theme }) => ({
+  appearance: 'none',
+  border: 0,
+  padding: 0,
+  margin: 0,
+  cursor: 'pointer',
+  display: 'block',
+  width: '100%',
+  background: 'transparent',
+  position: 'relative',
+  '&:focus-visible': {
+    outline: `2px solid ${theme.palette.primary.main}`,
+    outlineOffset: 2,
+  },
+  '&:disabled': { cursor: 'default' },
+}));
+export const BookCardBody = styled('div')({
+  display: 'flex',
+  flexDirection: 'column',
+  flex: '1 1 auto',
+  gap: tokens.space.sm,
+  padding: tokens.space.lg,
+  minWidth: 0,
+});
+export const BookCardActions = styled('div')({
+  marginTop: 'auto',
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: tokens.space.sm,
+});
+export const ClassAudioPlayer = styled('audio')({
+  width: '100%',
+  display: 'block',
+});
+/** YouTube-like class playlist: main player + session list when sessionCount > 1. */
+export const ClassPlaylistLayout = styled('div')(({ theme }) => ({
+  display: 'grid',
+  gap: tokens.space.lg,
+  gridTemplateColumns: '1fr',
+  alignItems: 'start',
+  minWidth: 0,
+  [theme.breakpoints.up('md')]: {
+    gridTemplateColumns: 'minmax(0, 1.6fr) minmax(220px, 0.9fr)',
+  },
+}));
+export const ClassPlaylistMain = styled('div')({
+  minWidth: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: tokens.space.lg,
+});
+export const ClassPlaylist = styled('div')(({ theme }) => ({
+  borderRadius: tokens.radius.card,
+  border: `1px solid ${theme.palette.divider}`,
+  backgroundColor: theme.palette.background.paper,
+  boxShadow: tokens.shadow[theme.palette.mode],
+  padding: tokens.space.md,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: tokens.space.sm,
+  minWidth: 0,
+  maxHeight: 560,
+  overflow: 'auto',
+}));
+export const ClassPlaylistItem = styled('button')<{ $active?: boolean }>(
+  ({ theme, $active }) => ({
+    appearance: 'none',
+    border: `1px solid ${$active ? theme.palette.primary.main : theme.palette.divider}`,
+    backgroundColor: $active
+      ? theme.palette.action.selected
+      : theme.palette.background.paper,
+    borderRadius: tokens.radius.button,
+    padding: tokens.space.md,
+    textAlign: 'start',
+    cursor: 'pointer',
+    font: 'inherit',
+    color: 'inherit',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.space.xs,
+    minWidth: 0,
+    transition: `background-color ${tokens.motion.duration}ms, border-color ${tokens.motion.duration}ms`,
+    '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
+    '&:hover': { borderColor: theme.palette.primary.main },
+    '&:focus-visible': {
+      outline: `2px solid ${theme.palette.primary.main}`,
+      outlineOffset: 2,
+    },
+  }),
+);
+/** Dense consultation tiles: up to 5–6 per row on wide screens. */
+export const ConsultationCardsGrid = styled('div')(({ theme }) => ({
+  display: 'grid',
+  gap: tokens.space.sm,
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  [theme.breakpoints.up('sm')]: {
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+  },
+  [theme.breakpoints.up('md')]: {
+    gap: tokens.space.md,
+    gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+  },
+  [theme.breakpoints.up('lg')]: {
+    gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
   },
 }));
 /** People / my-group: 2 cols on phone, 3 on desktop (narrower cards). */
@@ -294,6 +593,10 @@ export const Card = styled(Paper)(({ theme }) => ({
   minWidth: 0,
   overflow: 'hidden',
 }));
+/** Shorter dashboard hero / dense panels. */
+export const CompactCard = styled(Card)({
+  padding: `${tokens.space.md}px ${tokens.space.lg}px`,
+});
 /** Dense person card: small padding, tight stacks, truncated chips. */
 export const PeoplePersonCard = styled(Card)({
   padding: tokens.space.sm,
@@ -749,11 +1052,13 @@ export function Chip({
   tone = 'default',
   onDelete,
   avatar,
+  href,
 }: {
   children: ReactNode;
   tone?: 'default' | 'success' | 'warning' | 'error';
   onDelete?: () => void;
   avatar?: ReactNode;
+  href?: string;
 }) {
   return (
     <MuiChip
@@ -763,6 +1068,9 @@ export function Chip({
       variant="outlined"
       onDelete={onDelete}
       {...(avatar ? { avatar: avatar as never } : {})}
+      {...(href
+        ? { component: Link, href, clickable: true }
+        : {})}
     />
   );
 }
@@ -793,28 +1101,33 @@ export function IconAction({
   icon,
   onClick,
   color = 'default',
+  disabled = false,
 }: {
   label: string;
   icon: string;
   onClick: () => void;
   color?: 'default' | 'primary' | 'error';
+  disabled?: boolean;
 }) {
   const handle = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     event.preventDefault();
-    onClick();
+    if (!disabled) onClick();
   };
   return (
     <Tooltip title={label}>
-      <IconButton
-        size="small"
-        color={color}
-        aria-label={label}
-        onClick={handle}
-        onMouseDown={(event: MouseEvent<HTMLButtonElement>) => event.stopPropagation()}
-      >
-        <Iconify icon={icon} width={20} height={20} className="" sx={{}} />
-      </IconButton>
+      <span>
+        <IconButton
+          size="small"
+          color={color}
+          aria-label={label}
+          disabled={disabled}
+          onClick={handle}
+          onMouseDown={(event: MouseEvent<HTMLButtonElement>) => event.stopPropagation()}
+        >
+          <Iconify icon={icon} width={20} height={20} className="" sx={{}} />
+        </IconButton>
+      </span>
     </Tooltip>
   );
 }
@@ -1089,20 +1402,64 @@ export const ClickableCard = styled('button')(({ theme }) => ({
   appearance: 'none',
   display: 'block',
 }));
-const StatCardButton = styled(Card)(({ theme }) => ({
-  ...statCardInteractive(theme),
-}));
-const StatCardLink = styled(Link)(({ theme }) => ({
+/** Dense clickable row for list screens (camps, etc.). */
+export const CompactClickableCard = styled(ClickableCard)({
+  padding: `${tokens.space.md}px ${tokens.space.lg}px`,
+});
+const StatCardShell = {
   display: 'block',
   minWidth: 0,
   borderRadius: tokens.radius.card,
-  padding: tokens.space.xl,
+  padding: `${tokens.space.sm}px ${tokens.space.md}px`,
+  overflow: 'hidden',
+} as const;
+const StatCardButton = styled(Card)(({ theme }) => ({
+  ...StatCardShell,
+  padding: `${tokens.space.sm}px ${tokens.space.md}px`,
+  ...statCardInteractive(theme),
+}));
+const StatCardLink = styled(Link)(({ theme }) => ({
+  ...StatCardShell,
   border: `1px solid ${theme.palette.divider}`,
   boxShadow: tokens.shadow[theme.palette.mode],
-  overflow: 'hidden',
   backgroundColor: theme.palette.background.paper,
   ...statCardInteractive(theme),
 }));
+const StatCardBody = styled(Stack)({
+  '&&': { gap: tokens.space.xs },
+  minWidth: 0,
+});
+const StatCardHeader = styled(Row)({
+  '&&': { flexDirection: 'row', flexWrap: 'nowrap', gap: tokens.space.xs },
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  minWidth: 0,
+});
+const StatCardTitle = styled(Text)({
+  '&&': {
+    flex: 1,
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    lineHeight: 1.2,
+    fontSize: 11,
+  },
+});
+const StatCardValue = styled(Text)({
+  '&&': {
+    fontSize: 18,
+    lineHeight: 1.15,
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+  },
+});
+const StatCardIcon = styled('span')({
+  display: 'inline-flex',
+  flexShrink: 0,
+  lineHeight: 0,
+  '& .MuiSvgIcon-root': { fontSize: 16 },
+});
 export function StatCard({
   title,
   value,
@@ -1117,13 +1474,17 @@ export function StatCard({
   onClick?: () => void;
 }) {
   const body = (
-    <>
-      <Spread>
-        <Text muted>{title}</Text>
-        <Icon name={icon} />
-      </Spread>
-      <Text variant="display">{formatNumber(value)}</Text>
-    </>
+    <StatCardBody>
+      <StatCardHeader>
+        <StatCardTitle muted variant="caption">
+          {title}
+        </StatCardTitle>
+        <StatCardIcon>
+          <Icon name={icon} />
+        </StatCardIcon>
+      </StatCardHeader>
+      <StatCardValue variant="subtitle">{formatNumber(value)}</StatCardValue>
+    </StatCardBody>
   );
   if (href) {
     return (
@@ -1754,19 +2115,57 @@ const FeedButton = styled('button')(({ theme }) => ({
   minHeight: tokens.layout.touch,
   '&:hover': { background: theme.palette.action.hover },
 }));
+const FeedAvatarsOnly = styled(FeedButton)(({ theme }) => ({
+  justifyContent: 'flex-start',
+  alignItems: 'center',
+  padding: `${tokens.space.sm}px ${tokens.space.md}px`,
+  minHeight: tokens.layout.touch,
+  gap: tokens.space.sm,
+  borderRadius: tokens.radius.card,
+  border: `1px solid ${theme.palette.divider}`,
+  boxShadow: tokens.shadow[theme.palette.mode],
+  background: theme.palette.background.paper,
+  '&:hover': {
+    background: theme.palette.action.hover,
+    borderColor: theme.palette.primary.main,
+  },
+}));
 const FeedCopy = styled(Stack)({ flex: 1, overflow: 'hidden', gap: tokens.space.xs });
 export function FeedItem({
   title,
   time,
   unread,
   onRead,
+  names,
+  avatarsOnly = false,
 }: {
   title: string;
   time: string;
   unread: boolean;
   onRead: () => void;
+  names?: string[];
+  /** Thread-style preview: overlapping avatars + last message time. */
+  avatarsOnly?: boolean;
 }) {
   const t = useFa();
+  const avatarNames =
+    names && names.length > 0
+      ? names
+      : title
+          .split(/\s*[،,↔]\s*/)
+          .map((part) => part.trim())
+          .filter(Boolean)
+          .slice(0, 2);
+  if (avatarsOnly) {
+    return (
+      <FeedAvatarsOnly onClick={onRead} aria-label={title}>
+        <DualAvatar names={avatarNames} />
+        <Text muted variant="caption">
+          {time}
+        </Text>
+      </FeedAvatarsOnly>
+    );
+  }
   return (
     <FeedButton onClick={onRead} aria-label={`${title} ${t('markRead')}`}>
       <Badge color="primary" variant="dot" invisible={!unread}>
@@ -1778,7 +2177,6 @@ export function FeedItem({
           {time}
         </Text>
       </FeedCopy>
-      <Chip tone={unread ? 'success' : 'default'}>{t(unread ? 'unread' : 'read')}</Chip>
     </FeedButton>
   );
 }

@@ -1,14 +1,17 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
 import { one, pageOf, rows } from '../../libs/database/database.types';
 import { PaginationDto } from '../../libs/http/http.dto';
 import { AccessService } from '../access/access.service';
 import { Actor } from '../access/access.types';
 import { AuditService } from '../audit/audit.service';
+import { STORAGE, StorageAdapter } from '../files/storage';
 import {
   CreateStudyPathDto,
   CreateStudyPathItemDto,
@@ -27,6 +30,7 @@ export class LibraryService {
     private readonly db: DataSource,
     private readonly access: AccessService,
     private readonly audit: AuditService,
+    @Inject(STORAGE) private readonly storage: StorageAdapter,
   ) {}
 
   async list(
@@ -51,6 +55,9 @@ export class LibraryService {
       this.db,
       `SELECT p.id,p.group_id AS "groupId",p.title,p.description,
         (SELECT count(*)::int FROM study_path_item i WHERE i.path_id=p.id) AS "itemCount",
+        p.cover_file_id AS "coverFileId",
+        CASE WHEN p.cover_file_id IS NULL THEN NULL
+             ELSE '/api/v1/study-paths/'||p.id::text||'/cover' END AS "coverUrl",
         p.created_by AS "createdBy",p.created_at AS "createdAt",p.updated_at AS "updatedAt",
         $2::boolean AS "canManage"
        FROM study_path p
@@ -110,7 +117,15 @@ export class LibraryService {
     const items = await rows<StudyPathItemDto>(
       this.db,
       `SELECT id,path_id AS "pathId",position,book_title AS "bookTitle",
-        book_author AS "bookAuthor",notes
+        book_author AS "bookAuthor",notes,
+        cover_file_id AS "coverFileId",
+        CASE WHEN cover_file_id IS NULL THEN NULL
+             ELSE '/api/v1/study-paths/'||path_id::text||'/items/'||id::text||'/cover'
+        END AS "coverUrl",
+        pdf_file_id AS "pdfFileId",
+        CASE WHEN pdf_file_id IS NULL THEN NULL
+             ELSE '/api/v1/study-paths/'||path_id::text||'/items/'||id::text||'/pdf'
+        END AS "pdfUrl"
        FROM study_path_item WHERE path_id=$1 ORDER BY position,id`,
       [id],
     );
@@ -157,6 +172,28 @@ export class LibraryService {
       );
     });
     return this.get(actor, id);
+  }
+
+  async cover(
+    actor: Actor,
+    id: string,
+  ): Promise<{ body: Buffer; mime: string }> {
+    const path = await this.loadPath(id);
+    await this.access.require(
+      actor,
+      'read',
+      { type: 'study_path', id, groupIds: [path.groupId] },
+      'detail',
+    );
+    if (!path.coverFileId) throw new NotFoundException();
+    const file = await one<{ key: string; mime: string }>(
+      this.db,
+      `SELECT storage_key AS key,mime_type AS mime FROM file_record
+       WHERE id=$1 AND (purge_after IS NULL OR purge_after>now())`,
+      [path.coverFileId],
+    );
+    if (!file) throw new NotFoundException();
+    return { body: await this.storage.get(file.key), mime: file.mime };
   }
 
   async remove(actor: Actor, id: string): Promise<void> {
@@ -396,11 +433,185 @@ export class LibraryService {
     return this.get(actor, pathId);
   }
 
+  async itemCover(
+    actor: Actor,
+    pathId: string,
+    itemId: string,
+  ): Promise<{ body: Buffer; mime: string }> {
+    const path = await this.loadPath(pathId);
+    await this.access.require(
+      actor,
+      'read',
+      { type: 'study_path', id: pathId, groupIds: [path.groupId] },
+      'detail',
+    );
+    const item = await one<{ coverFileId: string | null }>(
+      this.db,
+      'SELECT cover_file_id AS "coverFileId" FROM study_path_item WHERE id=$1 AND path_id=$2',
+      [itemId, pathId],
+    );
+    if (!item?.coverFileId) throw new NotFoundException();
+    return this.readFile(item.coverFileId);
+  }
+
+  async itemPdf(
+    actor: Actor,
+    pathId: string,
+    itemId: string,
+  ): Promise<{ body: Buffer; mime: string }> {
+    const path = await this.loadPath(pathId);
+    await this.access.require(
+      actor,
+      'read',
+      { type: 'study_path', id: pathId, groupIds: [path.groupId] },
+      'detail',
+    );
+    const item = await one<{ pdfFileId: string | null }>(
+      this.db,
+      'SELECT pdf_file_id AS "pdfFileId" FROM study_path_item WHERE id=$1 AND path_id=$2',
+      [itemId, pathId],
+    );
+    if (!item?.pdfFileId) throw new NotFoundException();
+    return this.readFile(item.pdfFileId);
+  }
+
+  async uploadItemCover(
+    actor: Actor,
+    pathId: string,
+    itemId: string,
+    file: Express.Multer.File,
+  ): Promise<StudyPathDetailDto> {
+    await this.requireItemManage(actor, pathId, itemId);
+    const fileId = await this.storeUpload(actor, file, 'study_path_cover', [
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+    ]);
+    await rows(
+      this.db,
+      `UPDATE study_path_item SET cover_file_id=$3,updated_at=now()
+       WHERE id=$1 AND path_id=$2`,
+      [itemId, pathId, fileId],
+    );
+    await rows(this.db, 'UPDATE study_path SET updated_at=now() WHERE id=$1', [
+      pathId,
+    ]);
+    return this.get(actor, pathId);
+  }
+
+  async uploadItemPdf(
+    actor: Actor,
+    pathId: string,
+    itemId: string,
+    file: Express.Multer.File,
+  ): Promise<StudyPathDetailDto> {
+    await this.requireItemManage(actor, pathId, itemId);
+    const fileId = await this.storeUpload(actor, file, 'study_path_pdf', [
+      'application/pdf',
+    ]);
+    await rows(
+      this.db,
+      `UPDATE study_path_item SET pdf_file_id=$3,updated_at=now()
+       WHERE id=$1 AND path_id=$2`,
+      [itemId, pathId, fileId],
+    );
+    await rows(this.db, 'UPDATE study_path SET updated_at=now() WHERE id=$1', [
+      pathId,
+    ]);
+    return this.get(actor, pathId);
+  }
+
+  async removeItemPdf(
+    actor: Actor,
+    pathId: string,
+    itemId: string,
+  ): Promise<StudyPathDetailDto> {
+    await this.requireItemManage(actor, pathId, itemId);
+    await rows(
+      this.db,
+      `UPDATE study_path_item SET pdf_file_id=NULL,updated_at=now()
+       WHERE id=$1 AND path_id=$2`,
+      [itemId, pathId],
+    );
+    await rows(this.db, 'UPDATE study_path SET updated_at=now() WHERE id=$1', [
+      pathId,
+    ]);
+    return this.get(actor, pathId);
+  }
+
+  private async requireItemManage(
+    actor: Actor,
+    pathId: string,
+    itemId: string,
+  ): Promise<void> {
+    const path = await this.loadPath(pathId);
+    await this.access.require(
+      actor,
+      'update',
+      { type: 'study_path', id: pathId, groupIds: [path.groupId] },
+      'detail',
+    );
+    await this.requireOwnedGroup(actor, path.groupId);
+    if (
+      !(await one(
+        this.db,
+        'SELECT 1 FROM study_path_item WHERE id=$1 AND path_id=$2',
+        [itemId, pathId],
+      ))
+    )
+      throw new NotFoundException();
+  }
+
+  private async storeUpload(
+    actor: Actor,
+    file: Express.Multer.File,
+    kind: string,
+    allowed: string[],
+  ): Promise<string> {
+    if (!file?.buffer?.length)
+      throw new BadRequestException('فایل را انتخاب کن.');
+    if (!allowed.includes(file.mimetype))
+      throw new BadRequestException('نوع فایل مجاز نیست.');
+    const fileId = randomUUID();
+    const storageKey = randomUUID();
+    await this.storage.put(storageKey, file.buffer, file.mimetype);
+    await rows(
+      this.db,
+      `INSERT INTO file_record(id,kind,storage_key,size,mime_type,created_by)
+       VALUES($1,$2,$3,$4,$5,$6)`,
+      [
+        fileId,
+        kind,
+        storageKey,
+        file.buffer.length,
+        file.mimetype,
+        actor.personId,
+      ],
+    );
+    return fileId;
+  }
+
+  private async readFile(
+    fileId: string,
+  ): Promise<{ body: Buffer; mime: string }> {
+    const file = await one<{ key: string; mime: string }>(
+      this.db,
+      `SELECT storage_key AS key,mime_type AS mime FROM file_record
+       WHERE id=$1 AND (purge_after IS NULL OR purge_after>now())`,
+      [fileId],
+    );
+    if (!file) throw new NotFoundException();
+    return { body: await this.storage.get(file.key), mime: file.mime };
+  }
+
   private async loadPath(id: string): Promise<StudyPathSummaryDto> {
     const path = await one<StudyPathSummaryDto>(
       this.db,
       `SELECT p.id,p.group_id AS "groupId",p.title,p.description,
         (SELECT count(*)::int FROM study_path_item i WHERE i.path_id=p.id) AS "itemCount",
+        p.cover_file_id AS "coverFileId",
+        CASE WHEN p.cover_file_id IS NULL THEN NULL
+             ELSE '/api/v1/study-paths/'||p.id::text||'/cover' END AS "coverUrl",
         p.created_by AS "createdBy",p.created_at AS "createdAt",p.updated_at AS "updatedAt",
         false AS "canManage"
        FROM study_path p WHERE p.id=$1`,

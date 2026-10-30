@@ -64,6 +64,40 @@ export function formatDate(value: string, includeTime = false): string {
   return new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', month: 'long', day: 'numeric', ...(includeTime ? { hour: '2-digit', minute: '2-digit' } as const : {}), timeZone: 'Asia/Tehran' }).format(new Date(value));
 }
 
+function jalaliDayMonth(value: string): string {
+  const raw = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00` : value;
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return '';
+  const day = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+    day: 'numeric',
+    timeZone: 'Asia/Tehran',
+  }).format(date);
+  const month = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+    month: 'numeric',
+    timeZone: 'Asia/Tehran',
+  }).format(date);
+  return `${day}/${month}`;
+}
+
+/** Compact Jalali day/month: `۸/۸`. */
+export function formatCompactDate(value: string): string {
+  return jalaliDayMonth(value);
+}
+
+/** Compact stamp for dense cards: `۸/۸ ۲۱:۳۶` (Jalali day/month + time, no «ساعت»). */
+export function formatCompactStamp(value: string): string {
+  const datePart = jalaliDayMonth(value);
+  if (!datePart) return '';
+  const raw = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00` : value;
+  const time = new Intl.DateTimeFormat('fa-IR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Tehran',
+  }).format(new Date(raw));
+  return `${datePart} ${time}`;
+}
+
 /** Compact Persian relative time (دیروز، ۷ روز پیش، …). */
 export function formatRelativeTime(value: string, now: Date = new Date()): string {
   const then = new Date(value).getTime();

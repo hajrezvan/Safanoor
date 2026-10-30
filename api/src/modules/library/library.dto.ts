@@ -81,6 +81,14 @@ export class StudyPathItemDto {
   bookAuthor!: string | null;
   @ApiPropertyOptional({ nullable: true, type: String })
   notes!: string | null;
+  @ApiPropertyOptional({ nullable: true, type: String })
+  coverFileId!: string | null;
+  @ApiPropertyOptional({ nullable: true, type: String })
+  coverUrl!: string | null;
+  @ApiPropertyOptional({ nullable: true, type: String })
+  pdfFileId!: string | null;
+  @ApiPropertyOptional({ nullable: true, type: String })
+  pdfUrl!: string | null;
 }
 
 export class StudyPathSummaryDto {
@@ -90,6 +98,10 @@ export class StudyPathSummaryDto {
   @ApiPropertyOptional({ nullable: true, type: String })
   description!: string | null;
   @ApiProperty() itemCount!: number;
+  @ApiPropertyOptional({ nullable: true, type: String })
+  coverFileId!: string | null;
+  @ApiPropertyOptional({ nullable: true, type: String })
+  coverUrl!: string | null;
   @ApiProperty() createdBy!: string;
   @ApiProperty() createdAt!: string;
   @ApiProperty() updatedAt!: string;

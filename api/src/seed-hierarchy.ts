@@ -37,7 +37,12 @@ type RoleRow = {
   komak?: number;
   /** Mentor-owned group candidate (first listed person wins ownership). */
   morabi?: number;
-  /** If set, person is a supervisor (no member membership). */
+  /**
+   * Oversight group (ناظر). Pure ناظر (no placeable parent membership) becomes
+   * `supervisor` without membership. Dual مربی+ناظر with a parent group stays
+   * `mentor` so they keep day-to-day access to their owned group; oversight of
+   * the ناظر group comes from hierarchy ancestry.
+   */
   nazer?: number;
   age: number;
 };
@@ -89,25 +94,52 @@ export const HIERARCHY_ROSTER: RoleRow[] = [
   { n: 39, first: 'سعید', last: 'طامه', niroo: 14, komak: 20, morabi: 27, age: 31 },
 ];
 
-function orgLevelOf(row: RoleRow): string {
-  if (row.nazer) return 'supervisor';
-  if (row.morabi) return 'mentor';
-  if (row.komak) return 'assistant';
-  return 'member';
-}
-
-function memberGroupOf(row: RoleRow): number | undefined {
-  if (row.nazer) return undefined;
-  if (row.komak) return row.komak;
-  return row.niroo;
-}
-
 function groupOwners(roster: RoleRow[]): Map<number, number> {
   const owners = new Map<number, number>();
   for (const row of roster) {
     if (row.morabi && !owners.has(row.morabi)) owners.set(row.morabi, row.n);
   }
   return owners;
+}
+
+/** Parent صفا for membership when that group exists in the seed. */
+function membershipParent(
+  row: RoleRow,
+  owners: Map<number, number>,
+): number | undefined {
+  if (row.komak !== undefined && owners.has(row.komak)) return row.komak;
+  if (row.niroo !== undefined && owners.has(row.niroo)) return row.niroo;
+  return undefined;
+}
+
+function orgLevelOf(row: RoleRow, owners: Map<number, number>): string {
+  if (row.nazer) {
+    // Top-of-tree ناظر with no parent group stays supervisor (no membership).
+    if (membershipParent(row, owners) === undefined) return 'supervisor';
+    // Dual مربی+ناظر under another group: operate as mentor of their صفا.
+    if (row.morabi) return 'mentor';
+    return 'supervisor';
+  }
+  if (row.morabi) return 'mentor';
+  if (row.komak) return 'assistant';
+  return 'member';
+}
+
+function memberGroupOf(
+  row: RoleRow,
+  owners: Map<number, number>,
+): number | undefined {
+  if (orgLevelOf(row, owners) === 'supervisor') return undefined;
+  return membershipParent(row, owners);
+}
+
+function assistantGroupOf(
+  row: RoleRow,
+  owners: Map<number, number>,
+): number | undefined {
+  if (orgLevelOf(row, owners) === 'supervisor') return undefined;
+  if (row.komak !== undefined && owners.has(row.komak)) return row.komak;
+  return undefined;
 }
 
 export function hierarchyAccounts(): {
@@ -118,16 +150,18 @@ export function hierarchyAccounts(): {
   owns?: number;
   memberOf?: number;
   assistantOf?: number;
+  nazerOf?: number;
 }[] {
   const owners = groupOwners(HIERARCHY_ROSTER);
   return HIERARCHY_ROSTER.map((row) => ({
     n: row.n,
     name: `${row.first} ${row.last}`,
     phone: hierarchyPhone(row.n),
-    level: orgLevelOf(row),
+    level: orgLevelOf(row, owners),
     owns: [...owners.entries()].find(([, owner]) => owner === row.n)?.[0],
-    memberOf: memberGroupOf(row),
-    assistantOf: row.nazer ? undefined : row.komak,
+    memberOf: memberGroupOf(row, owners),
+    assistantOf: assistantGroupOf(row, owners),
+    nazerOf: row.nazer,
   }));
 }
 
@@ -187,7 +221,7 @@ export async function seedHierarchy(db: DataSource): Promise<{
       const id = hierarchyPersonId(row.n);
       const nationalId = demoNationalId(900 + row.n);
       const birth = `${new Date().getUTCFullYear() - row.age}-03-15`;
-      const level = orgLevelOf(row);
+      const level = orgLevelOf(row, owners);
       await rows(
         manager,
         `INSERT INTO person(id,first_name,last_name,father_name,birth_date,national_id_enc,national_id_hash,phone,org_level,external,search_name,consent_required)
@@ -241,7 +275,7 @@ export async function seedHierarchy(db: DataSource): Promise<{
     );
 
     for (const row of HIERARCHY_ROSTER) {
-      const memberGroup = memberGroupOf(row);
+      const memberGroup = memberGroupOf(row, owners);
       if (memberGroup === undefined) continue;
       if (!owners.has(memberGroup)) {
         throw new Error(
@@ -253,11 +287,12 @@ export async function seedHierarchy(db: DataSource): Promise<{
         "INSERT INTO membership(person_id,group_id,role) VALUES($1,$2,'member')",
         [hierarchyPersonId(row.n), hierarchyGroupId(memberGroup)],
       );
-      if (row.komak) {
+      const assistantGroup = assistantGroupOf(row, owners);
+      if (assistantGroup !== undefined) {
         await rows(
           manager,
           "INSERT INTO membership(person_id,group_id,role) VALUES($1,$2,'assistant')",
-          [hierarchyPersonId(row.n), hierarchyGroupId(row.komak)],
+          [hierarchyPersonId(row.n), hierarchyGroupId(assistantGroup)],
         );
       }
     }

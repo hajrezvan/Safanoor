@@ -7,14 +7,14 @@ import { useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { formatDate, formatNumber } from '@safanoor/shared';
+import { formatCompactDate, formatDate, formatNumber } from '@safanoor/shared';
 
 import { client, unwrap } from 'src/api/client';
 import { useFa } from 'src/locales/fa-provider';
 import {
   Button,
-  CardsGrid,
-  ClickableCard,
+  CompactClickableCard,
+  ConsultationCardsGrid,
   Dialog,
   Form,
   FormGrid,
@@ -23,12 +23,14 @@ import {
   Notice,
   PageHeader,
   Pagination,
+  PersonCardMeta,
   ProfileAvatar,
   QueryState,
   Row,
   Search,
   Select,
   SoftIcon,
+  Spread,
   Stack,
   Text,
 } from 'src/components/ui';
@@ -69,10 +71,19 @@ function combineHeldAt(date: Date, time: string): string {
   return next.toISOString();
 }
 
-function KindIcon({ kind, label }: { kind: 'in_person' | 'phone'; label: string }) {
+function KindIcon({
+  kind,
+  label,
+  size = 22,
+}: {
+  kind: 'in_person' | 'phone';
+  label: string;
+  size?: number;
+}) {
   return (
     <SoftIcon
       label={label}
+      size={size}
       icon={kind === 'phone' ? 'solar:phone-bold' : 'solar:users-group-rounded-bold'}
     />
   );
@@ -109,27 +120,25 @@ function ConsultationCard({
   );
   const name = memberLabel(item.memberPreview, item.memberCount, t);
   return (
-    <ClickableCard type="button" onClick={onOpen}>
-      <Stack>
-        <Row>
-          <div>
-            <Text variant="subtitle">{formatDate(item.heldAt)}</Text>
-            <Text muted variant="caption" dir="ltr">
-              {formatHeldTime(item.heldAt)}
-            </Text>
-          </div>
-          <KindIcon kind={item.kind} label={kindLabel} />
-        </Row>
+    <CompactClickableCard type="button" onClick={onOpen}>
+      <PersonCardMeta>
+        <Spread>
+          <Text muted variant="caption">
+            {formatCompactDate(item.heldAt)} {formatHeldTime(item.heldAt)}
+          </Text>
+          <KindIcon kind={item.kind} label={kindLabel} size={16} />
+        </Spread>
         <Text muted variant="caption">
-          {t('consultationDurationValue', { minutes: formatNumber(item.durationMinutes) })}
-          {item.place ? ` · ${item.place}` : ''}
+          {t('consultationDurationValue', {
+            minutes: formatNumber(item.durationMinutes),
+          })}
         </Text>
         <Row>
-          <ProfileAvatar name={name} size={32} />
-          <Text>{name}</Text>
+          <ProfileAvatar name={name} size={24} />
+          <Text variant="caption">{name}</Text>
         </Row>
-      </Stack>
-    </ClickableCard>
+      </PersonCardMeta>
+    </CompactClickableCard>
   );
 }
 
@@ -545,7 +554,7 @@ export function ConsultationsScreen() {
           ) : undefined
         }
       >
-        <CardsGrid>
+        <ConsultationCardsGrid>
           {(query.data?.items ?? []).map((item) => (
             <ConsultationCard
               key={item.id}
@@ -556,7 +565,7 @@ export function ConsultationsScreen() {
               }}
             />
           ))}
-        </CardsGrid>
+        </ConsultationCardsGrid>
       </QueryState>
       {query.data && (
         <Pagination

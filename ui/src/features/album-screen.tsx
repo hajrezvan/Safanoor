@@ -2,7 +2,7 @@
 
 import type { components } from 'src/api/generated/schema';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDate, formatNumber } from '@safanoor/shared';
 
@@ -29,14 +29,23 @@ import {
 import { PersonPicker } from './person-picker';
 import { useWrite } from './shared';
 
+type AlbumSummary = components['schemas']['AlbumSummaryDto'];
 type PhotoSummary = components['schemas']['PhotoSummaryDto'];
 type PhotoDetail = components['schemas']['PhotoDetailDto'];
+
+const OTHER_ALBUM_KEY = '__other__';
 
 export function AlbumScreen() {
   const t = useFa();
   const cache = useQueryClient();
+  const [openAlbum, setOpenAlbum] = useState<{
+    key: string;
+    title: string;
+  } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [selectedId, setSelectedId] = useState<string>();
+  const [albumTitle, setAlbumTitle] = useState('');
+  const [albumDraft, setAlbumDraft] = useState('');
   const [title, setTitle] = useState('');
   const [eventNote, setEventNote] = useState('');
   const [placeId, setPlaceId] = useState('');
@@ -62,12 +71,25 @@ export function AlbumScreen() {
   );
   const canUpload = !!managedGroup;
 
+  const albums = useQuery({
+    queryKey: ['album-albums'],
+    queryFn: async () =>
+      unwrap(
+        await client.GET('/api/v1/album/albums', {
+          params: { query: { page: 1, limit: 100 } },
+        })
+      ),
+  });
+
   const photos = useQuery({
-    queryKey: ['album-photos'],
+    queryKey: ['album-photos', openAlbum?.key],
+    enabled: !!openAlbum,
     queryFn: async () =>
       unwrap(
         await client.GET('/api/v1/album/photos', {
-          params: { query: { page: 1, limit: 100 } },
+          params: {
+            query: { page: 1, limit: 100, albumKey: openAlbum!.key },
+          },
         })
       ),
   });
@@ -96,9 +118,11 @@ export function AlbumScreen() {
 
   const upload = useWrite(async () => {
     if (!managedGroup || !file) throw new Error(t('required'));
+    const resolvedAlbum = (albumTitle || albumDraft).trim();
     const data = new FormData();
     data.append('groupId', managedGroup.id);
     data.append('file', file);
+    if (resolvedAlbum) data.append('albumTitle', resolvedAlbum);
     if (title.trim()) data.append('title', title.trim());
     if (eventNote.trim()) data.append('eventNote', eventNote.trim());
     if (placeId) data.append('locationOptionId', placeId);
@@ -109,6 +133,7 @@ export function AlbumScreen() {
         body: data as unknown as {
           groupId: string;
           file: string;
+          albumTitle?: string;
           title?: string;
           eventNote?: string;
           locationOptionId?: string;
@@ -119,6 +144,8 @@ export function AlbumScreen() {
       })
     );
     setUploading(false);
+    setAlbumTitle('');
+    setAlbumDraft('');
     setTitle('');
     setEventNote('');
     setPlaceId('');
@@ -129,6 +156,13 @@ export function AlbumScreen() {
     setTagDraft('');
     setTagLabels({});
     setSelectedId(result.id);
+    if (resolvedAlbum) {
+      setOpenAlbum({ key: resolvedAlbum, title: resolvedAlbum });
+    } else {
+      setOpenAlbum({ key: OTHER_ALBUM_KEY, title: t('otherAlbum') });
+    }
+    void cache.invalidateQueries({ queryKey: ['album-albums'] });
+    void cache.invalidateQueries({ queryKey: ['album-photos'] });
     void cache.invalidateQueries({ queryKey: ['locations'] });
     return result;
   });
@@ -161,6 +195,123 @@ export function AlbumScreen() {
     setPlaceSearch('');
   }
 
+  function albumDisplayTitle(album: AlbumSummary): string {
+    if (album.key === OTHER_ALBUM_KEY || !album.title) return t('otherAlbum');
+    return album.title;
+  }
+
+  if (openAlbum) {
+    return (
+      <Stack>
+        <PageHeader
+          title={
+            openAlbum.key === OTHER_ALBUM_KEY || !openAlbum.title
+              ? t('otherAlbum')
+              : openAlbum.title
+          }
+          hint={t('groupAlbumHint')}
+          action={
+            <Row>
+              <Button
+                variant="text"
+                onClick={() => {
+                  setOpenAlbum(null);
+                  setSelectedId(undefined);
+                }}
+              >
+                {t('backToAlbums')}
+              </Button>
+              {canUpload ? (
+                <Button
+                  icon="add"
+                  onClick={() => {
+                    setAlbumTitle(
+                      openAlbum.key === OTHER_ALBUM_KEY ? '' : openAlbum.title
+                    );
+                    setAlbumDraft(
+                      openAlbum.key === OTHER_ALBUM_KEY ? '' : openAlbum.title
+                    );
+                    setUploading(true);
+                  }}
+                >
+                  {t('uploadPhoto')}
+                </Button>
+              ) : undefined}
+            </Row>
+          }
+        />
+        <QueryState
+          loading={photos.isLoading}
+          error={photos.error}
+          empty={(photos.data?.items.length ?? 0) === 0}
+          emptyTitle={t('albumPhotosEmpty')}
+          emptyHint={t('albumPhotosEmptyHint')}
+          retry={() => void photos.refetch()}
+        >
+          <PhotoGrid>
+            {(photos.data?.items ?? []).map((photo: PhotoSummary) => (
+              <PhotoThumb
+                key={photo.id}
+                src={photo.contentUrl}
+                alt={photo.title || t('untitledPhoto')}
+                title={photo.title || t('untitledPhoto')}
+                subtitle={photo.hostGroupName}
+                onClick={() => setSelectedId(photo.id)}
+              />
+            ))}
+          </PhotoGrid>
+        </QueryState>
+        <UploadDialog
+          open={uploading}
+          canUpload={canUpload}
+          managedGroupName={managedGroup?.name}
+          albums={albums.data?.items ?? []}
+          albumTitle={albumTitle}
+          albumDraft={albumDraft}
+          title={title}
+          eventNote={eventNote}
+          placeId={placeId}
+          placeDraft={placeDraft}
+          locations={locations.data?.items ?? []}
+          locationsLoading={locations.isLoading}
+          file={file}
+          tagDraft={tagDraft}
+          tagIds={tagIds}
+          tagLabels={tagLabels}
+          uploadPending={upload.isPending}
+          uploadFeedback={upload.feedback}
+          onClose={resetUpload}
+          onSubmit={() => upload.mutate(undefined)}
+          onAlbumTitleChange={setAlbumTitle}
+          onAlbumDraftChange={setAlbumDraft}
+          onTitleChange={setTitle}
+          onEventNoteChange={setEventNote}
+          onPlaceIdChange={setPlaceId}
+          onPlaceDraftChange={setPlaceDraft}
+          onPlaceSearchChange={setPlaceSearch}
+          onFileChange={setFile}
+          onAddTag={addTag}
+          onRemoveTag={(id) =>
+            setTagIds((current) => current.filter((item) => item !== id))
+          }
+        />
+        <PhotoDetailDialog
+          selectedId={selectedId}
+          detail={detail.data}
+          loading={detail.isLoading}
+          error={detail.error}
+          onClose={() => {
+            setSelectedId(undefined);
+            void cache.invalidateQueries({
+              queryKey: ['album-photos', openAlbum.key],
+            });
+          }}
+          onRetry={() => void detail.refetch()}
+        />
+      </Stack>
+    );
+  }
+
   return (
     <Stack>
       <PageHeader
@@ -175,168 +326,120 @@ export function AlbumScreen() {
         }
       />
       <QueryState
-        loading={photos.isLoading || groups.isLoading}
-        error={photos.error || groups.error}
-        empty={(photos.data?.items.length ?? 0) === 0}
+        loading={albums.isLoading || groups.isLoading}
+        error={albums.error || groups.error}
+        empty={(albums.data?.items.length ?? 0) === 0}
         emptyTitle={t('groupAlbumEmpty')}
         emptyHint={
           canUpload ? t('groupAlbumEmptyMentorHint') : t('groupAlbumEmptyHint')
         }
         retry={() => {
-          void photos.refetch();
+          void albums.refetch();
           void groups.refetch();
         }}
       >
         <PhotoGrid>
-          {(photos.data?.items ?? []).map((photo: PhotoSummary) => (
+          {(albums.data?.items ?? []).map((album: AlbumSummary) => (
             <PhotoThumb
-              key={photo.id}
-              src={photo.contentUrl}
-              alt={photo.title || t('untitledPhoto')}
-              title={photo.title || t('untitledPhoto')}
-              subtitle={
-                photo.tagCount
-                  ? t('photoTagCount', { count: formatNumber(photo.tagCount) })
-                  : photo.hostGroupName
+              key={album.key}
+              src={album.coverContentUrl}
+              alt={albumDisplayTitle(album)}
+              title={albumDisplayTitle(album)}
+              subtitle={t('albumPhotoCount', {
+                count: formatNumber(album.photoCount),
+              })}
+              onClick={() =>
+                setOpenAlbum({
+                  key: album.key,
+                  title: albumDisplayTitle(album),
+                })
               }
-              onClick={() => setSelectedId(photo.id)}
             />
           ))}
         </PhotoGrid>
       </QueryState>
 
-      <Dialog
+      <UploadDialog
         open={uploading}
-        title={t('uploadPhoto')}
+        canUpload={canUpload}
+        managedGroupName={managedGroup?.name}
+        albums={albums.data?.items ?? []}
+        albumTitle={albumTitle}
+        albumDraft={albumDraft}
+        title={title}
+        eventNote={eventNote}
+        placeId={placeId}
+        placeDraft={placeDraft}
+        locations={locations.data?.items ?? []}
+        locationsLoading={locations.isLoading}
+        file={file}
+        tagDraft={tagDraft}
+        tagIds={tagIds}
+        tagLabels={tagLabels}
+        uploadPending={upload.isPending}
+        uploadFeedback={upload.feedback}
         onClose={resetUpload}
-        actions={
-          <>
-            <Button variant="text" onClick={resetUpload}>
-              {t('cancel')}
-            </Button>
-            <Button
-              disabled={!file || !managedGroup || upload.isPending}
-              onClick={() => upload.mutate(undefined)}
-            >
-              {t('uploadPhoto')}
-            </Button>
-          </>
+        onSubmit={() => upload.mutate(undefined)}
+        onAlbumTitleChange={setAlbumTitle}
+        onAlbumDraftChange={setAlbumDraft}
+        onTitleChange={setTitle}
+        onEventNoteChange={setEventNote}
+        onPlaceIdChange={setPlaceId}
+        onPlaceDraftChange={setPlaceDraft}
+        onPlaceSearchChange={setPlaceSearch}
+        onFileChange={setFile}
+        onAddTag={addTag}
+        onRemoveTag={(id) =>
+          setTagIds((current) => current.filter((item) => item !== id))
         }
-      >
-        <Text muted>
-          {managedGroup
-            ? t('uploadPhotoGroup', { name: managedGroup.name })
-            : t('noGroupForAlbum')}
-        </Text>
-        <FileInput accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" onChange={setFile} />
-        <Input label={t('photoTitle')} value={title} onChange={(event) => setTitle(event.target.value)} />
-        <Input
-          label={t('photoEventNote')}
-          value={eventNote}
-          onChange={(event) => setEventNote(event.target.value)}
-          multiline
-        />
-        <AutocompleteSelect
-          label={t('photoPlace')}
-          value={placeId}
-          freeSolo
-          limit={8}
-          createLabel={(label) => t('photoPlaceCreate', { label })}
-          options={[
-            ...(placeId && placeDraft
-              ? [{ value: placeId, label: placeDraft }]
-              : []),
-            ...(locations.data?.items ?? [])
-              .filter((item) => item.id !== placeId)
-              .map((item) => ({
-                value: item.id,
-                label: item.label,
-              })),
-          ]}
-          loading={locations.isLoading}
-          onInputChange={(next) => {
-            setPlaceSearch(next);
-            if (placeId) {
-              const selectedLabel =
-                placeDraft ||
-                locations.data?.items.find((item) => item.id === placeId)?.label;
-              if (selectedLabel && selectedLabel === next) return;
-              setPlaceId('');
-            }
-            setPlaceDraft(next);
-          }}
-          onChange={(next, option) => {
-            if (!next) {
-              setPlaceId('');
-              setPlaceDraft('');
-              return;
-            }
-            if (option?.inputValue || next.startsWith('__create__:')) {
-              const label =
-                option?.inputValue || option?.label || next.replace(/^__create__:/, '');
-              setPlaceId('');
-              setPlaceDraft(label);
-              return;
-            }
-            const known = (locations.data?.items ?? []).find(
-              (item) => item.id === next || item.label === next,
-            );
-            if (known) {
-              setPlaceId(known.id);
-              setPlaceDraft(known.label);
-              return;
-            }
-            // Typed freeSolo string that is not yet registered.
-            setPlaceId('');
-            setPlaceDraft(option?.label ?? next);
-          }}
-        />
-        <Text muted variant="caption">
-          {t('photoPlaceHint')}
-        </Text>
-        <Stack>
-          <Text variant="caption">{t('photoTags')}</Text>
-          <PersonPicker
-            value={tagDraft}
-            onChange={addTag}
-            label="photoTagPerson"
-            limit={5}
-            showAvatar
-            clearOnSelect
-          />
-          <Row>
-            {tagIds.map((id) => (
-              <Button
-                key={id}
-                variant="outlined"
-                onClick={() => setTagIds((current) => current.filter((item) => item !== id))}
-              >
-                {`${tagLabels[id] ?? id} · ${t('removeTag')}`}
-              </Button>
-            ))}
-          </Row>
-        </Stack>
-        {upload.feedback}
-      </Dialog>
+      />
 
-      <Dialog
-        open={!!selectedId}
-        title={detail.data?.title || t('photoDetail')}
+      <PhotoDetailDialog
+        selectedId={selectedId}
+        detail={detail.data}
+        loading={detail.isLoading}
+        error={detail.error}
         onClose={() => {
           setSelectedId(undefined);
-          void cache.invalidateQueries({ queryKey: ['album-photos'] });
+          void cache.invalidateQueries({ queryKey: ['album-albums'] });
         }}
-      >
-        <QueryState
-          loading={detail.isLoading}
-          error={detail.error}
-          empty={!detail.data}
-          retry={() => void detail.refetch()}
-        >
-          {detail.data && <PhotoDetailBody photo={detail.data} />}
-        </QueryState>
-      </Dialog>
+        onRetry={() => void detail.refetch()}
+      />
     </Stack>
+  );
+}
+
+function PhotoDetailDialog({
+  selectedId,
+  detail,
+  loading,
+  error,
+  onClose,
+  onRetry,
+}: {
+  selectedId?: string;
+  detail?: PhotoDetail;
+  loading: boolean;
+  error: unknown;
+  onClose: () => void;
+  onRetry: () => void;
+}) {
+  const t = useFa();
+  return (
+    <Dialog
+      open={!!selectedId}
+      title={detail?.title || t('photoDetail')}
+      onClose={onClose}
+    >
+      <QueryState
+        loading={loading}
+        error={error}
+        empty={!detail}
+        retry={onRetry}
+      >
+        {detail && <PhotoDetailBody photo={detail} />}
+      </QueryState>
+    </Dialog>
   );
 }
 
@@ -345,6 +448,11 @@ function PhotoDetailBody({ photo }: { photo: PhotoDetail }) {
   return (
     <Stack>
       <PhotoViewer src={photo.contentUrl} alt={photo.title || t('untitledPhoto')} />
+      {photo.albumTitle && (
+        <Text muted>
+          {t('photoAlbumTitle')}: {photo.albumTitle}
+        </Text>
+      )}
       {photo.eventNote && <Notice>{photo.eventNote}</Notice>}
       {photo.placeLabel && (
         <Text muted>
@@ -372,5 +480,243 @@ function PhotoDetailBody({ photo }: { photo: PhotoDetail }) {
         <Text muted>{t('photoManageHint')}</Text>
       )}
     </Stack>
+  );
+}
+
+function UploadDialog({
+  open,
+  canUpload,
+  managedGroupName,
+  albums,
+  albumTitle,
+  albumDraft,
+  title,
+  eventNote,
+  placeId,
+  placeDraft,
+  locations,
+  locationsLoading,
+  file,
+  tagDraft,
+  tagIds,
+  tagLabels,
+  uploadPending,
+  uploadFeedback,
+  onClose,
+  onSubmit,
+  onAlbumTitleChange,
+  onAlbumDraftChange,
+  onTitleChange,
+  onEventNoteChange,
+  onPlaceIdChange,
+  onPlaceDraftChange,
+  onPlaceSearchChange,
+  onFileChange,
+  onAddTag,
+  onRemoveTag,
+}: {
+  open: boolean;
+  canUpload: boolean;
+  managedGroupName?: string;
+  albums: AlbumSummary[];
+  albumTitle: string;
+  albumDraft: string;
+  title: string;
+  eventNote: string;
+  placeId: string;
+  placeDraft: string;
+  locations: { id: string; label: string }[];
+  locationsLoading: boolean;
+  file: File | null;
+  tagDraft: string;
+  tagIds: string[];
+  tagLabels: Record<string, string>;
+  uploadPending: boolean;
+  uploadFeedback: ReactNode;
+  onClose: () => void;
+  onSubmit: () => void;
+  onAlbumTitleChange: (value: string) => void;
+  onAlbumDraftChange: (value: string) => void;
+  onTitleChange: (value: string) => void;
+  onEventNoteChange: (value: string) => void;
+  onPlaceIdChange: (value: string) => void;
+  onPlaceDraftChange: (value: string) => void;
+  onPlaceSearchChange: (value: string) => void;
+  onFileChange: (file: File | null) => void;
+  onAddTag: (personId: string) => void;
+  onRemoveTag: (id: string) => void;
+}) {
+  const t = useFa();
+  const albumOptions = albums
+    .filter((album) => album.key !== OTHER_ALBUM_KEY && album.title)
+    .map((album) => ({ value: album.key, label: album.title }));
+
+  return (
+    <Dialog
+      open={open}
+      title={t('uploadPhoto')}
+      onClose={onClose}
+      actions={
+        <>
+          <Button variant="text" onClick={onClose}>
+            {t('cancel')}
+          </Button>
+          <Button
+            disabled={!file || !canUpload || uploadPending}
+            onClick={onSubmit}
+          >
+            {t('uploadPhoto')}
+          </Button>
+        </>
+      }
+    >
+      <Text muted>
+        {managedGroupName
+          ? t('uploadPhotoGroup', { name: managedGroupName })
+          : t('noGroupForAlbum')}
+      </Text>
+      <FileInput accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" onChange={onFileChange} />
+      <AutocompleteSelect
+        label={t('photoAlbumTitle')}
+        value={albumTitle}
+        freeSolo
+        limit={8}
+        createLabel={(label) => t('photoAlbumTitleCreate', { label })}
+        options={[
+          ...(albumTitle && albumDraft && !albumOptions.some((o) => o.value === albumTitle)
+            ? [{ value: albumTitle, label: albumDraft }]
+            : []),
+          ...albumOptions.filter((item) => item.value !== albumTitle),
+        ]}
+        onInputChange={(next) => {
+          onAlbumDraftChange(next);
+          if (albumTitle) {
+            const selectedLabel =
+              albumDraft ||
+              albumOptions.find((item) => item.value === albumTitle)?.label;
+            if (selectedLabel && selectedLabel === next) return;
+            onAlbumTitleChange('');
+          }
+        }}
+        onChange={(next, option) => {
+          if (!next) {
+            onAlbumTitleChange('');
+            onAlbumDraftChange('');
+            return;
+          }
+          if (option?.inputValue || next.startsWith('__create__:')) {
+            const label =
+              option?.inputValue || option?.label || next.replace(/^__create__:/, '');
+            onAlbumTitleChange('');
+            onAlbumDraftChange(label);
+            return;
+          }
+          const known = albumOptions.find(
+            (item) => item.value === next || item.label === next,
+          );
+          if (known) {
+            onAlbumTitleChange(known.value);
+            onAlbumDraftChange(known.label);
+            return;
+          }
+          onAlbumTitleChange('');
+          onAlbumDraftChange(option?.label ?? next);
+        }}
+      />
+      <Text muted variant="caption">
+        {t('photoAlbumTitleHint')}
+      </Text>
+      <Input
+        label={t('photoTitle')}
+        value={title}
+        onChange={(event) => onTitleChange(event.target.value)}
+      />
+      <Input
+        label={t('photoEventNote')}
+        value={eventNote}
+        onChange={(event) => onEventNoteChange(event.target.value)}
+        multiline
+      />
+      <AutocompleteSelect
+        label={t('photoPlace')}
+        value={placeId}
+        freeSolo
+        limit={8}
+        createLabel={(label) => t('photoPlaceCreate', { label })}
+        options={[
+          ...(placeId && placeDraft
+            ? [{ value: placeId, label: placeDraft }]
+            : []),
+          ...locations
+            .filter((item) => item.id !== placeId)
+            .map((item) => ({
+              value: item.id,
+              label: item.label,
+            })),
+        ]}
+        loading={locationsLoading}
+        onInputChange={(next) => {
+          onPlaceSearchChange(next);
+          if (placeId) {
+            const selectedLabel =
+              placeDraft ||
+              locations.find((item) => item.id === placeId)?.label;
+            if (selectedLabel && selectedLabel === next) return;
+            onPlaceIdChange('');
+          }
+          onPlaceDraftChange(next);
+        }}
+        onChange={(next, option) => {
+          if (!next) {
+            onPlaceIdChange('');
+            onPlaceDraftChange('');
+            return;
+          }
+          if (option?.inputValue || next.startsWith('__create__:')) {
+            const label =
+              option?.inputValue || option?.label || next.replace(/^__create__:/, '');
+            onPlaceIdChange('');
+            onPlaceDraftChange(label);
+            return;
+          }
+          const known = locations.find(
+            (item) => item.id === next || item.label === next,
+          );
+          if (known) {
+            onPlaceIdChange(known.id);
+            onPlaceDraftChange(known.label);
+            return;
+          }
+          onPlaceIdChange('');
+          onPlaceDraftChange(option?.label ?? next);
+        }}
+      />
+      <Text muted variant="caption">
+        {t('photoPlaceHint')}
+      </Text>
+      <Stack>
+        <Text variant="caption">{t('photoTags')}</Text>
+        <PersonPicker
+          value={tagDraft}
+          onChange={onAddTag}
+          label="photoTagPerson"
+          limit={5}
+          showAvatar
+          clearOnSelect
+        />
+        <Row>
+          {tagIds.map((id) => (
+            <Button
+              key={id}
+              variant="outlined"
+              onClick={() => onRemoveTag(id)}
+            >
+              {`${tagLabels[id] ?? id} · ${t('removeTag')}`}
+            </Button>
+          ))}
+        </Row>
+      </Stack>
+      {uploadFeedback}
+    </Dialog>
   );
 }

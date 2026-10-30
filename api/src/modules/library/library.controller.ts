@@ -9,8 +9,20 @@ import {
   Patch,
   Post,
   Query,
+  Res,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOkResponse,
+  ApiProduces,
+  ApiTags,
+} from '@nestjs/swagger';
+import type { Response } from 'express';
 import { PaginationDto } from '../../libs/http/http.dto';
 import { Actor } from '../access/access.types';
 import { CurrentActor, Policy } from '../access/policy.decorator';
@@ -63,6 +75,22 @@ export class LibraryController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<StudyPathDetailDto> {
     return this.library.get(actor, id);
+  }
+
+  @Get('study-paths/:id/cover')
+  @Policy('study_path', 'read')
+  @ApiProduces('image/jpeg', 'image/png', 'image/webp')
+  @ApiOkResponse({ description: 'Binary cover image' })
+  async cover(
+    @CurrentActor() actor: Actor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() response: Response,
+  ): Promise<void> {
+    const file = await this.library.cover(actor, id);
+    response.setHeader('Content-Type', file.mime);
+    response.setHeader('Content-Disposition', 'inline');
+    response.setHeader('Cache-Control', 'private, no-store');
+    response.send(file.body);
   }
 
   @Patch('study-paths/:id')
@@ -134,5 +162,103 @@ export class LibraryController {
     @Param('itemId', ParseUUIDPipe) itemId: string,
   ): Promise<StudyPathDetailDto> {
     return this.library.removeItem(actor, id, itemId);
+  }
+
+  @Get('study-paths/:id/items/:itemId/cover')
+  @Policy('study_path', 'read')
+  @ApiProduces('image/jpeg', 'image/png', 'image/webp')
+  @ApiOkResponse({ description: 'Binary book cover image' })
+  async itemCover(
+    @CurrentActor() actor: Actor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('itemId', ParseUUIDPipe) itemId: string,
+    @Res() response: Response,
+  ): Promise<void> {
+    const file = await this.library.itemCover(actor, id, itemId);
+    response.setHeader('Content-Type', file.mime);
+    response.setHeader('Content-Disposition', 'inline');
+    response.setHeader('Cache-Control', 'private, no-store');
+    response.send(file.body);
+  }
+
+  @Get('study-paths/:id/items/:itemId/pdf')
+  @Policy('study_path', 'read')
+  @ApiProduces('application/pdf')
+  @ApiOkResponse({ description: 'Binary book PDF' })
+  async itemPdf(
+    @CurrentActor() actor: Actor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('itemId', ParseUUIDPipe) itemId: string,
+    @Res() response: Response,
+  ): Promise<void> {
+    const file = await this.library.itemPdf(actor, id, itemId);
+    response.setHeader('Content-Type', file.mime);
+    response.setHeader('Content-Disposition', 'inline');
+    response.setHeader('Cache-Control', 'private, no-store');
+    response.send(file.body);
+  }
+
+  @HttpCode(200)
+  @Post('study-paths/:id/items/:itemId/cover')
+  @Policy('study_path', 'update')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 8 * 1024 * 1024, files: 1 },
+    }),
+  )
+  @ApiOkResponse({ type: StudyPathDetailDto })
+  uploadItemCover(
+    @CurrentActor() actor: Actor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('itemId', ParseUUIDPipe) itemId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<StudyPathDetailDto> {
+    return this.library.uploadItemCover(actor, id, itemId, file);
+  }
+
+  @HttpCode(200)
+  @Post('study-paths/:id/items/:itemId/pdf')
+  @Policy('study_path', 'update')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 16 * 1024 * 1024, files: 1 },
+    }),
+  )
+  @ApiOkResponse({ type: StudyPathDetailDto })
+  uploadItemPdf(
+    @CurrentActor() actor: Actor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('itemId', ParseUUIDPipe) itemId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<StudyPathDetailDto> {
+    return this.library.uploadItemPdf(actor, id, itemId, file);
+  }
+
+  @HttpCode(200)
+  @Delete('study-paths/:id/items/:itemId/pdf')
+  @Policy('study_path', 'update')
+  @ApiOkResponse({ type: StudyPathDetailDto })
+  removeItemPdf(
+    @CurrentActor() actor: Actor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('itemId', ParseUUIDPipe) itemId: string,
+  ): Promise<StudyPathDetailDto> {
+    return this.library.removeItemPdf(actor, id, itemId);
   }
 }

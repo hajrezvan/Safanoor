@@ -48,7 +48,7 @@ export class PeopleService {
       type: 'person',
       ownerId: actor.personId,
     });
-    const scope = `p.status='active' AND (p.id=$1 OR $2 OR EXISTS(SELECT 1 FROM membership m JOIN organization_group g ON g.id=m.group_id WHERE m.person_id=p.id AND m.role='member' AND m.valid_to IS NULL AND g.owner_person_id=$1) OR EXISTS(SELECT 1 FROM follow_up_assignment f WHERE f.member_person_id=p.id AND f.assistant_person_id=$1 AND f.to_date IS NULL)) AND ($3='' OR p.search_name LIKE '%'||$3||'%')`;
+    const scope = `p.status='active' AND (p.id=$1 OR $2 OR EXISTS(SELECT 1 FROM membership m JOIN organization_group g ON g.id=m.group_id WHERE m.person_id=p.id AND m.role='member' AND m.valid_to IS NULL AND g.owner_person_id=$1) OR EXISTS(SELECT 1 FROM follow_up_assignment f WHERE f.member_person_id=p.id AND f.assistant_person_id=$1 AND f.to_date IS NULL) OR EXISTS(SELECT 1 FROM person_ancestors pa WHERE pa.person_id=p.id AND pa.ancestor_id=$1)) AND ($3='' OR p.search_name LIKE '%'||$3||'%')`;
     const params = [
       actor.personId,
       actor.isAdmin,
@@ -76,7 +76,16 @@ export class PeopleService {
     const level = await this.access.require(actor, 'read', resource);
     const item = await one<PersonRow>(
       this.db,
-      `SELECT p.id,p.first_name AS "firstName",p.last_name AS "lastName",p.org_level AS "orgLevel",p.status,COALESCE(extract(year FROM age(CURRENT_DATE,p.birth_date))::int,0) AS age,p.availability,(p.verified_at IS NOT NULL) AS verified,m.group_id AS "groupId",g.name AS "groupName" FROM person p LEFT JOIN membership m ON m.person_id=p.id AND m.role='member' AND m.valid_to IS NULL LEFT JOIN organization_group g ON g.id=m.group_id WHERE p.id=$1`,
+      `SELECT p.id,p.first_name AS "firstName",p.last_name AS "lastName",p.org_level AS "orgLevel",p.status,COALESCE(extract(year FROM age(CURRENT_DATE,p.birth_date))::int,0) AS age,p.availability,(p.verified_at IS NOT NULL) AS verified,m.group_id AS "groupId",COALESCE(owned.name,g.name) AS "groupName"
+       FROM person p
+       LEFT JOIN LATERAL (
+         SELECT name FROM organization_group
+         WHERE owner_person_id=p.id
+         ORDER BY name,id LIMIT 1
+       ) owned ON true
+       LEFT JOIN membership m ON m.person_id=p.id AND m.role='member' AND m.valid_to IS NULL
+       LEFT JOIN organization_group g ON g.id=m.group_id
+       WHERE p.id=$1`,
       [id],
     );
     if (!item) throw new NotFoundException();

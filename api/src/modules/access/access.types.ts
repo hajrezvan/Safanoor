@@ -31,6 +31,7 @@ export const RESOURCE_TYPES = [
   'project_feedback',
   'chat_thread',
   'study_path',
+  'lms_item',
   'program_event',
   'camp',
   'dashboard',
