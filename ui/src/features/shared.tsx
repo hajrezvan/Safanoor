@@ -10,7 +10,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { useFa } from 'src/locales/fa-provider';
 
-import { Form, Input, Toast, Button, Notice, FormGrid } from 'src/components/ui';
+import { Row, Form, Input, Toast, Stack, Button, Notice, FormGrid } from 'src/components/ui';
 
 export function useWrite<T>(fn: (input: T) => Promise<unknown>, after?: () => void) {
   const cache = useQueryClient();
@@ -42,6 +42,7 @@ export function BasicForm({
   error,
   submit = 'save',
   initial = {},
+  compact = false,
 }: {
   fields: Field[];
   onSubmit: (values: Record<string, string>) => void;
@@ -49,6 +50,7 @@ export function BasicForm({
   error?: string;
   submit?: TextKey;
   initial?: Record<string, string>;
+  compact?: boolean;
 }) {
   const t = useFa();
   const schema = z.object(
@@ -67,6 +69,7 @@ export function BasicForm({
     resolver: zodResolver(schema),
     defaultValues: Object.fromEntries(fields.map((field) => [field.key, initial[field.key] ?? ''])),
   });
+  const Actions = compact ? Row : Stack;
   return (
     <Form onSubmit={form.handleSubmit(onSubmit)}>
       <FormGrid>
@@ -87,9 +90,11 @@ export function BasicForm({
         ))}
       </FormGrid>
       {error && <Notice tone="error">{error}</Notice>}
-      <Button type="submit" disabled={busy}>
-        {t(busy ? 'busy' : submit)}
-      </Button>
+      <Actions>
+        <Button type="submit" disabled={busy}>
+          {t(busy ? 'busy' : submit)}
+        </Button>
+      </Actions>
     </Form>
   );
 }

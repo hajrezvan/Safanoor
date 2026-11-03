@@ -1,6 +1,11 @@
 import { Module } from '@nestjs/common';
 import { FilesController } from './files.controller';
-import { LocalStorageAdapter, S3StorageAdapter, STORAGE } from './storage';
+import {
+  EncryptedStorageAdapter,
+  LocalStorageAdapter,
+  S3StorageAdapter,
+  STORAGE,
+} from './storage';
 
 @Module({
   controllers: [FilesController],
@@ -9,7 +14,7 @@ import { LocalStorageAdapter, S3StorageAdapter, STORAGE } from './storage';
       provide: STORAGE,
       useFactory: () =>
         process.env.STORAGE_DRIVER === 's3'
-          ? new S3StorageAdapter()
+          ? new EncryptedStorageAdapter(new S3StorageAdapter())
           : new LocalStorageAdapter(),
     },
   ],

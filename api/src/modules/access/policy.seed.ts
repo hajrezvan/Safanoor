@@ -13,15 +13,12 @@ export function foundationPolicies(): PolicyRow[] {
       policies.push({ resourceType, action, ownerRole, viewerRelation, level });
   };
   allow('file', 'read', ['self']);
+  allow('avatar', 'read', ['self']);
+  allow('avatar', 'update', ['self']);
   allow('person', 'read', ['self', 'mentor', 'groupMentor']);
   allow('person', 'read', ['followingAssistant', 'admin'], 'summary');
   // Superiors see identity at summary only (no private notes / emergency).
-  allow(
-    'person',
-    'read',
-    ['ancestor', 'supervisor', 'headMentor'],
-    'summary',
-  );
+  allow('person', 'read', ['ancestor', 'supervisor', 'headMentor'], 'summary');
   allow('person', 'create', ['admin', 'groupMentor']);
   allow('person', 'update', ['self', 'mentor', 'admin']);
   allow('person', 'deactivate', ['mentor', 'admin']);
@@ -114,6 +111,8 @@ export function foundationPolicies(): PolicyRow[] {
   allow('project_feedback', 'read', ['self', 'authorizedFollower']);
   allow('chat_thread', 'read', ['attendee', 'groupMentor']);
   allow('chat_thread', 'create', ['attendee', 'groupMentor']);
+  allow('study_reading', 'read', ['self']);
+  allow('study_reading', 'update', ['self']);
   allow('study_path', 'read', ['sameGroup', 'groupMentor']);
   allow('study_path', 'create', ['groupMentor']);
   allow('study_path', 'update', ['groupMentor']);
@@ -122,6 +121,7 @@ export function foundationPolicies(): PolicyRow[] {
   allow('lms_item', 'create', ['groupMentor']);
   allow('lms_item', 'update', ['groupMentor']);
   allow('lms_item', 'manage', ['groupMentor']);
+  allow('member_finance', 'read', ['self']);
   allow('program_event', 'read', ['groupMentor', 'financeOfficer']);
   allow('program_event', 'create', ['groupMentor']);
   allow('program_event', 'update', ['groupMentor']);

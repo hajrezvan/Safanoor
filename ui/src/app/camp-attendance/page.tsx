@@ -1,45 +1,46 @@
 'use client';
 
-import type { components } from 'src/api/generated/schema';
 import type { TextKey } from 'src/locales/fa';
+import type { components } from 'src/api/generated/schema';
 
 import { z } from 'zod';
-import { useEffect, useMemo, useState } from 'react';
-import { useForm, Controller, type UseFormReturn } from 'react-hook-form';
+import { useMemo, useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useForm, Controller, type UseFormReturn } from 'react-hook-form';
 import {
-  calendarDate,
   campSchema,
-  formatCompactDate,
   formatDate,
+  calendarDate,
   formatNumber,
+  formatCompactDate,
 } from '@safanoor/shared';
 
-import { api, client, unwrap } from 'src/api/client';
-import { Session, useSession } from 'src/features/session';
 import { useWrite } from 'src/features/shared';
 import { useFa } from 'src/locales/fa-provider';
+import { api, client, unwrap } from 'src/api/client';
+import { Session, useSession } from 'src/features/session';
+
 import {
-  Button,
-  Card,
-  Check,
-  Chip,
-  CompactClickableCard,
-  Dialog,
-  EmptyState,
-  FileInput,
-  Form,
-  Input,
-  JalaliInput,
-  Notice,
-  PageHeader,
-  PersonCardMeta,
-  QueryState,
   Row,
-  Spread,
-  Stack,
+  Card,
+  Chip,
+  Form,
   Text,
+  Check,
+  Input,
+  Stack,
+  Button,
+  Dialog,
+  Notice,
+  Spread,
+  FileInput,
+  EmptyState,
+  PageHeader,
+  QueryState,
+  JalaliInput,
+  PersonCardMeta,
+  CompactClickableCard,
 } from 'src/components/ui';
 
 type CampSummary = components['schemas']['CampSummaryDto'];
@@ -576,7 +577,6 @@ function CampList({
     <Stack>
       <PageHeader
         title={t('campAttendance')}
-        hint={t('campAttendanceHint')}
         action={
           canManage ? (
             <Button icon="add" onClick={() => setCreateOpen(true)}>
@@ -587,17 +587,19 @@ function CampList({
       />
       <QueryState loading={list.isLoading} error={list.error} retry={() => void list.refetch()}>
         {list.data && list.data.items.length === 0 ? (
-          <EmptyState
-            title={t('campsEmpty')}
-            hint={t('campsEmptyHint')}
-            action={
-              canManage ? (
-                <Button icon="add" onClick={() => setCreateOpen(true)}>
-                  {t('createCamp')}
-                </Button>
-              ) : undefined
-            }
-          />
+          <Card>
+            <EmptyState
+              title={t('campsEmpty')}
+              hint={null}
+              action={
+                canManage ? (
+                  <Button icon="add" onClick={() => setCreateOpen(true)}>
+                    {t('createCamp')}
+                  </Button>
+                ) : undefined
+              }
+            />
+          </Card>
         ) : (
           <Stack>
             {list.data?.items.map((camp: CampSummary) => (

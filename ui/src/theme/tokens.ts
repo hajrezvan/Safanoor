@@ -12,7 +12,7 @@ export const tokens = {
   },
   motion: { duration: 180 },
   shadow: { light: '0 8px 32px rgba(23,58,45,0.05)', dark: '0 8px 32px rgba(0,0,0,0.12)' },
-  layout: { max: 1280, sidebar: 248, tableMin: 760, tableHeight: 640, touch: 48, mobile: 700 },
+  layout: { profileAside: 280, profileFieldMin: 180, profileAvatar: 80, bookWidth: 200, max: 1280, sidebar: 248, tableMin: 760, tableHeight: 640, touch: 48, mobile: 700 },
   palette: {
     light: {
       brand: '#126452',

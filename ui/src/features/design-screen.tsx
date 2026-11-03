@@ -34,6 +34,7 @@ import {
   DesignLayout,
   PreviewTheme,
   TokenSwatches,
+  ProfileAvatarEditor,
 } from 'src/components/ui';
 
 export function DesignScreen() {
@@ -46,6 +47,14 @@ export function DesignScreen() {
     <DesignLayout>
       <Section>
         <PageHeader title={t('design')} action={<ThemeSwitch />} />
+        <Grid>
+          {(['light', 'dark'] as const).map((mode) => (
+            <PreviewTheme key={mode} mode={mode}>
+              <Text variant="subtitle">{t(mode)}</Text>
+              <EmptyState title={t('campsEmpty')} hint={null} />
+            </PreviewTheme>
+          ))}
+        </Grid>
         <Grid>
           {(['light', 'dark'] as const).map((mode) => (
             <PreviewTheme key={mode} mode={mode}>
@@ -90,6 +99,7 @@ export function DesignScreen() {
                       rowKey={(row) => row.id}
                       columns={[{ label: t('name'), render: (row) => row.name }]}
                     />
+                    <ProfileAvatarEditor name={t('example')} disabled busy={false} onSelect={() => {}} />
                     <EmptyState />
                     <Skeleton />
                   </Stack>

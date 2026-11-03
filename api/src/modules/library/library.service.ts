@@ -21,6 +21,7 @@ import {
   StudyPathSummaryDto,
   StudyPathsPageDto,
   UpdateStudyPathDto,
+  UpdateReadingDto,
   UpdateStudyPathItemDto,
 } from './library.dto';
 
@@ -129,7 +130,89 @@ export class LibraryService {
        FROM study_path_item WHERE path_id=$1 ORDER BY position,id`,
       [id],
     );
-    return { ...path, itemCount: items.length, canManage, items };
+    const canTrackReading =
+      (await this.access.level(actor, 'read', {
+        type: 'study_reading',
+        ownerId: actor.personId,
+      })) === 'detail';
+    const reading = canTrackReading
+      ? await rows<{ itemId: string; status: 'reading' | 'completed' }>(
+          this.db,
+          `SELECT r.item_id AS "itemId",r.status FROM study_path_reading r
+       JOIN study_path_item i ON i.id=r.item_id WHERE i.path_id=$1 AND r.person_id=$2`,
+          [id, actor.personId],
+        )
+      : [];
+    const statuses = new Map(reading.map((row) => [row.itemId, row.status]));
+    const completedCount = reading.filter(
+      (row) => row.status === 'completed',
+    ).length;
+    return {
+      ...path,
+      itemCount: items.length,
+      canManage,
+      canTrackReading,
+      items: items.map((item) => ({
+        ...item,
+        readingStatus: statuses.get(item.id) ?? 'not_started',
+      })),
+      readingProgress: canTrackReading
+        ? {
+            started: reading.length > 0,
+            completedCount,
+            totalCount: items.length,
+            percent: items.length
+              ? Math.round((completedCount * 100) / items.length)
+              : 0,
+          }
+        : null,
+    };
+  }
+
+  async updateReading(
+    actor: Actor,
+    pathId: string,
+    itemId: string,
+    input: UpdateReadingDto,
+  ): Promise<StudyPathDetailDto> {
+    const path = await this.loadPath(pathId);
+    await this.access.require(
+      actor,
+      'read',
+      { type: 'study_path', id: pathId, groupIds: [path.groupId] },
+      'detail',
+    );
+    await this.access.require(
+      actor,
+      'update',
+      { type: 'study_reading', ownerId: actor.personId },
+      'detail',
+    );
+    await this.db.transaction(async (manager) => {
+      if (
+        !(await one(
+          manager,
+          'SELECT id FROM study_path_item WHERE id=$1 AND path_id=$2 FOR KEY SHARE',
+          [itemId, pathId],
+        ))
+      )
+        throw new NotFoundException();
+      if (input.status === 'not_started') {
+        await rows(
+          manager,
+          'DELETE FROM study_path_reading WHERE item_id=$1 AND person_id=$2',
+          [itemId, actor.personId],
+        );
+      } else {
+        await rows(
+          manager,
+          `INSERT INTO study_path_reading(item_id,person_id,status) VALUES($1,$2,$3)
+          ON CONFLICT(person_id,item_id) DO UPDATE SET status=EXCLUDED.status,updated_at=now()`,
+          [itemId, actor.personId, input.status],
+        );
+      }
+    });
+    return this.get(actor, pathId);
   }
 
   async update(
@@ -147,8 +230,7 @@ export class LibraryService {
     await this.requireOwnedGroup(actor, path.groupId);
     if (input.title === undefined && input.description === undefined)
       throw new BadRequestException('چیزی برای ویرایش ارسال نشده است.');
-    const title =
-      input.title !== undefined ? input.title.trim() : path.title;
+    const title = input.title !== undefined ? input.title.trim() : path.title;
     if (title.length < 2) throw new BadRequestException('عنوان را وارد کن.');
     const description =
       input.description === undefined
@@ -623,11 +705,9 @@ export class LibraryService {
 
   private async requireVisibleGroup(groupId: string): Promise<void> {
     if (
-      !(await one(
-        this.db,
-        'SELECT 1 FROM organization_group WHERE id=$1',
-        [groupId],
-      ))
+      !(await one(this.db, 'SELECT 1 FROM organization_group WHERE id=$1', [
+        groupId,
+      ]))
     )
       throw new NotFoundException();
   }
@@ -643,10 +723,7 @@ export class LibraryService {
       );
   }
 
-  private async isGroupMentor(
-    actor: Actor,
-    groupId: string,
-  ): Promise<boolean> {
+  private async isGroupMentor(actor: Actor, groupId: string): Promise<boolean> {
     return !!(await one(
       this.db,
       'SELECT 1 FROM organization_group WHERE id=$1 AND owner_person_id=$2',

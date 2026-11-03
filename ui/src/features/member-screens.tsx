@@ -3,12 +3,11 @@
 import type { TextKey } from 'src/locales/fa';
 import type { components } from 'src/api/generated/schema';
 
-import { z } from 'zod';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, Controller, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useForm, Controller, type Resolver } from 'react-hook-form';
 import {
   orgLevels,
   formatDate,
@@ -35,6 +34,7 @@ import {
   Button,
   Notice,
   Select,
+  Dialog,
   Section,
   FeedItem,
   FormGrid,
@@ -42,12 +42,17 @@ import {
   PageHeader,
   Pagination,
   QueryState,
+  CompactCard,
+  CompactForm,
   JalaliInput,
+  ProfileColumns,
+  ProfileFormGrid,
+  ProfileAvatarEditor,
 } from 'src/components/ui';
 
-import { useSession, useLogout } from './session';
-import { MentorHomeDashboard } from './mentor-dashboard';
+import { useSession } from './session';
 import { useWrite, BasicForm } from './shared';
+import { MentorHomeDashboard } from './mentor-dashboard';
 
 export function LoginScreen() {
   const t = useFa();
@@ -281,52 +286,65 @@ export function NotificationsScreen() {
 }
 export function ProfileScreen() {
   const me = useSession();
-  const logout = useLogout();
   const t = useFa();
   const router = useRouter();
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [avatarError, setAvatarError] = useState('');
+  const avatar = useWrite(async (file: File) => {
+    const data = new FormData();
+    data.append('file', file);
+    return unwrap(await client.POST('/api/v1/people/me/avatar', {
+      body: data as unknown as { file: string },
+      bodySerializer: (body) => body as unknown as FormData,
+    }));
+  });
+  const uploadAvatar = (file: File) => {
+    setAvatarError('');
+    if (file.size > 2 * 1024 * 1024) { setAvatarError(t('avatarTooLarge')); return; }
+    if (!['image/jpeg','image/png','image/webp'].includes(file.type)) { setAvatarError(t('avatarInvalidType')); return; }
+    avatar.mutate(file);
+  };
   const change = useWrite(
-    async (value: Record<string, string>) =>
-      unwrap(
-        await client.POST('/api/v1/auth/password', {
-          body: { currentPassword: value.currentPassword, newPassword: value.newPassword },
-        })
-      ),
+    async (value: Record<string, string>) => unwrap(await client.POST('/api/v1/auth/password', {
+      body: { currentPassword: value.currentPassword, newPassword: value.newPassword },
+    })),
     () => router.replace('/auth/jwt/sign-in')
   );
   return (
     <>
-      <PageHeader title={t('profile')} hint={t('identityHint')} />
-      <Card>
-        <Stack>
-          <Row>
-            <Chip>{t(me.person.orgLevel as TextKey)}</Chip>
-            <Chip tone={me.person.verified ? 'success' : 'warning'}>
-              {t(me.person.verified ? 'verified' : 'unverified')}
-            </Chip>
-          </Row>
-          <Text muted>
-            {t('nationalIdMasked')}: {me.person.nationalIdMasked}
-          </Text>
-          <PersonForm person={me.person} />
-        </Stack>
-      </Card>
-      <Card>
-        <Section>
-          <Text variant="subtitle">{t('changePassword')}</Text>
-          <BasicForm
-            fields={[
-              { key: 'currentPassword', label: 'currentPassword', type: 'password' },
-              { key: 'newPassword', label: 'newPassword', type: 'password' },
-            ]}
-            onSubmit={change.mutate}
-            busy={change.isPending}
-          />
-          {change.feedback}
-        </Section>
-      </Card>
-      <Button color="error" variant="outlined" icon="logout" onClick={() => void logout()}>
-        {t('logout')}
-      </Button>
+      <PageHeader title={t('profile')} />
+      <ProfileColumns>
+        <CompactCard>
+          <Stack>
+            <Row>
+              <Chip>{t(me.person.orgLevel as TextKey)}</Chip>
+              <Chip tone={me.person.verified ? 'success' : 'warning'}>
+                {t(me.person.verified ? 'verified' : 'unverified')}
+              </Chip>
+              <Text muted variant="caption">{t('nationalIdMasked')}: {me.person.nationalIdMasked}</Text>
+            </Row>
+            <PersonForm person={me.person} compact />
+          </Stack>
+        </CompactCard>
+        <CompactCard>
+          <Stack>
+            <ProfileAvatarEditor name={`${me.person.firstName} ${me.person.lastName}`} photoUrl={me.avatarUrl}
+              disabled={!me.canUploadAvatar} busy={avatar.isPending} onSelect={uploadAvatar} />
+            {avatarError && <Notice tone="error">{avatarError}</Notice>}
+            {avatar.feedback}
+            <Row>
+              <Button variant="text" icon="lock" onClick={() => setPasswordOpen(true)}>{t('changePassword')}</Button>
+            </Row>
+          </Stack>
+        </CompactCard>
+      </ProfileColumns>
+      <Dialog open={passwordOpen} title={t('changePassword')} onClose={() => setPasswordOpen(false)}>
+        <BasicForm compact fields={[
+          { key: 'currentPassword', label: 'currentPassword', type: 'password' },
+          { key: 'newPassword', label: 'newPassword', type: 'password' },
+        ]} onSubmit={change.mutate} busy={change.isPending} />
+        {change.feedback}
+      </Dialog>
     </>
   );
 }
@@ -334,10 +352,12 @@ export function PersonForm({
   person,
   groups = [],
   onSaved,
+  compact = false,
 }: {
   person?: components['schemas']['PersonDto'];
   groups?: components['schemas']['GroupDto'][];
   onSaved?: () => void;
+  compact?: boolean;
 }) {
   const t = useFa();
   const me = useSession();
@@ -374,11 +394,11 @@ export function PersonForm({
         },
   });
   const write = useWrite(async (values: Partial<PersonInput>) => {
-    const compact = Object.fromEntries(
+    const submitted = Object.fromEntries(
       Object.entries(values).filter(([, value]) => value !== '' && value !== undefined)
     ) as Partial<PersonInput>;
     if (person) {
-      const { orgLevel: _level, groupId: _group, ...data } = compact;
+      const { orgLevel: _level, groupId: _group, ...data } = submitted;
       return unwrap(
         await client.PATCH('/api/v1/people/{id}', {
           params: { path: { id: person.id } },
@@ -386,12 +406,12 @@ export function PersonForm({
         })
       );
     }
-    const nextOrgLevel = mentorView ? 'member' : (compact.orgLevel ?? orgLevel);
-    const nextGroupId = mentorView ? mentorGroupId : compact.groupId || groupId || undefined;
+    const nextOrgLevel = mentorView ? 'member' : (submitted.orgLevel ?? orgLevel);
+    const nextGroupId = mentorView ? mentorGroupId : submitted.groupId || groupId || undefined;
     return unwrap(
       await client.POST('/api/v1/people', {
         body: {
-          ...compact,
+          ...submitted,
           orgLevel: nextOrgLevel,
           groupId: nextGroupId,
         } as PersonInput,
@@ -399,9 +419,12 @@ export function PersonForm({
     );
   }, onSaved);
   const submit = form.handleSubmit((value) => write.mutate(value));
+  const Container = compact ? CompactForm : Form;
+  const Fields = compact ? ProfileFormGrid : FormGrid;
+  const Actions = compact ? Row : Stack;
   return (
-    <Form onSubmit={submit}>
-      <FormGrid>
+    <Container onSubmit={submit}>
+      <Fields>
         {(['firstName', 'lastName', 'fatherName', 'phone'] as const).map((key) => (
           <Controller
             key={key}
@@ -479,12 +502,14 @@ export function PersonForm({
             />
           </>
         )}
-      </FormGrid>
+      </Fields>
       {write.feedback}
-      <Button type="submit" disabled={write.isPending || person?.capabilities.update === false}>
-        {t(write.isPending ? 'busy' : 'save')}
-      </Button>
-    </Form>
+      <Actions>
+        <Button type="submit" disabled={write.isPending || person?.capabilities.update === false}>
+          {t(write.isPending ? 'busy' : 'save')}
+        </Button>
+      </Actions>
+    </Container>
   );
 }
 export function ConsentScreen() {

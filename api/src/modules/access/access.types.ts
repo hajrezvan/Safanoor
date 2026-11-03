@@ -2,6 +2,7 @@ export type AccessLevel = 'none' | 'summary' | 'detail';
 export const RESOURCE_TYPES = [
   'file',
   'person',
+  'avatar',
   'group',
   'membership',
   'assignment',
@@ -31,8 +32,10 @@ export const RESOURCE_TYPES = [
   'project_feedback',
   'chat_thread',
   'study_path',
+  'study_reading',
   'lms_item',
   'program_event',
+  'member_finance',
   'camp',
   'dashboard',
 ] as const;

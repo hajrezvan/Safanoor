@@ -24,7 +24,8 @@ export class CreateProgramEventDto {
   kind!: ProgramKind;
 
   @ApiPropertyOptional({
-    description: 'Required for custom programs. For camp, taken from the selected camp.',
+    description:
+      'Required for custom programs. For camp, taken from the selected camp.',
   })
   @ValidateIf((input: CreateProgramEventDto) => input.kind === 'custom')
   @IsString()
@@ -119,7 +120,10 @@ export class ProgramEventSummaryDto {
   place!: string | null;
   @ApiPropertyOptional({ nullable: true, type: String })
   notes!: string | null;
-  @ApiProperty({ description: 'Stored destination total in toman (independent of cost_item sum)' })
+  @ApiProperty({
+    description:
+      'Stored destination total in toman (independent of cost_item sum)',
+  })
   totalAmount!: number;
   @ApiProperty({ description: 'Stored member payment total in toman' })
   memberPaymentAmount!: number;
@@ -137,4 +141,12 @@ export class ProgramEventDetailDto extends ProgramEventSummaryDto {
 export class ProgramEventsPageDto extends PageMetaDto {
   @ApiProperty({ type: [ProgramEventSummaryDto] })
   items!: ProgramEventSummaryDto[];
+}
+
+/** Personal status only; no internal amounts or payment inference. */
+export class MemberFinanceDto {
+  @ApiProperty({ nullable: true, type: String }) groupId!: string | null;
+  @ApiProperty() canViewGroupFinance!: boolean;
+  @ApiProperty({ enum: ['no_group', 'no_costs', 'costs_defined'] })
+  status!: 'no_group' | 'no_costs' | 'costs_defined';
 }

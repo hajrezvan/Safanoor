@@ -8,34 +8,35 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  calendarDate,
-  costItemSchema,
   formatDate,
+  calendarDate,
   formatNumber,
+  costItemSchema,
   programEventSchema,
 } from '@safanoor/shared';
 
-import { api, client, unwrap } from 'src/api/client';
-import { Session, useSession } from 'src/features/session';
 import { useWrite } from 'src/features/shared';
 import { useFa } from 'src/locales/fa-provider';
+import { api, client, unwrap } from 'src/api/client';
+import { Session, useSession } from 'src/features/session';
+
 import {
-  Button,
+  Row,
   Card,
   Chip,
-  Dialog,
-  EmptyState,
   Form,
+  Text,
   Input,
-  JalaliInput,
+  Stack,
+  Button,
+  Dialog,
   Notice,
-  PageHeader,
-  QueryState,
-  Row,
   Select,
   Spread,
-  Stack,
-  Text,
+  EmptyState,
+  PageHeader,
+  QueryState,
+  JalaliInput,
 } from 'src/components/ui';
 
 type ProgramEventSummary = components['schemas']['ProgramEventSummaryDto'];
@@ -388,7 +389,6 @@ function DestinationDetail({
         {destination && (
           <>
             <Notice tone="info">{t('financeParentNote')}</Notice>
-            {!destination.canManage && <Notice tone="info">{t('financeViewOnly')}</Notice>}
             <Card>
               <Stack>
                 <Spread>
@@ -525,7 +525,6 @@ function DestinationList({
     <Stack>
       <PageHeader
         title={t('finance')}
-        hint={t('financeHint')}
         action={
           canManage ? (
             <Button icon="add" onClick={() => setCreateOpen(true)}>
@@ -534,7 +533,6 @@ function DestinationList({
           ) : undefined
         }
       />
-      {!canManage && <Notice tone="info">{t('financeViewOnly')}</Notice>}
       <QueryState loading={list.isLoading} error={list.error} retry={() => void list.refetch()}>
         {list.data && list.data.items.length === 0 ? (
           <EmptyState
@@ -603,6 +601,31 @@ function DestinationList({
   );
 }
 
+function MemberFinance({ onOpen }: { onOpen: (id: string) => void }) {
+  const t = useFa();
+  const status = useQuery({
+    queryKey: ['member-finance'],
+    queryFn: async () => unwrap(await client.GET('/api/v1/finance/me')),
+  });
+  const data = status.data;
+  if (data?.canViewGroupFinance && data.groupId) {
+    return <DestinationList groupId={data.groupId} canManage={false} onOpen={onOpen} />;
+  }
+  return (
+    <Stack>
+      <PageHeader title={t('finance')} />
+      <QueryState loading={status.isLoading} error={status.error} retry={() => void status.refetch()}>
+        {data && (
+          <EmptyState
+            title={t(data.status === 'no_costs' ? 'financeNoDebt' : data.status === 'no_group' ? 'noGroupForFinance' : 'financeCostsDefined')}
+            hint={data.status === 'no_group' ? undefined : t(data.status === 'no_costs' ? 'financeNoDebtHint' : 'financeCostsDefinedHint')}
+          />
+        )}
+      </QueryState>
+    </Stack>
+  );
+}
+
 function FinanceScreen() {
   const t = useFa();
   const [selected, setSelected] = useState<string | null>(null);
@@ -616,6 +639,8 @@ function FinanceScreen() {
         </Stack>
       ) : selected ? (
         <DestinationDetail destinationId={selected} onBack={() => setSelected(null)} />
+      ) : !canManage ? (
+        <MemberFinance onOpen={setSelected} />
       ) : (
         <DestinationList groupId={groupId} canManage={canManage} onOpen={setSelected} />
       )}

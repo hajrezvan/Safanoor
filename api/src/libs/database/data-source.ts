@@ -25,6 +25,12 @@ import { PhotoAlbumTitle1792195200021 } from './migrations/1792195200021-PhotoAl
 
 import { PolicySeed1792195200002 } from './migrations/1792195200002-PolicySeed';
 
+import { StudyReading1792195200022 } from './migrations/1792195200022-StudyReading';
+
+import { MemberFinance1792195200023 } from './migrations/1792195200023-MemberFinance';
+
+import { Avatar1792195200024 } from './migrations/1792195200024-Avatar';
+
 config();
 export const databaseOptions = {
   type: 'postgres' as const,
@@ -55,6 +61,9 @@ export const databaseOptions = {
     Lms1792195200019,
     StudyPathItemFiles1792195200020,
     PhotoAlbumTitle1792195200021,
+    StudyReading1792195200022,
+    MemberFinance1792195200023,
+    Avatar1792195200024,
   ],
   logging: false,
   ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: true } : false,

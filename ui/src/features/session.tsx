@@ -103,6 +103,7 @@ export function Session({ children }: { children: React.ReactNode }) {
               name: `${me.person.firstName} ${me.person.lastName}`,
               role: me.person.orgLevel,
               groupName: me.person.groupName,
+              photoUrl: me.avatarUrl,
             }
           : undefined
       }

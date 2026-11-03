@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMinSize,
   IsArray,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
@@ -72,7 +73,22 @@ export class ReorderStudyPathItemsDto {
   itemIds!: string[];
 }
 
+export class UpdateReadingDto {
+  @ApiProperty({ enum: ['not_started', 'reading', 'completed'] })
+  @IsIn(['not_started', 'reading', 'completed'])
+  status!: 'not_started' | 'reading' | 'completed';
+}
+
+export class StudyReadingProgressDto {
+  @ApiProperty() started!: boolean;
+  @ApiProperty() completedCount!: number;
+  @ApiProperty() totalCount!: number;
+  @ApiProperty() percent!: number;
+}
+
 export class StudyPathItemDto {
+  @ApiProperty({ enum: ['not_started', 'reading', 'completed'] })
+  readingStatus!: 'not_started' | 'reading' | 'completed';
   @ApiProperty() id!: string;
   @ApiProperty() pathId!: string;
   @ApiProperty() position!: number;
@@ -109,6 +125,9 @@ export class StudyPathSummaryDto {
 }
 
 export class StudyPathDetailDto extends StudyPathSummaryDto {
+  @ApiProperty() canTrackReading!: boolean;
+  @ApiPropertyOptional({ type: StudyReadingProgressDto, nullable: true })
+  readingProgress!: StudyReadingProgressDto | null;
   @ApiProperty({ type: [StudyPathItemDto] }) items!: StudyPathItemDto[];
 }
 

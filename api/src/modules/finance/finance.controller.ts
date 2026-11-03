@@ -15,6 +15,7 @@ import { Actor } from '../access/access.types';
 import { CurrentActor, Policy } from '../access/policy.decorator';
 import {
   CreateCostItemDto,
+  MemberFinanceDto,
   CreateProgramEventDto,
   ProgramEventDetailDto,
   ProgramEventsPageDto,
@@ -26,6 +27,13 @@ import { FinanceService } from './finance.service';
 @Controller()
 export class FinanceController {
   constructor(private readonly finance: FinanceService) {}
+
+  @Get('finance/me')
+  @Policy('member_finance', 'read')
+  @ApiOkResponse({ type: MemberFinanceDto })
+  mine(@CurrentActor() actor: Actor): Promise<MemberFinanceDto> {
+    return this.finance.mine(actor);
+  }
 
   @Get('groups/:id/finance/destinations')
   @Policy('program_event', 'read')

@@ -14,19 +14,28 @@ import {
 } from 'class-validator';
 import { PageMetaDto } from '../../libs/http/http.dto';
 
-function parseUuidList(value: unknown): string[] | unknown {
+function parseUuidList(value: unknown): unknown {
   if (Array.isArray(value)) return value;
   if (typeof value !== 'string' || !value.trim()) return [];
   try {
     const parsed: unknown = JSON.parse(value);
     return Array.isArray(parsed) ? parsed : value.split(',');
   } catch {
-    return value.split(',').map((part) => part.trim()).filter(Boolean);
+    return value
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
   }
 }
 
 /** Sentinel album key for photos without an album_title. */
 export const OTHER_ALBUM_KEY = '__other__';
+
+export class PhotoUploadScopeDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('4')
+  groupId!: string;
+}
 
 export class UploadPhotoDto {
   @ApiProperty({ format: 'uuid' })
@@ -34,7 +43,8 @@ export class UploadPhotoDto {
   groupId!: string;
 
   @ApiPropertyOptional({
-    description: 'Program/event album name; photos with the same title form one album',
+    description:
+      'Program/event album name; photos with the same title form one album',
   })
   @IsOptional()
   @IsString()

@@ -5,6 +5,8 @@ import { DataSource } from 'typeorm';
 import { Client } from 'pg';
 import request from 'supertest';
 import { randomUUID } from 'node:crypto';
+import sharp from 'sharp';
+import { AvatarStateDto, MeDto } from '../src/modules/people/people.dto';
 import { STORAGE, StorageAdapter } from '../src/modules/files/storage';
 import { consentItems } from '@safanoor/shared';
 import { AppModule } from '../src/app.module';
@@ -20,6 +22,8 @@ import {
 } from '../src/seed';
 import { ImportsService } from '../src/modules/imports/imports.service';
 import { AgeTransitionService } from '../src/modules/jobs/age-transition.service';
+import { MemberFinanceDto } from '../src/modules/finance/finance.dto';
+import { StudyPathDetailDto } from '../src/modules/library/library.dto';
 import { requiredConsentItems } from '@safanoor/shared';
 
 interface Login {
@@ -97,6 +101,246 @@ describe('Foundation with PostgreSQL', () => {
         )
       ).length,
     ).toBe(2);
+  });
+  it('uploads private avatars, strips metadata, rejects invalid files and isolates owners', async () => {
+    const avatar = (n: number) =>
+      request(server())
+        .post('/api/v1/people/me/avatar')
+        .set('authorization', `Bearer ${tokens.get(n)!.accessToken}`)
+        .set('x-client-type', 'native');
+    await call(11, 'get', '/people/me/avatar').expect(404);
+    const image = await sharp({
+      create: { width: 120, height: 160, channels: 3, background: '#126452' },
+    })
+      .jpeg()
+      .withMetadata()
+      .toBuffer();
+    await request(server())
+      .post('/api/v1/people/me/avatar')
+      .set('x-client-type', 'native')
+      .attach('file', image, 'avatar.jpg')
+      .expect(401);
+    const uploaded = await avatar(11)
+      .attach('file', image, 'avatar.jpg')
+      .expect(200);
+    const state = uploaded.body as AvatarStateDto;
+    expect(state.canUploadAvatar).toBe(true);
+    expect(state.avatarUrl).toMatch(/^\/api\/v1\/people\/me\/avatar\?v=/);
+    const me = await call(11, 'get', '/people/me').expect(200);
+    expect((me.body as MeDto).avatarUrl).toBe(state.avatarUrl);
+    const content = await call(11, 'get', '/people/me/avatar')
+      .expect(200)
+      .expect('Content-Type', /image\/webp/);
+    expect(content.headers['cache-control']).toBe('private, no-store');
+    const output = await sharp(content.body as Buffer).metadata();
+    expect(output).toMatchObject({ format: 'webp', width: 512, height: 512 });
+    expect(output.exif).toBeUndefined();
+    expect(output.xmp).toBeUndefined();
+    await call(5, 'get', `/people/me/avatar?personId=${demoId(11)}`).expect(
+      404,
+    );
+    await call(5, 'get', `/people/${demoId(11)}/avatar`).expect(404);
+    await request(server()).get('/api/v1/people/me/avatar').expect(401);
+    await avatar(15).attach('file', image, 'avatar.jpg').expect(403);
+    await avatar(11)
+      .attach('file', Buffer.from('<html>bad image</html>'), 'avatar.png')
+      .expect(400);
+    await avatar(11)
+      .attach(
+        'file',
+        Buffer.from(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"/>',
+        ),
+        'avatar.png',
+      )
+      .expect(400);
+    await avatar(11)
+      .attach('file', Buffer.alloc(2 * 1024 * 1024 + 1), 'large.png')
+      .expect(413);
+    const retained = await call(11, 'get', '/people/me').expect(200);
+    expect((retained.body as MeDto).avatarUrl).toBe(state.avatarUrl);
+    const next = await avatar(11)
+      .attach('file', image, 'replacement.jpg')
+      .expect(200);
+    expect((next.body as AvatarStateDto).avatarUrl).not.toBe(state.avatarUrl);
+    const expired = await one<{ purge: Date | null }>(
+      db,
+      'SELECT purge_after AS purge FROM file_record WHERE id=$1',
+      [state.avatarUrl!.split('v=')[1]],
+    );
+    expect(expired?.purge).not.toBeNull();
+  });
+  it('authorizes multipart album uploads before parsing the file and rejects mismatched groups', async () => {
+    const group = demoGroupId(3);
+    const image = await sharp({
+      create: { width: 32, height: 32, channels: 3, background: '#126452' },
+    })
+      .png()
+      .toBuffer();
+    const upload = (n: number, scope: string) =>
+      request(server())
+        .post(`/api/v1/album/photos${scope}`)
+        .set('authorization', `Bearer ${tokens.get(n)!.accessToken}`)
+        .set('x-client-type', 'native');
+    await upload(3, '')
+      .field('groupId', group)
+      .attach('file', image, 'sample.png')
+      .expect(400);
+    await upload(3, '?groupId=invalid')
+      .field('groupId', group)
+      .attach('file', image, 'sample.png')
+      .expect(400);
+    await upload(11, `?groupId=${group}`)
+      .field('groupId', group)
+      .attach('file', image, 'sample.png')
+      .expect(403);
+    await upload(3, `?groupId=${demoGroupId(4)}`)
+      .field('groupId', demoGroupId(4))
+      .attach('file', image, 'sample.png')
+      .expect(403);
+    await upload(3, `?groupId=${group}`)
+      .field('groupId', demoGroupId(4))
+      .attach('file', image, 'sample.png')
+      .expect(400);
+    const uploaded = await upload(3, `?groupId=${group}`)
+      .field('groupId', group)
+      .field('taggedPersonIds', JSON.stringify([demoId(11)]))
+      .attach('file', image, 'sample.png')
+      .expect(200);
+    const photo = uploaded.body as { id: string };
+    await call(11, 'get', `/album/photos/${photo.id}/content`)
+      .expect(200)
+      .expect('Content-Type', /image\/png/);
+    await call(4, 'get', `/album/photos/${photo.id}/content`).expect(403);
+    await request(server())
+      .get(`/api/v1/album/photos/${photo.id}/content`)
+      .expect(401);
+  });
+  it('returns personal finance status without exposing internal group costs or treating errors as no debt', async () => {
+    const group3 = demoGroupId(3);
+    const memberStatus = async () => {
+      const response = await call(11, 'get', '/finance/me').expect(200);
+      return response.body as MemberFinanceDto;
+    };
+    expect(await memberStatus()).toEqual({
+      groupId: group3,
+      canViewGroupFinance: false,
+      status: 'no_costs',
+    });
+    await call(11, 'get', `/groups/${group3}/finance/destinations`).expect(403);
+    const officer = await call(5, 'get', '/finance/me').expect(200);
+    expect((officer.body as MemberFinanceDto).canViewGroupFinance).toBe(true);
+    const parent = await call(31, 'get', '/finance/me').expect(200);
+    expect(parent.body as MemberFinanceDto).toEqual({
+      groupId: null,
+      canViewGroupFinance: false,
+      status: 'no_group',
+    });
+    const otherId = randomUUID();
+    const ownId = randomUUID();
+    await db.query(
+      `INSERT INTO program_event(id,group_id,kind,title,total_amount,member_payment_amount,created_by)
+      VALUES($1,$2,'custom','آزمون هزینهٔ گروه دیگر',50000,0,$3),($4,$5,'custom','آزمون بدون هزینه',0,0,$6)`,
+      [otherId, demoGroupId(4), demoId(4), ownId, group3, demoId(3)],
+    );
+    expect((await memberStatus()).status).toBe('no_costs');
+    const forged = await call(
+      11,
+      'get',
+      `/finance/me?groupId=${demoGroupId(4)}&personId=${demoId(7)}`,
+    ).expect(200);
+    expect(forged.body as MemberFinanceDto).toEqual({
+      groupId: group3,
+      canViewGroupFinance: false,
+      status: 'no_costs',
+    });
+    await db.query('UPDATE program_event SET total_amount=10000 WHERE id=$1', [
+      ownId,
+    ]);
+    expect(await memberStatus()).toEqual({
+      groupId: group3,
+      canViewGroupFinance: false,
+      status: 'costs_defined',
+    });
+    await db.query('UPDATE program_event SET total_amount=0 WHERE id=$1', [
+      ownId,
+    ]);
+    await db.query(
+      `INSERT INTO cost_item(owner_type,owner_id,title,amount,created_by)
+      VALUES('program_event',$1,'هزینهٔ جزئی',5000,$2)`,
+      [ownId, demoId(3)],
+    );
+    expect((await memberStatus()).status).toBe('costs_defined');
+    await db.query('DELETE FROM cost_item WHERE owner_id=$1', [ownId]);
+    await db.query('DELETE FROM program_event WHERE id=ANY($1::uuid[])', [
+      [ownId, otherId],
+    ]);
+  });
+  it('keeps study progress personal, persistent and limited to accessible paths', async () => {
+    const created = await call(
+      3,
+      'post',
+      `/groups/${demoGroupId(3)}/study-paths`,
+    )
+      .send({ title: 'سیر آزمون مطالعه' })
+      .expect(200);
+    const pathId = (created.body as { id: string }).id;
+    await call(3, 'post', `/study-paths/${pathId}/items`)
+      .send({ bookTitle: 'کتاب اول' })
+      .expect(200);
+    const added = await call(3, 'post', `/study-paths/${pathId}/items`)
+      .send({ bookTitle: 'کتاب دوم' })
+      .expect(200);
+    const itemId = (added.body as StudyPathDetailDto).items[0].id;
+    const url = `/study-paths/${pathId}/items/${itemId}/reading`;
+    const before = await call(11, 'get', `/study-paths/${pathId}`).expect(200);
+    expect((before.body as StudyPathDetailDto).readingProgress).toMatchObject({
+      started: false,
+      percent: 0,
+    });
+    const started = await call(11, 'patch', url)
+      .send({ status: 'reading' })
+      .expect(200);
+    expect((started.body as StudyPathDetailDto).readingProgress).toMatchObject({
+      started: true,
+      percent: 0,
+    });
+    await call(11, 'patch', url).send({ status: 'completed' }).expect(200);
+    await call(11, 'patch', url).send({ status: 'completed' }).expect(200);
+    const saved = await call(11, 'get', `/study-paths/${pathId}`).expect(200);
+    expect((saved.body as StudyPathDetailDto).readingProgress).toEqual({
+      started: true,
+      percent: 50,
+      completedCount: 1,
+      totalCount: 2,
+    });
+    for (const n of [3, 5]) {
+      const other = await call(n, 'get', `/study-paths/${pathId}`).expect(200);
+      expect((other.body as StudyPathDetailDto).readingProgress).toMatchObject({
+        started: false,
+        percent: 0,
+      });
+    }
+    for (const n of [4, 7, 31, 40])
+      await call(n, 'patch', url).send({ status: 'reading' }).expect(403);
+    await call(11, 'patch', url)
+      .send({ status: 'reading', personId: demoId(3) })
+      .expect(400);
+    await call(11, 'patch', url).send({ status: 'invalid' }).expect(400);
+    await call(
+      11,
+      'patch',
+      `/study-paths/${pathId}/items/${randomUUID()}/reading`,
+    )
+      .send({ status: 'reading' })
+      .expect(404);
+    const reset = await call(11, 'patch', url)
+      .send({ status: 'not_started' })
+      .expect(200);
+    expect((reset.body as StudyPathDetailDto).readingProgress).toMatchObject({
+      started: false,
+      percent: 0,
+    });
   });
   it('every protected API route rejects unauthenticated callers', async () => {
     const document = openApiDocument(app);

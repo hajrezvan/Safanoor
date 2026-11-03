@@ -11,6 +11,7 @@ import { Actor } from '../access/access.types';
 import { AuditService } from '../audit/audit.service';
 import {
   CostItemDto,
+  MemberFinanceDto,
   CreateCostItemDto,
   CreateProgramEventDto,
   ProgramEventDetailDto,
@@ -25,6 +26,49 @@ export class FinanceService {
     private readonly access: AccessService,
     private readonly audit: AuditService,
   ) {}
+
+  async mine(actor: Actor): Promise<MemberFinanceDto> {
+    await this.access.require(
+      actor,
+      'read',
+      {
+        type: 'member_finance',
+        ownerId: actor.personId,
+      },
+      'detail',
+    );
+    const membership = await one<{ groupId: string }>(
+      this.db,
+      `SELECT group_id AS "groupId" FROM membership
+       WHERE person_id=$1 AND role='member' AND valid_to IS NULL`,
+      [actor.personId],
+    );
+    if (!membership)
+      return { groupId: null, canViewGroupFinance: false, status: 'no_group' };
+    const { groupId } = membership;
+    const canViewGroupFinance =
+      (await this.access.level(actor, 'read', {
+        type: 'program_event',
+        groupIds: [groupId],
+      })) === 'detail';
+    const result = await one<{ hasCosts: boolean }>(
+      this.db,
+      `SELECT EXISTS(
+        SELECT 1 FROM program_event p WHERE p.group_id=$1 AND (
+          p.total_amount>0 OR p.member_payment_amount>0 OR EXISTS(
+            SELECT 1 FROM cost_item c WHERE c.owner_type='program_event'
+            AND c.owner_id=p.id AND c.amount>0
+          )
+        )
+      ) AS "hasCosts"`,
+      [groupId],
+    );
+    return {
+      groupId,
+      canViewGroupFinance,
+      status: result?.hasCosts ? 'costs_defined' : 'no_costs',
+    };
+  }
 
   async list(
     actor: Actor,
@@ -343,8 +387,7 @@ export class FinanceService {
   private parseHeldAt(value?: string | null): string | null {
     if (value === undefined || value === null || value === '') return null;
     const trimmed = value.trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed))
-      return `${trimmed}T12:00:00.000Z`;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return `${trimmed}T12:00:00.000Z`;
     const date = new Date(trimmed);
     if (Number.isNaN(date.valueOf()))
       throw new BadRequestException('تاریخ برنامه معتبر نیست.');
@@ -353,11 +396,9 @@ export class FinanceService {
 
   private async requireVisibleGroup(groupId: string): Promise<void> {
     if (
-      !(await one(
-        this.db,
-        'SELECT 1 FROM organization_group WHERE id=$1',
-        [groupId],
-      ))
+      !(await one(this.db, 'SELECT 1 FROM organization_group WHERE id=$1', [
+        groupId,
+      ]))
     )
       throw new NotFoundException();
   }
@@ -380,10 +421,7 @@ export class FinanceService {
     return this.isGroupMentor(actor, groupId);
   }
 
-  private async isGroupMentor(
-    actor: Actor,
-    groupId: string,
-  ): Promise<boolean> {
+  private async isGroupMentor(actor: Actor, groupId: string): Promise<boolean> {
     return !!(await one(
       this.db,
       'SELECT 1 FROM organization_group WHERE id=$1 AND owner_person_id=$2',

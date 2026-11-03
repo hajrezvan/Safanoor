@@ -3,31 +3,32 @@
 import type { components } from 'src/api/generated/schema';
 
 import { useMemo, useState, type ReactNode } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDate, formatNumber } from '@safanoor/shared';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { client, unwrap } from 'src/api/client';
 import { useFa } from 'src/locales/fa-provider';
+
 import {
-  AutocompleteSelect,
-  Button,
-  Chip,
-  Dialog,
-  FileInput,
-  Input,
-  Notice,
-  PageHeader,
-  PhotoGrid,
-  PhotoThumb,
-  PhotoViewer,
-  QueryState,
   Row,
-  Stack,
+  Chip,
   Text,
+  Input,
+  Stack,
+  Button,
+  Dialog,
+  Notice,
+  FileInput,
+  PhotoGrid,
+  PageHeader,
+  PhotoThumb,
+  QueryState,
+  PhotoViewer,
+  AutocompleteSelect,
 } from 'src/components/ui';
 
-import { PersonPicker } from './person-picker';
 import { useWrite } from './shared';
+import { PersonPicker } from './person-picker';
 
 type AlbumSummary = components['schemas']['AlbumSummaryDto'];
 type PhotoSummary = components['schemas']['PhotoSummaryDto'];
@@ -130,6 +131,7 @@ export function AlbumScreen() {
     if (tagIds.length) data.append('taggedPersonIds', JSON.stringify(tagIds));
     const result = unwrap(
       await client.POST('/api/v1/album/photos', {
+        params: { query: { groupId: managedGroup.id } },
         body: data as unknown as {
           groupId: string;
           file: string;

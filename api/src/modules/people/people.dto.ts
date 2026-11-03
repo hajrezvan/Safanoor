@@ -29,7 +29,9 @@ export class CreatePersonDto {
   @IsOptional()
   @IsString()
   @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' && value.trim() !== '' ? latinDigits(value) : undefined,
+    typeof value === 'string' && value.trim() !== ''
+      ? latinDigits(value)
+      : undefined,
   )
   @Matches(/^\d{10}$/)
   nationalId?: string;
@@ -137,7 +139,13 @@ export class ParentChildDto {
   @ApiProperty() id!: string;
   @ApiProperty() name!: string;
 }
+export class AvatarStateDto {
+  @ApiPropertyOptional() avatarUrl?: string;
+  @ApiProperty() canUploadAvatar!: boolean;
+}
 export class MeDto {
+  @ApiPropertyOptional() avatarUrl?: string;
+  @ApiPropertyOptional() canUploadAvatar?: boolean;
   @ApiProperty({ type: PersonDto }) person!: PersonDto;
   @ApiProperty() isParent!: boolean;
   @ApiProperty() consentRequired!: boolean;

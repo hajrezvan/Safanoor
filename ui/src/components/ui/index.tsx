@@ -2,9 +2,9 @@
 
 import type {
   ReactNode,
-  ChangeEventHandler,
   MouseEvent,
   KeyboardEvent,
+  ChangeEventHandler,
 } from 'react';
 import type { TextKey } from 'src/locales/fa';
 
@@ -15,14 +15,13 @@ import { useQuery } from '@tanstack/react-query';
 import { useRef, useState, useEffect } from 'react';
 
 import AddRounded from '@mui/icons-material/AddRounded';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import ChatRounded from '@mui/icons-material/ChatRounded';
 import HomeRounded from '@mui/icons-material/HomeRounded';
 import LockRounded from '@mui/icons-material/LockRounded';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import InboxRounded from '@mui/icons-material/InboxRounded';
 import ForumRounded from '@mui/icons-material/ForumRounded';
-import useMediaQuery from '@mui/material/useMediaQuery';
-import { styled, ThemeProvider, useTheme } from '@mui/material/styles';
 import SchoolRounded from '@mui/icons-material/SchoolRounded';
 import PersonRounded from '@mui/icons-material/PersonRounded';
 import GroupsRounded from '@mui/icons-material/GroupsRounded';
@@ -38,6 +37,7 @@ import LightModeRounded from '@mui/icons-material/LightModeRounded';
 import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import PsychologyRounded from '@mui/icons-material/PsychologyRounded';
 import FileUploadRounded from '@mui/icons-material/FileUploadRounded';
+import { styled, useTheme, ThemeProvider } from '@mui/material/styles';
 import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
 import PhotoLibraryRounded from '@mui/icons-material/PhotoLibraryRounded';
 import NotificationsRounded from '@mui/icons-material/NotificationsRounded';
@@ -52,6 +52,7 @@ import {
   Badge,
   Drawer,
   Divider,
+  Tooltip,
   MenuItem,
   Snackbar,
   TableRow,
@@ -61,12 +62,12 @@ import {
   TableCell,
   TableHead,
   Typography,
-  Tooltip,
   IconButton,
   DialogTitle,
   Autocomplete,
   DialogContent,
   DialogActions,
+  LinearProgress,
   TableContainer,
   InputAdornment,
   Chip as MuiChip,
@@ -299,21 +300,15 @@ export const CoverCardAction = styled('div')({
   gap: tokens.space.sm,
   flexShrink: 0,
 });
-/** Study-path book sequence: 3 per row on desktop, numbered steps for order. */
-export const PathSequence = styled('div')(({ theme }) => ({
+/** Book-sized columns preserve portrait covers on every viewport. */
+export const PathSequence = styled('div')({
   display: 'grid',
   gap: tokens.space.lg,
-  gridTemplateColumns: '1fr',
+  gridTemplateColumns: `repeat(auto-fill, minmax(0, ${tokens.layout.bookWidth}px))`,
   alignItems: 'stretch',
   minWidth: 0,
-  [theme.breakpoints.up('sm')]: {
-    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-  },
-  [theme.breakpoints.up('md')]: {
-    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-  },
   '& > *': { minHeight: 0, height: '100%' },
-}));
+});
 export const PathSequenceStep = styled('div')({
   position: 'relative',
   display: 'flex',
@@ -359,10 +354,9 @@ export const PathSequenceCard = styled('div')(({ theme }) => ({
   height: '100%',
   flex: 1,
 }));
-export const BookCoverThumb = styled('img')(({ theme }) => ({
+const BookCoverImage = styled('img')(({ theme }) => ({
   width: '100%',
   aspectRatio: '3 / 4',
-  maxHeight: 220,
   objectFit: 'cover',
   display: 'block',
   flexShrink: 0,
@@ -371,7 +365,6 @@ export const BookCoverThumb = styled('img')(({ theme }) => ({
 export const BookCoverPlaceholder = styled('div')(({ theme }) => ({
   width: '100%',
   aspectRatio: '3 / 4',
-  maxHeight: 220,
   flexShrink: 0,
   backgroundColor: theme.palette.action.hover,
   display: 'flex',
@@ -379,6 +372,14 @@ export const BookCoverPlaceholder = styled('div')(({ theme }) => ({
   justifyContent: 'center',
   color: theme.palette.text.secondary,
 }));
+export function BookCoverThumb({ src, alt }: { src: string; alt: string }) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  return failedSrc === src ? (
+    <BookCoverPlaceholder role="img" aria-label={alt}>
+      <Icon name="library" />
+    </BookCoverPlaceholder>
+  ) : <BookCoverImage src={src} alt={alt} onError={() => setFailedSrc(src)} />;
+}
 export const BookCoverButton = styled('button')(({ theme }) => ({
   appearance: 'none',
   border: 0,
@@ -597,6 +598,19 @@ export const Card = styled(Paper)(({ theme }) => ({
 export const CompactCard = styled(Card)({
   padding: `${tokens.space.md}px ${tokens.space.lg}px`,
 });
+export const ProfileColumns = styled('div')(({ theme }) => ({
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0,1fr)',
+  alignItems: 'start',
+  gap: tokens.space.lg,
+  [theme.breakpoints.up('md')]: {
+    gridTemplateColumns: `minmax(0,1fr) ${tokens.layout.profileAside}px`,
+  },
+}));
+export const ProfileFormGrid = styled(FormGrid)({
+  gap: tokens.space.lg,
+  gridTemplateColumns: `repeat(auto-fit,minmax(min(100%,${tokens.layout.profileFieldMin}px),1fr))`,
+});
 /** Dense person card: small padding, tight stacks, truncated chips. */
 export const PeoplePersonCard = styled(Card)({
   padding: tokens.space.sm,
@@ -627,6 +641,7 @@ export const Form = styled('form')({
   flexDirection: 'column',
   gap: tokens.space.xl,
 });
+export const CompactForm = styled(Form)({ gap: tokens.space.lg });
 export function Text({
   children,
   variant = 'body',
@@ -868,6 +883,30 @@ export type AutocompleteOption = {
   photoUrl?: string;
   inputValue?: string;
 };
+export function ProfileAvatarEditor({ name, photoUrl, disabled, busy, onSelect }: {
+  name: string; photoUrl?: string; disabled: boolean; busy: boolean; onSelect: (file: File) => void;
+}) {
+  const t = useFa();
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <Stack>
+      <Text variant="subtitle">{t('profilePhoto')}</Text>
+      <Row>
+        <ProfileAvatar name={name} photoUrl={photoUrl} size={tokens.layout.profileAvatar} />
+        <Button size="small" variant="outlined" icon="imports" disabled={disabled || busy} onClick={() => input.current?.click()}>
+          {t(busy ? 'busy' : photoUrl ? 'changeProfilePhoto' : 'uploadProfilePhoto')}
+        </Button>
+      </Row>
+      <input ref={input} hidden type="file" accept="image/jpeg,image/png,image/webp"
+        aria-label={t('uploadProfilePhoto')} disabled={disabled || busy}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) onSelect(file);
+          event.target.value = '';
+        }} />
+    </Stack>
+  );
+}
 const defaultFilter = createFilterOptions<AutocompleteOption>();
 /** Compact profile avatar: photo when present, otherwise Iconify user icon (never name initials). */
 export function ProfileAvatar({
@@ -1336,7 +1375,7 @@ export function EmptyState({
   action,
 }: {
   title?: string;
-  hint?: string;
+  hint?: string | null;
   icon?: IconName;
   action?: ReactNode;
 }) {
@@ -1346,26 +1385,50 @@ export function EmptyState({
       <Avatar name="✦" />
       <Icon name={icon} />
       <Text variant="subtitle">{title || t('empty')}</Text>
-      <Text muted>{hint || t('emptyHint')}</Text>
+      {hint !== null && <Text muted>{hint || t('emptyHint')}</Text>}
       {action}
     </Empty>
   );
 }
+const HeaderCopy = styled(Stack, {
+  shouldForwardProp: (prop) => prop !== 'compact',
+})<{ compact: boolean }>(({ compact }) => ({
+  gap: compact ? tokens.space.xs : tokens.space.lg,
+}));
+const ReadingProgressTrack = styled(LinearProgress)({
+  height: tokens.space.sm,
+  borderRadius: tokens.radius.round,
+  '& .MuiLinearProgress-bar': {
+    borderRadius: tokens.radius.round,
+    '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
+  },
+});
+export function ReadingProgress({ value, label }: { value: number; label: string }) {
+  return (
+    <Stack>
+      <Text muted variant="caption">{label}</Text>
+      <ReadingProgressTrack variant="determinate" value={value} aria-label={label} />
+    </Stack>
+  );
+}
+
 export function PageHeader({
   title,
   hint,
   action,
+  compact = false,
 }: {
   title: string;
   hint?: string;
   action?: ReactNode;
+  compact?: boolean;
 }) {
   return (
     <Spread>
-      <Stack>
-        <Text variant="title">{title}</Text>
+      <HeaderCopy compact={compact}>
+        <Text variant={compact ? "subtitle" : "title"}>{title}</Text>
         {hint && <Text muted>{hint}</Text>}
-      </Stack>
+      </HeaderCopy>
       {action}
     </Spread>
   );
@@ -2605,4 +2668,4 @@ export const DesignLayout = styled('main')({
   padding: tokens.space.page,
 });
 
-export { BarSeriesChart, DonutChart } from './charts';
+export { DonutChart, BarSeriesChart } from './charts';

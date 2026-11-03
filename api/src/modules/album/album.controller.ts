@@ -1,5 +1,6 @@
 import {
   Body,
+  BadRequestException,
   Controller,
   Get,
   HttpCode,
@@ -30,6 +31,7 @@ import {
   ListPhotosQueryDto,
   PhotoDetailDto,
   PhotosPageDto,
+  PhotoUploadScopeDto,
   UpdatePhotoTagsDto,
   UploadPhotoDto,
 } from './album.dto';
@@ -92,9 +94,12 @@ export class AlbumController {
   @ApiOkResponse({ type: PhotoDetailDto })
   upload(
     @CurrentActor() actor: Actor,
+    @Query() scope: PhotoUploadScopeDto,
     @Body() input: UploadPhotoDto,
     @UploadedFile() file: Express.Multer.File,
   ): Promise<PhotoDetailDto> {
+    if (scope.groupId !== input.groupId)
+      throw new BadRequestException('گروه بارگذاری با فرم هم‌خوان نیست.');
     return this.album.upload(actor, input, file);
   }
 

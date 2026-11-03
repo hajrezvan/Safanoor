@@ -3,47 +3,49 @@
 import type { components } from 'src/api/generated/schema';
 
 import { z } from 'zod';
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useMemo, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { studyPathItemSchema, studyPathSchema } from '@safanoor/shared';
+import { formatNumber, studyPathSchema, studyPathItemSchema } from '@safanoor/shared';
 
-import { api, client, unwrap } from 'src/api/client';
-import { Session, useSession } from 'src/features/session';
 import { useWrite } from 'src/features/shared';
 import { useFa } from 'src/locales/fa-provider';
+import { api, client, unwrap } from 'src/api/client';
+import { Session, useSession } from 'src/features/session';
+
 import {
-  BookCardActions,
-  BookCardBody,
-  BookCoverButton,
-  BookCoverPlaceholder,
-  BookCoverThumb,
-  Button,
-  CardsGrid,
+  Row,
   Chip,
-  CoverCard,
-  CoverCardAction,
-  CoverCardBody,
-  CoverCardMedia,
-  CoverCardMediaPlaceholder,
-  Dialog,
-  EmptyState,
   Form,
   Icon,
-  IconAction,
-  IconActionRow,
+  Text,
   Input,
-  Notice,
+  Stack,
+  Button,
+  Dialog,
+  Select,
+  CardsGrid,
+  CoverCard,
+  EmptyState,
+  IconAction,
   PageHeader,
+  QueryState,
+  BookCardBody,
   PathSequence,
+  CoverCardBody,
+  IconActionRow,
+  BookCoverThumb,
+  CoverCardMedia,
+  BookCardActions,
+  BookCoverButton,
+  CoverCardAction,
+  ReadingProgress,
   PathSequenceCard,
   PathSequenceNode,
   PathSequenceStep,
-  QueryState,
-  Row,
-  Stack,
-  Text,
+  BookCoverPlaceholder,
+  CoverCardMediaPlaceholder,
 } from 'src/components/ui';
 
 type StudyPathSummary = components['schemas']['StudyPathSummaryDto'];
@@ -205,6 +207,9 @@ function BookStepCard({
   index,
   total,
   canManage,
+  canTrackReading,
+  busyReading,
+  onReading,
   busyReorder,
   busyRemove,
   onMove,
@@ -217,6 +222,9 @@ function BookStepCard({
   index: number;
   total: number;
   canManage: boolean;
+  canTrackReading: boolean;
+  busyReading: boolean;
+  onReading: (status: StudyPathItem['readingStatus']) => void;
   busyReorder: boolean;
   busyRemove: boolean;
   onMove: (delta: number) => void;
@@ -230,7 +238,7 @@ function BookStepCard({
   const pdfInput = useRef<HTMLInputElement>(null);
   return (
     <PathSequenceStep>
-      <PathSequenceNode>{index + 1}</PathSequenceNode>
+      <PathSequenceNode>{formatNumber(index + 1)}</PathSequenceNode>
       <PathSequenceCard>
         <BookCoverButton
           type="button"
@@ -280,6 +288,19 @@ function BookStepCard({
               {item.notes}
             </Text>
           ) : null}
+          {canTrackReading && (
+            <Select
+              label={t('readingStatus')}
+              value={item.readingStatus}
+              disabled={busyReading}
+              onChange={(value) => onReading(value as StudyPathItem['readingStatus'])}
+              options={[
+                { value: 'not_started', label: t('readingNotStarted') },
+                { value: 'reading', label: t('readingStarted') },
+                { value: 'completed', label: t('readingCompleted') },
+              ]}
+            />
+          )}
           <BookCardActions>
             <IconActionRow>
               <IconAction
@@ -357,6 +378,13 @@ function PathDetail({ pathId, onBack }: { pathId: string; onBack: () => void }) 
     void cache.invalidateQueries({ queryKey: ['study-path', pathId] });
     void cache.invalidateQueries({ queryKey: ['study-paths'] });
   };
+  const reading = useWrite(
+    async ({ itemId, status }: { itemId: string; status: StudyPathItem['readingStatus'] }) =>
+      unwrap(await client.PATCH('/api/v1/study-paths/{id}/items/{itemId}/reading', {
+        params: { path: { id: pathId, itemId } }, body: { status },
+      })),
+    invalidate,
+  );
   const addItem = useWrite(
     async (body: z.infer<typeof studyPathItemSchema>) =>
       unwrap(
@@ -451,6 +479,7 @@ function PathDetail({ pathId, onBack }: { pathId: string; onBack: () => void }) 
   return (
     <Stack>
       <PageHeader
+        compact
         title={path?.title ?? t('studyPaths')}
         hint={path?.description || undefined}
         action={
@@ -466,7 +495,16 @@ function PathDetail({ pathId, onBack }: { pathId: string; onBack: () => void }) 
       >
         {path && (
           <>
-            {!path.canManage && <Notice tone="info">{t('studyPathViewOnly')}</Notice>}
+            {path.readingProgress?.started && (
+              <ReadingProgress
+                value={path.readingProgress.percent}
+                label={t('readingProgress', {
+                  percent: formatNumber(path.readingProgress.percent),
+                  completed: formatNumber(path.readingProgress.completedCount),
+                  total: formatNumber(path.readingProgress.totalCount),
+                })}
+              />
+            )}
             {path.canManage && (
               <Row>
                 <Button icon="add" onClick={() => setAddOpen(true)}>
@@ -490,6 +528,9 @@ function PathDetail({ pathId, onBack }: { pathId: string; onBack: () => void }) 
                       index={index}
                       total={path.items.length}
                       canManage={path.canManage}
+                      canTrackReading={path.canTrackReading}
+                      busyReading={reading.isPending}
+                      onReading={(status) => reading.mutate({ itemId: item.id, status })}
                       busyReorder={reorder.isPending}
                       busyRemove={removeItem.isPending}
                       onMove={(delta) => move(index, delta)}
@@ -506,6 +547,7 @@ function PathDetail({ pathId, onBack }: { pathId: string; onBack: () => void }) 
                 </PathSequence>
               </>
             )}
+            {reading.feedback}
             {addItem.feedback}
             {removeItem.feedback}
             {reorder.feedback}
@@ -624,7 +666,7 @@ function PathList({
                     <Text muted>{path.description}</Text>
                   ) : null}
                   <CoverCardAction>
-                    <Chip>{t('bookCount', { count: path.itemCount })}</Chip>
+                    <Chip>{t('bookCount', { count: formatNumber(path.itemCount) })}</Chip>
                     <Button
                       variant="outlined"
                       onClick={() => onOpen(path.id)}

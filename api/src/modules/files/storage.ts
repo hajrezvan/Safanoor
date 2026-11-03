@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { isUUID } from 'class-validator';
+import { CryptoService } from '../../libs/security/crypto.service';
 import {
   GetObjectCommand,
   PutObjectCommand,
@@ -91,6 +92,10 @@ export class S3StorageAdapter implements StorageAdapter {
     },
   });
   private readonly bucket = process.env.S3_BUCKET ?? 'safanoor';
+  destroy(): void {
+    this.client.destroy();
+    this.signingClient.destroy();
+  }
   async put(key: string, body: Buffer, mime: string): Promise<void> {
     await this.client.send(
       new PutObjectCommand({
@@ -120,5 +125,40 @@ export class S3StorageAdapter implements StorageAdapter {
       new GetObjectCommand({ Bucket: this.bucket, Key: key }),
       { expiresIn: seconds },
     );
+  }
+}
+
+/** Encrypt private objects before sending them to an S3-compatible provider.
+ * Downloads use the API token route, so storage publicity cannot expose images.
+ */
+export class EncryptedStorageAdapter implements StorageAdapter {
+  private readonly crypto = new CryptoService();
+  private readonly signatures = new LocalStorageAdapter();
+  private readonly prefix = 'SAFANOOR-ENCRYPTED-V1\n';
+  constructor(private readonly raw: StorageAdapter) {}
+  async put(key: string, body: Buffer): Promise<void> {
+    const encrypted =
+      this.prefix +
+      this.crypto.encrypt(body.toString('base64'), `storage:${key}`);
+    await this.raw.put(
+      key,
+      Buffer.from(encrypted, 'utf8'),
+      'application/octet-stream',
+    );
+  }
+  async get(key: string): Promise<Buffer> {
+    const stored = (await this.raw.get(key)).toString('utf8');
+    if (!stored.startsWith(this.prefix))
+      throw new Error('Storage object must be encrypted');
+    return Buffer.from(
+      this.crypto.decrypt(stored.slice(this.prefix.length), `storage:${key}`),
+      'base64',
+    );
+  }
+  signedGetUrl(key: string, actorId: string, seconds: number): Promise<string> {
+    return this.signatures.signedGetUrl(key, actorId, seconds);
+  }
+  verify(token: string): { key: string; actorId: string } {
+    return this.signatures.verify(token);
   }
 }

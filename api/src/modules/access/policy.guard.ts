@@ -37,15 +37,19 @@ export class PolicyGuard implements CanActivate {
     const parameter = request.params.id;
     const id = typeof parameter === 'string' ? parameter : undefined;
     if (id && !isUUID(id)) throw new BadRequestException('شناسه معتبر نیست.');
+    // Multipart bodies are parsed after guards. Authorize photo uploads by an
+    // explicit query scope, then require the parsed body's group to match it.
+    let groupId = body?.groupId;
+    if (policy.type === 'photo' && policy.action === 'create') {
+      const scope = request.query.groupId;
+      if (typeof scope !== 'string' || !isUUID(scope, '4'))
+        throw new BadRequestException('گروه بارگذاری معتبر نیست.');
+      groupId = scope;
+    }
     const resource =
       policy.type === 'grant' && policy.action === 'grant'
         ? await this.access.grantResource(body?.resourceType, body?.resourceId)
-        : await this.access.resolve(
-            policy.type,
-            id,
-            request.actor,
-            body?.groupId,
-          );
+        : await this.access.resolve(policy.type, id, request.actor, groupId);
     await this.access.require(request.actor, policy.action, resource);
     return true;
   }

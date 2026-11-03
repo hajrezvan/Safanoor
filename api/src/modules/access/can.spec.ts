@@ -41,6 +41,7 @@ const relationMap: Record<(typeof columns)[number], Partial<Relations>> = {
 };
 const matrix: Record<string, { action: Action; expected: string }> = {
   file: { action: 'read', expected: 'D N N N N N N N N N' },
+  avatar: { action: 'read', expected: 'D N N N N N N N N N' },
   person: { action: 'read', expected: 'D S N D N S S N N S' },
   group: { action: 'read', expected: 'D D D D N D D N N D' },
   membership: { action: 'assign', expected: 'N N N D N N N N N D' },
@@ -73,8 +74,10 @@ const matrix: Record<string, { action: Action; expected: string }> = {
   project_report: { action: 'read', expected: 'D N N N N N N N N N' },
   project_feedback: { action: 'read', expected: 'D D N N N N N N N N' },
   chat_thread: { action: 'read', expected: 'N N N D N N N N N N' },
+  study_reading: { action: 'read', expected: 'D N N N N N N N N N' },
   study_path: { action: 'read', expected: 'D D D D N N N N N N' },
   lms_item: { action: 'read', expected: 'D D D D N N N N N N' },
+  member_finance: { action: 'read', expected: 'D N N N N N N N N N' },
   program_event: { action: 'read', expected: 'N N N D N N N N N N' },
   camp: { action: 'read', expected: 'D D D D N N N N N N' },
   dashboard: { action: 'read', expected: 'N N N D N N N N N D' },
@@ -97,6 +100,46 @@ const levels: Record<string, AccessLevel> = {
 };
 
 describe('explicit organization policy matrix', () => {
+  it('only self can update an avatar', () => {
+    for (const column of columns) {
+      expect(
+        can(
+          {
+            ...actor,
+            isAdmin: column === 'admin',
+            isParent: column === 'parent',
+          },
+          'update',
+          { type: 'avatar', ownerId: 'owner' },
+          {
+            policies,
+            relations: { ...emptyRelations, ...relationMap[column] },
+          },
+        ),
+      ).toBe(column === 'self' ? 'detail' : 'none');
+    }
+  });
+
+  it('only self may update reading progress, including when superiors or admins ask', () => {
+    for (const column of columns) {
+      expect(
+        can(
+          {
+            ...actor,
+            isAdmin: column === 'admin',
+            isParent: column === 'parent',
+          },
+          'update',
+          { type: 'study_reading', ownerId: 'owner' },
+          {
+            policies,
+            relations: { ...emptyRelations, ...relationMap[column] },
+          },
+        ),
+      ).toBe(column === 'self' ? 'detail' : 'none');
+    }
+  });
+
   it('covers every registered resource type', () => {
     expect(Object.keys(matrix).sort()).toEqual([...RESOURCE_TYPES].sort());
   });

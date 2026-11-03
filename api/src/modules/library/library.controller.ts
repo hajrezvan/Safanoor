@@ -34,6 +34,7 @@ import {
   StudyPathDetailDto,
   StudyPathsPageDto,
   UpdateStudyPathDto,
+  UpdateReadingDto,
   UpdateStudyPathItemDto,
 } from './library.dto';
 import { LibraryService } from './library.service';
@@ -75,6 +76,18 @@ export class LibraryController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<StudyPathDetailDto> {
     return this.library.get(actor, id);
+  }
+
+  @Patch('study-paths/:id/items/:itemId/reading')
+  @Policy('study_reading', 'update')
+  @ApiOkResponse({ type: StudyPathDetailDto })
+  updateReading(
+    @CurrentActor() actor: Actor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('itemId', ParseUUIDPipe) itemId: string,
+    @Body() input: UpdateReadingDto,
+  ): Promise<StudyPathDetailDto> {
+    return this.library.updateReading(actor, id, itemId, input);
   }
 
   @Get('study-paths/:id/cover')
