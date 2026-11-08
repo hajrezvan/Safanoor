@@ -27,32 +27,98 @@ export class AccessService {
   async relations(actor: Actor, resource: Resource): Promise<Relations> {
     const subject = resource.memberId ?? resource.ownerId ?? actor.personId;
     const groups = resource.groupIds ?? [];
+    const scoped = !!actor.activeRoleKind;
+    const allowMentor =
+      !scoped || actor.activeRoleKind === 'mentor';
+    const allowAssistant =
+      !scoped || actor.activeRoleKind === 'assistant';
+    const allowMember =
+      !scoped ||
+      actor.activeRoleKind === 'member' ||
+      actor.activeRoleKind === 'assistant' ||
+      actor.activeRoleKind === 'mentor';
+    const allowSuperior =
+      !scoped ||
+      actor.activeRoleKind === 'supervisor' ||
+      actor.activeRoleKind === 'head_mentor';
+    const activeGroup = actor.activeGroupId ?? null;
     const result = await one<Relations>(
       this.db,
       `SELECT
       $1::uuid=$2::uuid AS self,
-      EXISTS(SELECT 1 FROM membership m JOIN organization_group g ON g.id=m.group_id WHERE m.person_id=$3 AND m.role='member' AND m.valid_to IS NULL AND g.owner_person_id=$1) AS mentor,
-      EXISTS(SELECT 1 FROM person_ancestors WHERE person_id=$3 AND ancestor_id=$1 AND depth=2) AS "headMentor",
-      EXISTS(SELECT 1 FROM person_ancestors WHERE person_id=$3 AND ancestor_id=$1) AS ancestor,
-      EXISTS(
+      ($9::boolean AND EXISTS(
+        SELECT 1 FROM membership m
+        JOIN organization_group g ON g.id=m.group_id
+        WHERE m.person_id=$3 AND m.role='member' AND m.valid_to IS NULL
+          AND g.owner_person_id=$1
+          AND ($10::uuid IS NULL OR g.id=$10::uuid)
+      )) AS mentor,
+      ($11::boolean AND EXISTS(
+        SELECT 1 FROM person_ancestors
+        WHERE person_id=$3 AND ancestor_id=$1 AND depth=2
+      )) AS "headMentor",
+      ($11::boolean AND EXISTS(
+        SELECT 1 FROM person_ancestors WHERE person_id=$3 AND ancestor_id=$1
+      )) AS ancestor,
+      ($12::boolean AND EXISTS(
         SELECT 1 FROM follow_up_assignment
         WHERE assistant_person_id=$1 AND to_date IS NULL
+          AND ($10::uuid IS NULL OR group_id=$10::uuid)
           AND (
             member_person_id=$3
             OR (cardinality($8::uuid[])>0 AND member_person_id=ANY($8::uuid[]))
           )
-      ) AS "followingAssistant",
-      EXISTS(SELECT 1 FROM membership WHERE person_id=$1 AND role='assistant' AND valid_to IS NULL AND group_id=ANY($4::uuid[])) AS "otherAssistant",
-      ($5::boolean AND EXISTS(SELECT 1 FROM person_ancestors WHERE person_id=$3 AND ancestor_id=$1)) AS supervisor,
-      EXISTS(SELECT 1 FROM parent_link l JOIN person p ON p.id=l.child_person_id WHERE l.parent_user_id=$6 AND l.child_person_id=$3 AND l.active AND p.status='active' AND p.birth_date+interval '18 years'>CURRENT_DATE) AS parent,
-      EXISTS(SELECT 1 FROM membership WHERE person_id=$1 AND valid_to IS NULL AND (cardinality($4::uuid[])=0 OR group_id=ANY($4::uuid[]))) AS "sameGroup",
-      EXISTS(SELECT 1 FROM organization_group WHERE owner_person_id=$1 AND (cardinality($4::uuid[])=0 OR id=ANY($4::uuid[]))) AS "groupMentor",
-      EXISTS(SELECT 1 FROM organization_group WHERE owner_person_id=$1 AND id=$7::uuid) AS "hostMentor",
-      EXISTS(SELECT 1 FROM group_role WHERE person_id=$1 AND group_id=ANY($4::uuid[]) AND role='finance_officer' AND valid_to IS NULL) AS "financeOfficer",
+      )) AS "followingAssistant",
+      ($12::boolean AND EXISTS(
+        SELECT 1 FROM membership
+        WHERE person_id=$1 AND role='assistant' AND valid_to IS NULL
+          AND group_id=ANY($4::uuid[])
+          AND ($10::uuid IS NULL OR group_id=$10::uuid)
+      )) AS "otherAssistant",
+      ($5::boolean AND $11::boolean AND EXISTS(
+        SELECT 1 FROM person_ancestors WHERE person_id=$3 AND ancestor_id=$1
+      )) AS supervisor,
+      EXISTS(
+        SELECT 1 FROM parent_link l
+        JOIN person p ON p.id=l.child_person_id
+        WHERE l.parent_user_id=$6 AND l.child_person_id=$3 AND l.active
+          AND p.status='active'
+          AND p.birth_date+interval '18 years'>CURRENT_DATE
+      ) AS parent,
+      ($13::boolean AND EXISTS(
+        SELECT 1 FROM membership
+        WHERE person_id=$1 AND valid_to IS NULL
+          AND (cardinality($4::uuid[])=0 OR group_id=ANY($4::uuid[]))
+          AND ($10::uuid IS NULL OR group_id=$10::uuid)
+      )) AS "sameGroup",
+      ($9::boolean AND EXISTS(
+        SELECT 1 FROM organization_group
+        WHERE owner_person_id=$1
+          AND (cardinality($4::uuid[])=0 OR id=ANY($4::uuid[]))
+          AND ($10::uuid IS NULL OR id=$10::uuid)
+      )) AS "groupMentor",
+      ($9::boolean AND EXISTS(
+        SELECT 1 FROM organization_group
+        WHERE owner_person_id=$1 AND id=$7::uuid
+          AND ($10::uuid IS NULL OR id=$10::uuid)
+      )) AS "hostMentor",
+      ($12::boolean AND EXISTS(
+        SELECT 1 FROM group_role
+        WHERE person_id=$1 AND group_id=ANY($4::uuid[])
+          AND role='finance_officer' AND valid_to IS NULL
+          AND ($10::uuid IS NULL OR group_id=$10::uuid)
+      )) AS "financeOfficer",
       $1::uuid=ANY($8::uuid[]) AS attendee,
-      EXISTS(SELECT 1 FROM person_ancestors WHERE ancestor_id=$1 AND person_id=ANY($8::uuid[])) AS "attendeeAncestor",
+      ($11::boolean AND EXISTS(
+        SELECT 1 FROM person_ancestors
+        WHERE ancestor_id=$1 AND person_id=ANY($8::uuid[])
+      )) AS "attendeeAncestor",
       false AS "campLead",false AS "campActive",
-      EXISTS(SELECT 1 FROM follow_up_assignment WHERE member_person_id=$3 AND assistant_person_id=$1 AND to_date IS NULL) AS "authorizedFollower"`,
+      ($12::boolean AND EXISTS(
+        SELECT 1 FROM follow_up_assignment
+        WHERE member_person_id=$3 AND assistant_person_id=$1 AND to_date IS NULL
+          AND ($10::uuid IS NULL OR group_id=$10::uuid)
+      )) AS "authorizedFollower"`,
       [
         actor.personId,
         resource.ownerId ?? actor.personId,
@@ -62,10 +128,34 @@ export class AccessService {
         actor.userId,
         resource.hostGroupId ?? null,
         resource.attendeeIds ?? [],
+        allowMentor,
+        activeGroup,
+        allowSuperior,
+        allowAssistant,
+        allowMember,
       ],
     );
     if (!result) throw new ForbiddenException();
+    // Technical manager: org relations stay off; admin relation is added in can().
+    if (actor.activeRoleKind === 'technical_manager') {
+      result.mentor = false;
+      result.headMentor = false;
+      result.ancestor = false;
+      result.followingAssistant = false;
+      result.otherAssistant = false;
+      result.supervisor = false;
+      result.sameGroup = false;
+      result.groupMentor = false;
+      result.hostMentor = false;
+      result.financeOfficer = false;
+      result.attendeeAncestor = false;
+      result.authorizedFollower = false;
+      result.campLead = false;
+      result.campActive = false;
+      return result;
+    }
     result.campLead =
+      allowMentor &&
       resource.campLeadId === actor.personId &&
       !!resource.campParticipantIds?.includes(subject);
     result.campActive =
@@ -112,8 +202,9 @@ export class AccessService {
     const level = await this.level(actor, action, resource);
     if (level === 'none' || (minimum === 'detail' && level !== 'detail'))
       throw new ForbiddenException('اجازهٔ دسترسی به این بخش را ندارید.');
+    // Only confidential / break-glass reads go to the audit log.
+    // Routine admin page views must not flood audit with access.read rows.
     if (
-      actor.isAdmin ||
       [
         'person_file',
         'confidential_note',

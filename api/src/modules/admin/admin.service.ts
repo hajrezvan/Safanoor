@@ -22,13 +22,17 @@ import {
   AuditPageDto,
   CreateAccountDto,
   JobsStatusDto,
+  OpsDashboardDto,
   OverviewDto,
   ParentAccountDto,
   ParentLinkDto,
   RetentionDto,
   RetentionPageDto,
+  StorageSettingsDto,
   UpdateRetentionDto,
+  UpdateStorageSettingsDto,
 } from './admin.dto';
+import { StorageRuntimeService } from '../files/storage-runtime.service';
 
 @Injectable()
 export class AdminService {
@@ -37,6 +41,7 @@ export class AdminService {
     private readonly access: AccessService,
     private readonly audit: AuditService,
     @Inject(AUTH_PROVIDER) private readonly provider: AuthenticationProvider,
+    private readonly storageRuntime: StorageRuntimeService,
   ) {}
   async overview(actor: Actor): Promise<OverviewDto> {
     await this.access.require(actor, 'read', { type: 'admin' });
@@ -48,15 +53,128 @@ export class AdminService {
     if (!result) throw new NotFoundException();
     return { ...result, organizationReady: result.supervisorCount === 5 };
   }
+
+  /** Technical manager home: org-wide health and operational counts. */
+  async opsDashboard(actor: Actor): Promise<OpsDashboardDto> {
+    await this.access.require(actor, 'manage', { type: 'admin' }, 'detail');
+    let database: 'ok' | 'error' = 'ok';
+    try {
+      await one(this.db, 'SELECT 1');
+    } catch {
+      database = 'error';
+    }
+    const storage = await this.storageRuntime.snapshot();
+    const counts = await one<{
+      peopleCount: number;
+      groupCount: number;
+      unreadNotifications: number;
+      auditLast24h: number;
+      openImports: number;
+      lmsItemCount: number;
+      fileCount: number;
+      fileBytes: string;
+    }>(
+      this.db,
+      `SELECT
+        (SELECT count(*)::int FROM person WHERE status='active') AS "peopleCount",
+        (SELECT count(*)::int FROM organization_group) AS "groupCount",
+        (SELECT count(*)::int FROM notification WHERE read_at IS NULL) AS "unreadNotifications",
+        (SELECT count(*)::int FROM audit_log WHERE at > now() - interval '24 hours') AS "auditLast24h",
+        (SELECT count(*)::int FROM import_job WHERE status IN ('queued','validating','ready','committing')) AS "openImports",
+        (SELECT count(*)::int FROM lms_item WHERE revoked_at IS NULL AND published_at IS NOT NULL) AS "lmsItemCount",
+        (SELECT count(*)::int FROM file_record WHERE purge_after IS NULL OR purge_after>now()) AS "fileCount",
+        (SELECT COALESCE(sum(size),0)::text FROM file_record WHERE purge_after IS NULL OR purge_after>now()) AS "fileBytes"`,
+    );
+    const campsByStatus = await rows<{ status: string; count: number }>(
+      this.db,
+      `SELECT status, count(*)::int AS count FROM camp GROUP BY status ORDER BY status`,
+    );
+    let jobQueues: { name: string; state: string; count: number }[] = [];
+    try {
+      jobQueues = await rows(
+        this.db,
+        'SELECT name,state,count(*)::int FROM pgboss.job GROUP BY name,state ORDER BY name,state',
+      );
+    } catch {
+      jobQueues = [];
+    }
+    const recentEvents = await rows<{
+      id: string;
+      action: string;
+      resourceType: string;
+      actorName: string | null;
+      at: string;
+    }>(
+      this.db,
+      `SELECT a.id, a.action, a.resource_type AS "resourceType",
+              CASE WHEN p.id IS NULL THEN NULL
+                   ELSE trim(both FROM concat_ws(' ', p.first_name, p.last_name))
+              END AS "actorName",
+              a.at::text AS at
+       FROM audit_log a
+       LEFT JOIN person p ON p.id = a.actor_id
+       ORDER BY a.at DESC, a.id
+       LIMIT 12`,
+    );
+    return {
+      health: {
+        api: 'ok',
+        database,
+        storageMode: storage.mode,
+        storageDriver: storage.driver,
+        storageHealthy: storage.healthy,
+        storageError: storage.healthError,
+        storageEndpoint: storage.endpoint,
+        storageBucket: storage.bucket,
+      },
+      peopleCount: counts?.peopleCount ?? 0,
+      groupCount: counts?.groupCount ?? 0,
+      unreadNotifications: counts?.unreadNotifications ?? 0,
+      auditLast24h: counts?.auditLast24h ?? 0,
+      openImports: counts?.openImports ?? 0,
+      lmsItemCount: counts?.lmsItemCount ?? 0,
+      fileCount: counts?.fileCount ?? 0,
+      fileBytes: Number(counts?.fileBytes ?? 0),
+      campsByStatus,
+      jobQueues,
+      recentEvents,
+    };
+  }
   async auditLog(actor: Actor, query: PaginationDto): Promise<AuditPageDto> {
     await this.access.require(actor, 'read', { type: 'audit' });
+    // Hide legacy routine access.* noise (e.g. admin page views). Confidential /
+    // break-glass access.* rows still appear. Meaningful domain audits are unaffected.
+    const visibleWhere = `NOT (
+         a.action LIKE 'access.%'
+         AND a.resource_type NOT IN (
+           'person_file',
+           'confidential_note',
+           'consultation_private_note',
+           'emergency'
+         )
+       )`;
     const count = await one<{ count: string }>(
       this.db,
-      'SELECT count(*) FROM audit_log',
+      `SELECT count(*) FROM audit_log a WHERE ${visibleWhere}`,
     );
     const items = await rows<AuditDto>(
       this.db,
-      'SELECT id,actor_id AS "actorId",action,resource_type AS "resourceType",resource_id AS "resourceId",at,meta FROM audit_log ORDER BY at DESC,id LIMIT $1 OFFSET $2',
+      `SELECT a.id,
+              a.actor_id AS "actorId",
+              CASE
+                WHEN p.id IS NULL THEN NULL
+                ELSE trim(both FROM concat_ws(' ', p.first_name, p.last_name))
+              END AS "actorName",
+              a.action,
+              a.resource_type AS "resourceType",
+              a.resource_id AS "resourceId",
+              a.at,
+              a.meta
+       FROM audit_log a
+       LEFT JOIN person p ON p.id = a.actor_id
+       WHERE ${visibleWhere}
+       ORDER BY a.at DESC, a.id
+       LIMIT $1 OFFSET $2`,
       [query.limit, (query.page - 1) * query.limit],
     );
     return pageOf(items, query.page, query.limit, Number(count?.count ?? 0));
@@ -253,5 +371,56 @@ export class AdminService {
         manager,
       );
     });
+  }
+
+  async storageSettings(actor: Actor): Promise<StorageSettingsDto> {
+    await this.access.require(actor, 'manage', { type: 'admin' });
+    return this.storageRuntime.snapshot();
+  }
+
+  async updateStorageSettings(
+    actor: Actor,
+    input: UpdateStorageSettingsDto,
+  ): Promise<StorageSettingsDto> {
+    await this.access.require(actor, 'manage', { type: 'admin' }, 'detail');
+    if (input.mode === 'local') {
+      const status = await this.storageRuntime.useLocal(actor.personId);
+      await this.audit.record(
+        actor.personId,
+        'storage.local',
+        'admin',
+        null,
+        { endpoint: status.endpoint },
+      );
+      return status;
+    }
+    if (
+      !input.endpoint ||
+      !input.bucket ||
+      !input.accessKey ||
+      !input.secretKey
+    )
+      throw new BadRequestException(
+        'برای MinIO سرور، آدرس، باکت، کلید و رمز الزامی است.',
+      );
+    const status = await this.storageRuntime.saveRemote(
+      {
+        endpoint: input.endpoint,
+        publicEndpoint: input.publicEndpoint,
+        bucket: input.bucket,
+        region: input.region,
+        accessKey: input.accessKey,
+        secretKey: input.secretKey,
+      },
+      actor.personId,
+    );
+    await this.audit.record(
+      actor.personId,
+      'storage.remote',
+      'admin',
+      null,
+      { endpoint: status.endpoint, bucket: status.bucket },
+    );
+    return status;
   }
 }

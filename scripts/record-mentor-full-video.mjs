@@ -7,7 +7,7 @@ if (process.env.SAFANOOR_RECORDING !== '1')
   throw new Error('Set SAFANOOR_RECORDING=1 and use a disposable recording database.');
 
 const baseURL = process.env.SAFANOOR_URL ?? 'http://localhost:3033';
-const password = process.env.SAFANOOR_DEMO_PASSWORD ?? 'SafanoorDemo#1405';
+const password = process.env.SAFANOOR_DEMO_PASSWORD ?? '12345678';
 const outputDir = path.join(process.cwd(), 'docs', 'videos');
 const rawDir = path.join(outputDir, '.mentor-full-raw');
 const videoSize = { width: 1280, height: 720 };

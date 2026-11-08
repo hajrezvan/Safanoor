@@ -35,11 +35,46 @@ export class GroupsService {
       type: 'group',
       ownerId: actor.personId,
     });
-    const scope = `($2 OR g.owner_person_id=$1 OR EXISTS(SELECT 1 FROM membership m WHERE m.group_id=g.id AND m.person_id=$1 AND m.valid_to IS NULL) OR EXISTS(SELECT 1 FROM person_ancestors a WHERE a.person_id=g.owner_person_id AND a.ancestor_id=$1)) AND ($3='' OR g.name LIKE '%'||$3||'%')`;
+    const allowMentor =
+      !actor.activeRoleKind || actor.activeRoleKind === 'mentor';
+    const allowMembership =
+      !actor.activeRoleKind ||
+      actor.activeRoleKind === 'assistant' ||
+      actor.activeRoleKind === 'member';
+    const allowSuperior =
+      !actor.activeRoleKind ||
+      actor.activeRoleKind === 'supervisor' ||
+      actor.activeRoleKind === 'head_mentor';
+    const activeGroup = actor.activeGroupId ?? null;
+    const membershipRole =
+      actor.activeRoleKind === 'assistant'
+        ? 'assistant'
+        : actor.activeRoleKind === 'member'
+          ? 'member'
+          : null;
+    const scope = `(
+      $2
+      OR ($4::boolean AND g.owner_person_id=$1 AND ($7::uuid IS NULL OR g.id=$7::uuid))
+      OR ($5::boolean AND EXISTS(
+        SELECT 1 FROM membership m
+        WHERE m.group_id=g.id AND m.person_id=$1 AND m.valid_to IS NULL
+          AND ($7::uuid IS NULL OR m.group_id=$7::uuid)
+          AND ($8::text IS NULL OR m.role=$8::text)
+      ))
+      OR ($6::boolean AND EXISTS(
+        SELECT 1 FROM person_ancestors a
+        WHERE a.person_id=g.owner_person_id AND a.ancestor_id=$1
+      ))
+    ) AND ($3='' OR g.name LIKE '%'||$3||'%')`;
     const params = [
       actor.personId,
       actor.isAdmin,
       normalizePersian(query.search ?? ''),
+      allowMentor,
+      allowMembership,
+      allowSuperior,
+      activeGroup,
+      membershipRole,
     ];
     const count = await one<{ count: string }>(
       this.db,
@@ -48,7 +83,7 @@ export class GroupsService {
     );
     const items = await rows<GroupDto>(
       this.db,
-      `SELECT g.id,g.name,g.owner_person_id AS "ownerPersonId",p.first_name||' '||p.last_name AS "ownerName",(SELECT count(*)::int FROM membership WHERE group_id=g.id AND role='member' AND valid_to IS NULL) AS "memberCount",(SELECT count(*)::int FROM membership WHERE group_id=g.id AND role='assistant' AND valid_to IS NULL) AS "assistantCount",($2 OR g.owner_person_id=$1) AS "canManage" FROM organization_group g JOIN person p ON p.id=g.owner_person_id WHERE ${scope} ORDER BY g.name,g.id LIMIT $4 OFFSET $5`,
+      `SELECT g.id,g.name,g.owner_person_id AS "ownerPersonId",p.first_name||' '||p.last_name AS "ownerName",(SELECT count(*)::int FROM membership WHERE group_id=g.id AND role='member' AND valid_to IS NULL) AS "memberCount",(SELECT count(*)::int FROM membership WHERE group_id=g.id AND role='assistant' AND valid_to IS NULL) AS "assistantCount",($2 OR ($4::boolean AND g.owner_person_id=$1 AND ($7::uuid IS NULL OR g.id=$7::uuid))) AS "canManage" FROM organization_group g JOIN person p ON p.id=g.owner_person_id WHERE ${scope} ORDER BY g.name,g.id LIMIT $9 OFFSET $10`,
       [...params, query.limit, (query.page - 1) * query.limit],
     );
     return pageOf(items, query.page, query.limit, Number(count?.count ?? 0));

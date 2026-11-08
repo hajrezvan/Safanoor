@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   Res,
   UploadedFile,
   UseInterceptors,
@@ -25,7 +26,11 @@ import type { Response } from 'express';
 import { AvatarService } from './avatar.service';
 import { PaginationDto } from '../../libs/http/http.dto';
 import { Actor } from '../access/access.types';
-import { CurrentActor, Policy } from '../access/policy.decorator';
+import {
+  ActorRequest,
+  CurrentActor,
+  Policy,
+} from '../access/policy.decorator';
 import { SuccessDto } from '../auth/auth.controller';
 import {
   AvatarStateDto,
@@ -34,6 +39,7 @@ import {
   PeoplePageDto,
   PersonDossierDto,
   PersonDto,
+  SetActiveRoleDto,
   UpdatePersonDto,
 } from './people.dto';
 import { PeopleService } from './people.service';
@@ -54,6 +60,22 @@ export class PeopleController {
       ...(await this.people.me(actor)),
       ...(await this.avatar.state(actor)),
     };
+  }
+  @Post('me/active-role')
+  @HttpCode(200)
+  @Policy('person', 'read')
+  @ApiOkResponse({ type: MeDto })
+  async setActiveRole(
+    @CurrentActor() actor: Actor,
+    @Req() request: ActorRequest,
+    @Body() input: SetActiveRoleDto,
+  ): Promise<MeDto> {
+    const me = await this.people.setActiveRole(
+      actor,
+      request.sessionId,
+      input.roleId,
+    );
+    return { ...me, ...(await this.avatar.state(actor)) };
   }
   @Post('me/avatar')
   @HttpCode(200)

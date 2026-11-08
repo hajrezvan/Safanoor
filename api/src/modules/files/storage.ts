@@ -5,6 +5,7 @@ import { isUUID } from 'class-validator';
 import { CryptoService } from '../../libs/security/crypto.service';
 import {
   GetObjectCommand,
+  HeadBucketCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -16,6 +17,27 @@ export interface StorageAdapter {
   signedGetUrl(key: string, actorId: string, seconds: number): Promise<string>;
 }
 export const STORAGE = Symbol('STORAGE');
+
+export type S3ConnectionConfig = {
+  endpoint: string;
+  publicEndpoint?: string;
+  region: string;
+  bucket: string;
+  accessKey: string;
+  secretKey: string;
+};
+
+export function envS3Config(): S3ConnectionConfig {
+  return {
+    endpoint: process.env.S3_ENDPOINT ?? 'http://127.0.0.1:9000',
+    publicEndpoint: process.env.S3_PUBLIC_ENDPOINT ?? process.env.S3_ENDPOINT,
+    region: process.env.S3_REGION ?? 'us-east-1',
+    bucket: process.env.S3_BUCKET ?? 'safanoor',
+    accessKey: process.env.S3_ACCESS_KEY ?? '',
+    secretKey: process.env.S3_SECRET_KEY ?? '',
+  };
+}
+
 export class LocalStorageAdapter implements StorageAdapter {
   private readonly root = resolve(process.env.LOCAL_STORAGE_PATH ?? '.storage');
   private readonly secret = process.env.STORAGE_SIGNING_KEY ?? '';
@@ -73,25 +95,30 @@ export class LocalStorageAdapter implements StorageAdapter {
   }
 }
 export class S3StorageAdapter implements StorageAdapter {
-  private readonly client = new S3Client({
-    endpoint: process.env.S3_ENDPOINT,
-    credentials: {
-      accessKeyId: process.env.S3_ACCESS_KEY ?? '',
-      secretAccessKey: process.env.S3_SECRET_KEY ?? '',
-    },
-    region: process.env.S3_REGION ?? 'us-east-1',
-    forcePathStyle: true,
-  });
-  private readonly signingClient = new S3Client({
-    endpoint: process.env.S3_PUBLIC_ENDPOINT ?? process.env.S3_ENDPOINT,
-    region: process.env.S3_REGION ?? 'us-east-1',
-    forcePathStyle: true,
-    credentials: {
-      accessKeyId: process.env.S3_ACCESS_KEY ?? '',
-      secretAccessKey: process.env.S3_SECRET_KEY ?? '',
-    },
-  });
-  private readonly bucket = process.env.S3_BUCKET ?? 'safanoor';
+  private readonly client: S3Client;
+  private readonly signingClient: S3Client;
+  private readonly bucket: string;
+  constructor(config: S3ConnectionConfig = envS3Config()) {
+    this.bucket = config.bucket;
+    this.client = new S3Client({
+      endpoint: config.endpoint,
+      credentials: {
+        accessKeyId: config.accessKey,
+        secretAccessKey: config.secretKey,
+      },
+      region: config.region,
+      forcePathStyle: true,
+    });
+    this.signingClient = new S3Client({
+      endpoint: config.publicEndpoint || config.endpoint,
+      region: config.region,
+      forcePathStyle: true,
+      credentials: {
+        accessKeyId: config.accessKey,
+        secretAccessKey: config.secretKey,
+      },
+    });
+  }
   destroy(): void {
     this.client.destroy();
     this.signingClient.destroy();
@@ -125,6 +152,9 @@ export class S3StorageAdapter implements StorageAdapter {
       new GetObjectCommand({ Bucket: this.bucket, Key: key }),
       { expiresIn: seconds },
     );
+  }
+  async probe(): Promise<void> {
+    await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
   }
 }
 
@@ -160,5 +190,28 @@ export class EncryptedStorageAdapter implements StorageAdapter {
   }
   verify(token: string): { key: string; actorId: string } {
     return this.signatures.verify(token);
+  }
+  get underlying(): StorageAdapter {
+    return this.raw;
+  }
+}
+
+/** Delegates to the active adapter so admin can switch MinIO without restart. */
+export class SwitchingStorageAdapter implements StorageAdapter {
+  constructor(private resolve: () => StorageAdapter) {}
+  put(key: string, body: Buffer, mime: string): Promise<void> {
+    return this.resolve().put(key, body, mime);
+  }
+  get(key: string): Promise<Buffer> {
+    return this.resolve().get(key);
+  }
+  signedGetUrl(key: string, actorId: string, seconds: number): Promise<string> {
+    return this.resolve().signedGetUrl(key, actorId, seconds);
+  }
+  verify(token: string): { key: string; actorId: string } {
+    const current = this.resolve();
+    if (current instanceof EncryptedStorageAdapter) return current.verify(token);
+    if (current instanceof LocalStorageAdapter) return current.verify(token);
+    throw new Error('Signed local download is unavailable for this storage');
   }
 }

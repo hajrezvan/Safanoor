@@ -5,7 +5,7 @@ const base = process.env.TEST_API_URL || 'http://localhost:3001/api/v1';
 const login = await fetch(`${base}/auth/login`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', 'X-Client-Type': 'native' },
-  body: JSON.stringify({ login: '+989100000040', password: 'SafanoorDemo#1405' }),
+  body: JSON.stringify({ login: '+989100000040', password: '12345678' }),
 });
 assert(login.ok, 'Demo login failed.');
 const { accessToken } = await login.json();

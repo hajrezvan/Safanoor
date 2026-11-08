@@ -19,11 +19,14 @@ import {
   AuditPageDto,
   CreateAccountDto,
   JobsStatusDto,
+  OpsDashboardDto,
   OverviewDto,
   ParentAccountDto,
   ParentLinkDto,
   RetentionPageDto,
+  StorageSettingsDto,
   UpdateRetentionDto,
+  UpdateStorageSettingsDto,
 } from './admin.dto';
 import { AdminService } from './admin.service';
 
@@ -37,6 +40,12 @@ export class AdminController {
   @ApiOkResponse({ type: OverviewDto })
   overview(@CurrentActor() actor: Actor): Promise<OverviewDto> {
     return this.admin.overview(actor);
+  }
+  @Get('ops-dashboard')
+  @Policy('admin', 'manage')
+  @ApiOkResponse({ type: OpsDashboardDto })
+  opsDashboard(@CurrentActor() actor: Actor): Promise<OpsDashboardDto> {
+    return this.admin.opsDashboard(actor);
   }
   @Get('audit')
   @Policy('audit', 'read')
@@ -114,5 +123,20 @@ export class AdminController {
   ): Promise<SuccessDto> {
     await this.admin.qualification(actor, input);
     return { success: true };
+  }
+  @Get('storage')
+  @Policy('admin', 'manage')
+  @ApiOkResponse({ type: StorageSettingsDto })
+  storage(@CurrentActor() actor: Actor): Promise<StorageSettingsDto> {
+    return this.admin.storageSettings(actor);
+  }
+  @Patch('storage')
+  @Policy('admin', 'manage')
+  @ApiOkResponse({ type: StorageSettingsDto })
+  updateStorage(
+    @CurrentActor() actor: Actor,
+    @Body() input: UpdateStorageSettingsDto,
+  ): Promise<StorageSettingsDto> {
+    return this.admin.updateStorageSettings(actor, input);
   }
 }

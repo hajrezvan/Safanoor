@@ -246,7 +246,7 @@ async function main() {
             },
             body: JSON.stringify({
               login: phone,
-              password: 'SafanoorDemo#1405',
+              password: '12345678',
             }),
           });
           if (!response.ok)

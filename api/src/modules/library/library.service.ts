@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -54,7 +55,7 @@ export class LibraryService {
     );
     const items = await rows<StudyPathSummaryDto>(
       this.db,
-      `SELECT p.id,p.group_id AS "groupId",p.title,p.description,
+      `SELECT p.id,p.group_id AS "groupId",g.name AS "groupName",p.title,p.description,
         (SELECT count(*)::int FROM study_path_item i WHERE i.path_id=p.id) AS "itemCount",
         p.cover_file_id AS "coverFileId",
         CASE WHEN p.cover_file_id IS NULL THEN NULL
@@ -62,10 +63,41 @@ export class LibraryService {
         p.created_by AS "createdBy",p.created_at AS "createdAt",p.updated_at AS "updatedAt",
         $2::boolean AS "canManage"
        FROM study_path p
+       JOIN organization_group g ON g.id=p.group_id
        WHERE p.group_id=$1
        ORDER BY p.created_at DESC,p.id
        LIMIT $3 OFFSET $4`,
       [groupId, canManage, query.limit, (query.page - 1) * query.limit],
+    );
+    return pageOf(items, query.page, query.limit, Number(count?.count ?? 0));
+  }
+
+  /** Org-wide catalogue for technical manager during development. */
+  async listAll(
+    actor: Actor,
+    query: PaginationDto,
+  ): Promise<StudyPathsPageDto> {
+    if (!actor.isAdmin)
+      throw new ForbiddenException('اجازهٔ دسترسی به این بخش را ندارید.');
+    await this.access.require(actor, 'read', { type: 'study_path' }, 'detail');
+    const count = await one<{ count: string }>(
+      this.db,
+      'SELECT count(*) FROM study_path',
+    );
+    const items = await rows<StudyPathSummaryDto>(
+      this.db,
+      `SELECT p.id,p.group_id AS "groupId",g.name AS "groupName",p.title,p.description,
+        (SELECT count(*)::int FROM study_path_item i WHERE i.path_id=p.id) AS "itemCount",
+        p.cover_file_id AS "coverFileId",
+        CASE WHEN p.cover_file_id IS NULL THEN NULL
+             ELSE '/api/v1/study-paths/'||p.id::text||'/cover' END AS "coverUrl",
+        p.created_by AS "createdBy",p.created_at AS "createdAt",p.updated_at AS "updatedAt",
+        false AS "canManage"
+       FROM study_path p
+       JOIN organization_group g ON g.id=p.group_id
+       ORDER BY g.name, p.created_at DESC, p.id
+       LIMIT $1 OFFSET $2`,
+      [query.limit, (query.page - 1) * query.limit],
     );
     return pageOf(items, query.page, query.limit, Number(count?.count ?? 0));
   }
@@ -131,6 +163,7 @@ export class LibraryService {
       [id],
     );
     const canTrackReading =
+      !actor.isAdmin &&
       (await this.access.level(actor, 'read', {
         type: 'study_reading',
         ownerId: actor.personId,
@@ -175,6 +208,8 @@ export class LibraryService {
     itemId: string,
     input: UpdateReadingDto,
   ): Promise<StudyPathDetailDto> {
+    if (actor.isAdmin)
+      throw new ForbiddenException('اجازهٔ ثبت پیشرفت مطالعه را ندارید.');
     const path = await this.loadPath(pathId);
     await this.access.require(
       actor,
@@ -689,14 +724,16 @@ export class LibraryService {
   private async loadPath(id: string): Promise<StudyPathSummaryDto> {
     const path = await one<StudyPathSummaryDto>(
       this.db,
-      `SELECT p.id,p.group_id AS "groupId",p.title,p.description,
+      `SELECT p.id,p.group_id AS "groupId",g.name AS "groupName",p.title,p.description,
         (SELECT count(*)::int FROM study_path_item i WHERE i.path_id=p.id) AS "itemCount",
         p.cover_file_id AS "coverFileId",
         CASE WHEN p.cover_file_id IS NULL THEN NULL
              ELSE '/api/v1/study-paths/'||p.id::text||'/cover' END AS "coverUrl",
         p.created_by AS "createdBy",p.created_at AS "createdAt",p.updated_at AS "updatedAt",
         false AS "canManage"
-       FROM study_path p WHERE p.id=$1`,
+       FROM study_path p
+       JOIN organization_group g ON g.id=p.group_id
+       WHERE p.id=$1`,
       [id],
     );
     if (!path) throw new NotFoundException();

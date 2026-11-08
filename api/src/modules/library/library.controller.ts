@@ -68,6 +68,17 @@ export class LibraryController {
     return this.library.create(actor, id, input);
   }
 
+  /** All groups' study paths — technical manager / admin read. */
+  @Get('study-paths')
+  @Policy('study_path', 'read')
+  @ApiOkResponse({ type: StudyPathsPageDto })
+  listAll(
+    @CurrentActor() actor: Actor,
+    @Query() query: PaginationDto,
+  ): Promise<StudyPathsPageDto> {
+    return this.library.listAll(actor, query);
+  }
+
   @Get('study-paths/:id')
   @Policy('study_path', 'read')
   @ApiOkResponse({ type: StudyPathDetailDto })

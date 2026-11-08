@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
-const password = "SafanoorDemo#1405";
+const password = "12345678";
 async function login(page: import("@playwright/test").Page, number: number) {
   await page.goto("/auth/jwt/sign-in");
   await page

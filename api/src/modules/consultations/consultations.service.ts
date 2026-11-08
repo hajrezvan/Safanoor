@@ -36,42 +36,47 @@ export class ConsultationsService {
   ): Promise<ConsultationsPageDto> {
     if (actor.isParent || actor.external)
       throw new ForbiddenException('اجازهٔ دسترسی به این بخش را ندارید.');
-    const visible = this.visibleSql(1);
+    // Technical manager (isAdmin): org-wide shared summaries; private notes stay gated.
+    // Parameter layout differs so unused $n never appears (Postgres rejects that).
     const search = normalizePersian(query.search ?? '');
-    const scope = `${visible} AND (
-      $2='' OR COALESCE(c.place,'') LIKE '%'||$2||'%'
+    const offset = (query.page - 1) * query.limit;
+    const searchClause = (param: number) => `(
+      $${param}='' OR COALESCE(c.place,'') LIKE '%'||$${param}||'%'
       OR EXISTS(
         SELECT 1 FROM consultation_member m
         JOIN person p ON p.id=m.person_id
         WHERE m.consultation_id=c.id
-          AND (p.search_name LIKE '%'||$2||'%' OR p.first_name||' '||p.last_name LIKE '%'||$2||'%')
+          AND (p.search_name LIKE '%'||$${param}||'%'
+            OR p.first_name||' '||p.last_name LIKE '%'||$${param}||'%')
       )
-      OR author.first_name||' '||author.last_name LIKE '%'||$2||'%'
-      OR to_char(c.held_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') LIKE '%'||$2||'%'
+      OR author.first_name||' '||author.last_name LIKE '%'||$${param}||'%'
+      OR to_char(c.held_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI')
+           LIKE '%'||$${param}||'%'
+      OR g.name LIKE '%'||$${param}||'%'
     )`;
+    const scope = actor.isAdmin
+      ? searchClause(1)
+      : `${this.visibleSql(1)} AND ${searchClause(2)}`;
     const count = await one<{ count: string }>(
       this.db,
       `SELECT count(*) FROM consultation c
+       JOIN organization_group g ON g.id=c.group_id
        JOIN person author ON author.id=c.author_id
        WHERE ${scope}`,
-      [actor.personId, search],
+      actor.isAdmin ? [search] : [actor.personId, search],
     );
     const items = await rows<ConsultationSummaryDto>(
       this.db,
-      `SELECT ${this.summarySelect(3)}
+      `SELECT ${this.summarySelect(actor.isAdmin ? 2 : 3)}
        FROM consultation c
        JOIN organization_group g ON g.id=c.group_id
        JOIN person author ON author.id=c.author_id
        WHERE ${scope}
        ORDER BY c.held_at DESC, c.id
-       LIMIT $4 OFFSET $5`,
-      [
-        actor.personId,
-        search,
-        actor.personId,
-        query.limit,
-        (query.page - 1) * query.limit,
-      ],
+       LIMIT $${actor.isAdmin ? 3 : 4} OFFSET $${actor.isAdmin ? 4 : 5}`,
+      actor.isAdmin
+        ? [search, actor.personId, query.limit, offset]
+        : [actor.personId, search, actor.personId, query.limit, offset],
     );
     return pageOf(items, query.page, query.limit, Number(count?.count ?? 0));
   }

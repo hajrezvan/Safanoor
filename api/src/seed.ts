@@ -11,7 +11,7 @@ export const demoId = (number: number): string =>
   `10000000-0000-4000-8000-${String(number).padStart(12, '0')}`;
 export const demoGroupId = (number: number): string =>
   `20000000-0000-4000-8000-${String(number).padStart(12, '0')}`;
-export const DEMO_PASSWORD = 'SafanoorDemo#1405';
+export const DEMO_PASSWORD = '12345678';
 export function demoNationalId(number: number): string {
   const base = String(800000000 + number).padStart(9, '0');
   const remainder =
@@ -129,7 +129,7 @@ export async function seed(db: DataSource): Promise<void> {
       );
       await rows(
         manager,
-        'INSERT INTO app_user(id,person_id,login,password_hash,is_admin,is_parent) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(person_id) DO NOTHING',
+        'INSERT INTO app_user(id,person_id,login,password_hash,is_admin,is_parent) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(person_id) DO UPDATE SET login=EXCLUDED.login, password_hash=EXCLUDED.password_hash',
         [
           `30000000-0000-4000-8000-${String(item.n).padStart(12, '0')}`,
           id,

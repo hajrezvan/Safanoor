@@ -22,9 +22,60 @@ export class OverviewDto {
   @ApiProperty() supervisorCount!: number;
   @ApiProperty() organizationReady!: boolean;
 }
+
+export class OpsHealthDto {
+  @ApiProperty() api!: 'ok';
+  @ApiProperty() database!: 'ok' | 'error';
+  @ApiProperty({ enum: ['local', 'remote'] }) storageMode!: 'local' | 'remote';
+  @ApiProperty({ enum: ['s3', 'local'] }) storageDriver!: 's3' | 'local';
+  @ApiProperty() storageHealthy!: boolean;
+  @ApiPropertyOptional() storageError?: string;
+  @ApiProperty() storageEndpoint!: string;
+  @ApiProperty() storageBucket!: string;
+}
+
+export class OpsCampStatusCountDto {
+  @ApiProperty() status!: string;
+  @ApiProperty() count!: number;
+}
+
+export class OpsQueueCountDto {
+  @ApiProperty() name!: string;
+  @ApiProperty() state!: string;
+  @ApiProperty() count!: number;
+}
+
+export class OpsEventDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() action!: string;
+  @ApiProperty() resourceType!: string;
+  @ApiPropertyOptional({ nullable: true, type: String }) actorName!: string | null;
+  @ApiProperty() at!: string;
+}
+
+export class OpsDashboardDto {
+  @ApiProperty({ type: OpsHealthDto }) health!: OpsHealthDto;
+  @ApiProperty() peopleCount!: number;
+  @ApiProperty() groupCount!: number;
+  @ApiProperty() unreadNotifications!: number;
+  @ApiProperty() auditLast24h!: number;
+  @ApiProperty() openImports!: number;
+  @ApiProperty() lmsItemCount!: number;
+  @ApiProperty() fileCount!: number;
+  @ApiProperty() fileBytes!: number;
+  @ApiProperty({ type: [OpsCampStatusCountDto] }) campsByStatus!: OpsCampStatusCountDto[];
+  @ApiProperty({ type: [OpsQueueCountDto] }) jobQueues!: OpsQueueCountDto[];
+  @ApiProperty({ type: [OpsEventDto] }) recentEvents!: OpsEventDto[];
+}
 export class AuditDto {
   @ApiProperty() id!: string;
   @ApiProperty({ nullable: true, type: String }) actorId!: string | null;
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description: 'Display name of the actor (safe metadata; not sensitive content)',
+  })
+  actorName!: string | null;
   @ApiProperty() action!: string;
   @ApiProperty() resourceType!: string;
   @ApiProperty({ nullable: true, type: String }) resourceId!: string | null;
@@ -95,4 +146,53 @@ export class QualificationDto {
   @ApiProperty({ enum: ['member', 'assistant', 'mentor', 'head_mentor'] })
   @IsIn(['member', 'assistant', 'mentor', 'head_mentor'])
   orgLevel!: 'member' | 'assistant' | 'mentor' | 'head_mentor';
+}
+
+export class StorageSettingsDto {
+  @ApiProperty({ enum: ['local', 'remote'] }) mode!: 'local' | 'remote';
+  @ApiProperty({ enum: ['s3', 'local'] }) driver!: 's3' | 'local';
+  @ApiProperty() endpoint!: string;
+  @ApiProperty() publicEndpoint!: string;
+  @ApiProperty() bucket!: string;
+  @ApiProperty() region!: string;
+  @ApiProperty() accessKey!: string;
+  @ApiProperty() hasSecret!: boolean;
+  @ApiProperty() healthy!: boolean;
+  @ApiPropertyOptional() healthError?: string;
+}
+
+export class UpdateStorageSettingsDto {
+  @ApiProperty({ enum: ['local', 'remote'] })
+  @IsIn(['local', 'remote'])
+  mode!: 'local' | 'remote';
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(8, 500)
+  endpoint?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(0, 500)
+  publicEndpoint?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(2, 120)
+  bucket?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(2, 60)
+  region?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(3, 200)
+  accessKey?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Length(8, 200)
+  secretKey?: string;
 }

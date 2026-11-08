@@ -17,8 +17,6 @@ export function foundationPolicies(): PolicyRow[] {
   allow('avatar', 'update', ['self']);
   allow('person', 'read', ['self', 'mentor', 'groupMentor']);
   allow('person', 'read', ['followingAssistant', 'admin'], 'summary');
-  // Superiors see identity at summary only (no private notes / emergency).
-  allow('person', 'read', ['ancestor', 'supervisor', 'headMentor'], 'summary');
   allow('person', 'create', ['admin', 'groupMentor']);
   allow('person', 'update', ['self', 'mentor', 'admin']);
   allow('person', 'deactivate', ['mentor', 'admin']);
@@ -52,6 +50,7 @@ export function foundationPolicies(): PolicyRow[] {
     'self',
     'groupMentor',
     'followingAssistant',
+    'admin',
   ]);
   allow('consultation', 'create', ['groupMentor', 'otherAssistant']);
   allow('consultation', 'update', ['self', 'groupMentor']);
@@ -60,6 +59,7 @@ export function foundationPolicies(): PolicyRow[] {
     'mentor',
     'followingAssistant',
     'grant',
+    'admin',
   ]);
   allow(
     'consultation_private_note',
@@ -86,7 +86,7 @@ export function foundationPolicies(): PolicyRow[] {
     ['followingAssistant', 'headMentor', 'ancestor', 'supervisor'],
     'summary',
   );
-  allow('meeting', 'read', ['attendee', 'attendeeAncestor']);
+  allow('meeting', 'read', ['attendee', 'attendeeAncestor', 'admin']);
   allow('meeting', 'create', ['groupMentor']);
   allow('meeting', 'update', ['groupMentor']);
   allow('photo', 'create', ['hostMentor']);
@@ -95,6 +95,7 @@ export function foundationPolicies(): PolicyRow[] {
     'groupMentor',
     'ancestor',
     'supervisor',
+    'admin',
   ]);
   allow('photo', 'update', ['hostMentor']);
   allow('location_option', 'read', ['organization', 'admin']);
@@ -109,24 +110,24 @@ export function foundationPolicies(): PolicyRow[] {
   ]);
   allow('project_report', 'read', ['self']);
   allow('project_feedback', 'read', ['self', 'authorizedFollower']);
-  allow('chat_thread', 'read', ['attendee', 'groupMentor']);
+  allow('chat_thread', 'read', ['attendee', 'groupMentor', 'admin']);
   allow('chat_thread', 'create', ['attendee', 'groupMentor']);
   allow('study_reading', 'read', ['self']);
   allow('study_reading', 'update', ['self']);
-  allow('study_path', 'read', ['sameGroup', 'groupMentor']);
+  allow('study_path', 'read', ['sameGroup', 'groupMentor', 'admin']);
   allow('study_path', 'create', ['groupMentor']);
   allow('study_path', 'update', ['groupMentor']);
   allow('study_path', 'manage', ['groupMentor']);
-  allow('lms_item', 'read', ['sameGroup', 'groupMentor']);
+  allow('lms_item', 'read', ['sameGroup', 'groupMentor', 'admin']);
   allow('lms_item', 'create', ['groupMentor']);
   allow('lms_item', 'update', ['groupMentor']);
   allow('lms_item', 'manage', ['groupMentor']);
   allow('member_finance', 'read', ['self']);
-  allow('program_event', 'read', ['groupMentor', 'financeOfficer']);
+  allow('program_event', 'read', ['groupMentor', 'financeOfficer', 'admin']);
   allow('program_event', 'create', ['groupMentor']);
   allow('program_event', 'update', ['groupMentor']);
   allow('program_event', 'manage', ['groupMentor']);
-  allow('camp', 'read', ['sameGroup', 'groupMentor']);
+  allow('camp', 'read', ['sameGroup', 'groupMentor', 'admin']);
   allow('camp', 'create', ['groupMentor']);
   allow('camp', 'update', ['groupMentor']);
   allow('camp', 'manage', ['groupMentor']);

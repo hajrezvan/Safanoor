@@ -53,20 +53,24 @@ type StudyPathItem = components['schemas']['StudyPathItemDto'];
 
 function useLibraryGroup() {
   const me = useSession();
+  const orgWide = me.activeRole?.kind === 'technical_manager';
   const groups = useQuery({
     queryKey: ['groups', 'library'],
     queryFn: () => api.groups(),
+    enabled: !orgWide,
   });
   const resolved = useMemo(() => {
+    if (orgWide) return { groupId: null as string | null, canManage: false, orgWide: true };
     const managed = groups.data?.items.find((group) => group.canManage);
-    if (managed) return { groupId: managed.id, canManage: true };
-    if (me.person.groupId) return { groupId: me.person.groupId, canManage: false };
-    return { groupId: null as string | null, canManage: false };
-  }, [groups.data, me.person.groupId]);
+    if (managed) return { groupId: managed.id, canManage: true, orgWide: false };
+    if (me.person.groupId)
+      return { groupId: me.person.groupId, canManage: false, orgWide: false };
+    return { groupId: null as string | null, canManage: false, orgWide: false };
+  }, [groups.data, me.person.groupId, orgWide]);
   return {
     ...resolved,
-    loading: groups.isLoading,
-    error: groups.error,
+    loading: orgWide ? false : groups.isLoading,
+    error: orgWide ? null : groups.error,
     refetch: groups.refetch,
   };
 }
@@ -592,28 +596,37 @@ function PathDetail({ pathId, onBack }: { pathId: string; onBack: () => void }) 
 function PathList({
   groupId,
   canManage,
+  orgWide,
   onOpen,
 }: {
-  groupId: string;
+  groupId: string | null;
   canManage: boolean;
+  orgWide: boolean;
   onOpen: (id: string) => void;
 }) {
   const t = useFa();
   const [createOpen, setCreateOpen] = useState(false);
   const list = useQuery({
-    queryKey: ['study-paths', groupId],
+    queryKey: ['study-paths', orgWide ? 'all' : groupId],
+    enabled: orgWide || !!groupId,
     queryFn: async () =>
-      unwrap(
-        await client.GET('/api/v1/groups/{id}/study-paths', {
-          params: { path: { id: groupId }, query: { page: 1, limit: 50 } },
-        })
-      ),
+      orgWide
+        ? unwrap(
+            await client.GET('/api/v1/study-paths', {
+              params: { query: { page: 1, limit: 100 } },
+            })
+          )
+        : unwrap(
+            await client.GET('/api/v1/groups/{id}/study-paths', {
+              params: { path: { id: groupId! }, query: { page: 1, limit: 50 } },
+            })
+          ),
   });
   const create = useWrite(
     async (body: z.infer<typeof studyPathSchema>) =>
       unwrap(
         await client.POST('/api/v1/groups/{id}/study-paths', {
-          params: { path: { id: groupId } },
+          params: { path: { id: groupId! } },
           body: { title: body.title, description: body.description },
         })
       ),
@@ -627,9 +640,9 @@ function PathList({
     <Stack>
       <PageHeader
         title={t('library')}
-        hint={t('libraryHint')}
+        hint={orgWide ? t('libraryAllGroupsHint') : t('libraryHint')}
         action={
-          canManage ? (
+          canManage && !orgWide ? (
             <Button icon="add" onClick={() => setCreateOpen(true)}>
               {t('createStudyPath')}
             </Button>
@@ -642,7 +655,7 @@ function PathList({
             title={t('studyPathsEmpty')}
             hint={t('studyPathsEmptyHint')}
             action={
-              canManage ? (
+              canManage && !orgWide ? (
                 <Button icon="add" onClick={() => setCreateOpen(true)}>
                   {t('createStudyPath')}
                 </Button>
@@ -662,15 +675,17 @@ function PathList({
                 )}
                 <CoverCardBody>
                   <Text variant="subtitle">{path.title}</Text>
+                  {path.groupName ? (
+                    <Text muted variant="caption">
+                      {path.groupName}
+                    </Text>
+                  ) : null}
                   {path.description ? (
                     <Text muted>{path.description}</Text>
                   ) : null}
                   <CoverCardAction>
                     <Chip>{t('bookCount', { count: formatNumber(path.itemCount) })}</Chip>
-                    <Button
-                      variant="outlined"
-                      onClick={() => onOpen(path.id)}
-                    >
+                    <Button variant="outlined" onClick={() => onOpen(path.id)}>
                       {t('openStudyPath')}
                     </Button>
                   </CoverCardAction>
@@ -681,12 +696,14 @@ function PathList({
         )}
       </QueryState>
       {create.feedback}
-      <CreatePathDialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        busy={create.isPending}
-        onSubmit={(values) => create.mutate(values)}
-      />
+      {!orgWide && groupId ? (
+        <CreatePathDialog
+          open={createOpen}
+          onClose={() => setCreateOpen(false)}
+          busy={create.isPending}
+          onSubmit={(values) => create.mutate(values)}
+        />
+      ) : null}
     </Stack>
   );
 }
@@ -694,10 +711,10 @@ function PathList({
 function LibraryScreen() {
   const t = useFa();
   const [selected, setSelected] = useState<string | null>(null);
-  const { groupId, canManage, loading, error, refetch } = useLibraryGroup();
+  const { groupId, canManage, orgWide, loading, error, refetch } = useLibraryGroup();
   return (
     <QueryState loading={loading} error={error} retry={() => void refetch()}>
-      {!groupId ? (
+      {!orgWide && !groupId ? (
         <Stack>
           <PageHeader title={t('library')} />
           <EmptyState title={t('noGroupForLibrary')} />
@@ -705,7 +722,12 @@ function LibraryScreen() {
       ) : selected ? (
         <PathDetail pathId={selected} onBack={() => setSelected(null)} />
       ) : (
-        <PathList groupId={groupId} canManage={canManage} onOpen={setSelected} />
+        <PathList
+          groupId={groupId}
+          canManage={canManage}
+          orgWide={orgWide}
+          onOpen={setSelected}
+        />
       )}
     </QueryState>
   );

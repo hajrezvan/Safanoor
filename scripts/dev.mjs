@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * One-shot local development stack:
- *   Postgres (:55432) + API (:3001) + worker + UI (:3033)
+ *   Postgres (:55432) + MinIO (:9000) + API (:3001) + worker + UI (:3033)
  *
  * Usage (from repo root):
  *   npm run dev
@@ -11,6 +11,7 @@ import { existsSync } from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ensureMinio } from './ensure-minio.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PG_NAME = 'safanoor-postgres';
@@ -163,15 +164,19 @@ async function main() {
   await waitForPort(PG_PORT);
   log('postgres', `Ready on 127.0.0.1:${PG_PORT}`);
 
+  log('dev', 'Ensuring local MinIO…');
+  await ensureMinio();
+
   log('dev', 'Starting API, worker, and UI…');
   startLabeled('api', 'npm', ['run', 'start:dev'], { cwd: path.join(root, 'api'), color: '36' });
   startLabeled('worker', 'npm', ['run', 'worker'], { cwd: path.join(root, 'api'), color: '35' });
   startLabeled('ui', 'corepack', ['yarn', 'dev'], { cwd: path.join(root, 'ui'), color: '32' });
 
   console.log('');
-  log('dev', 'UI  → http://localhost:3033');
-  log('dev', 'API → http://localhost:3001  (docs: /api/docs)');
-  log('dev', 'Ctrl+C stops all processes.');
+  log('dev', 'UI    → http://localhost:3033');
+  log('dev', 'API   → http://localhost:3001  (docs: /api/docs)');
+  log('dev', 'MinIO → http://127.0.0.1:9000  (console: http://127.0.0.1:9001)');
+  log('dev', 'Ctrl+C stops all processes (MinIO/Postgres containers stay up).');
 }
 
 main().catch((error) => {

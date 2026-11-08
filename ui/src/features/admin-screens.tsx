@@ -927,7 +927,12 @@ export function AuditScreen() {
             { label: t('at'), render: (row) => formatDate(row.at, true) },
             { label: t('action'), render: (row) => codeText(row.action) },
             { label: t('resourceType'), render: (row) => codeText(row.resourceType) },
-            { label: t('actorId'), render: (row) => row.actorId?.slice(0, 8) },
+            {
+              label: t('actorId'),
+              render: (row) =>
+                row.actorName?.trim() ||
+                (row.actorId ? row.actorId.slice(0, 8) : '—'),
+            },
           ]}
         />
       </QueryState>

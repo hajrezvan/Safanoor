@@ -12,7 +12,9 @@ import {
   orgLevels,
   formatDate,
   loginSchema,
+  latinDigits,
   calendarDate,
+  persianDigits,
   personSchema,
   type PersonInput,
 } from '@safanoor/shared';
@@ -52,6 +54,7 @@ import {
 
 import { useSession } from './session';
 import { useWrite, BasicForm } from './shared';
+import { OpsHomeDashboard } from './ops-dashboard';
 import { MentorHomeDashboard } from './mentor-dashboard';
 
 export function LoginScreen() {
@@ -75,7 +78,9 @@ export function LoginScreen() {
           control={form.control}
           render={({ field, fieldState }) => (
             <Input
-              {...field}
+              name={field.name}
+              value={persianDigits(field.value ?? '')}
+              onChange={(event) => field.onChange(latinDigits(event.target.value))}
               label={t('phone')}
               type="tel"
               autoComplete="username"
@@ -97,9 +102,11 @@ export function LoginScreen() {
           )}
         />
         {mutation.feedback}
-        <Button type="submit" disabled={mutation.isPending}>
-          {t(mutation.isPending ? 'busy' : 'signIn')}
-        </Button>
+        <Row justifyContent="center">
+          <Button type="submit" disabled={mutation.isPending}>
+            {t(mutation.isPending ? 'busy' : 'signIn')}
+          </Button>
+        </Row>
       </Form>
     </AuthShell>
   );
@@ -107,10 +114,10 @@ export function LoginScreen() {
 export function HomeScreen() {
   const me = useSession();
   const t = useFa();
-  if (
-    me.person.orgLevel === 'mentor' ||
-    me.person.orgLevel === 'head_mentor'
-  ) {
+  if (me.activeRole?.kind === 'technical_manager') {
+    return <OpsHomeDashboard />;
+  }
+  if (me.person.orgLevel === 'mentor' || me.person.orgLevel === 'head_mentor') {
     return (
       <>
         {me.consentRequired && (
@@ -234,7 +241,10 @@ export function NotificationsScreen() {
               const mentorName = payloadString(note.payload, 'mentorName');
               const groupName = payloadString(note.payload, 'groupName');
               const pendingInvite =
-                note.type === 'assistant.invite' && inviteId && status !== 'accepted' && status !== 'rejected';
+                note.type === 'assistant.invite' &&
+                inviteId &&
+                status !== 'accepted' &&
+                status !== 'rejected';
               const title = notificationText(note.type, t);
               const detail =
                 note.type === 'assistant.invite' && (mentorName || groupName)
@@ -254,9 +264,7 @@ export function NotificationsScreen() {
                     <Row>
                       <Button
                         disabled={respond.isPending}
-                        onClick={() =>
-                          respond.mutate({ inviteId, decision: 'accepted' })
-                        }
+                        onClick={() => respond.mutate({ inviteId, decision: 'accepted' })}
                       >
                         {t('acceptInvite')}
                       </Button>
@@ -264,9 +272,7 @@ export function NotificationsScreen() {
                         color="error"
                         variant="text"
                         disabled={respond.isPending}
-                        onClick={() =>
-                          respond.mutate({ inviteId, decision: 'rejected' })
-                        }
+                        onClick={() => respond.mutate({ inviteId, decision: 'rejected' })}
                       >
                         {t('rejectInvite')}
                       </Button>
@@ -293,21 +299,32 @@ export function ProfileScreen() {
   const avatar = useWrite(async (file: File) => {
     const data = new FormData();
     data.append('file', file);
-    return unwrap(await client.POST('/api/v1/people/me/avatar', {
-      body: data as unknown as { file: string },
-      bodySerializer: (body) => body as unknown as FormData,
-    }));
+    return unwrap(
+      await client.POST('/api/v1/people/me/avatar', {
+        body: data as unknown as { file: string },
+        bodySerializer: (body) => body as unknown as FormData,
+      })
+    );
   });
   const uploadAvatar = (file: File) => {
     setAvatarError('');
-    if (file.size > 2 * 1024 * 1024) { setAvatarError(t('avatarTooLarge')); return; }
-    if (!['image/jpeg','image/png','image/webp'].includes(file.type)) { setAvatarError(t('avatarInvalidType')); return; }
+    if (file.size > 2 * 1024 * 1024) {
+      setAvatarError(t('avatarTooLarge'));
+      return;
+    }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setAvatarError(t('avatarInvalidType'));
+      return;
+    }
     avatar.mutate(file);
   };
   const change = useWrite(
-    async (value: Record<string, string>) => unwrap(await client.POST('/api/v1/auth/password', {
-      body: { currentPassword: value.currentPassword, newPassword: value.newPassword },
-    })),
+    async (value: Record<string, string>) =>
+      unwrap(
+        await client.POST('/api/v1/auth/password', {
+          body: { currentPassword: value.currentPassword, newPassword: value.newPassword },
+        })
+      ),
     () => router.replace('/auth/jwt/sign-in')
   );
   return (
@@ -321,28 +338,48 @@ export function ProfileScreen() {
               <Chip tone={me.person.verified ? 'success' : 'warning'}>
                 {t(me.person.verified ? 'verified' : 'unverified')}
               </Chip>
-              <Text muted variant="caption">{t('nationalIdMasked')}: {me.person.nationalIdMasked}</Text>
+              {!me.person.nationalId && (
+                <Text muted variant="caption">
+                  {t('nationalIdMasked')}: {me.person.nationalIdMasked}
+                </Text>
+              )}
             </Row>
             <PersonForm person={me.person} compact />
           </Stack>
         </CompactCard>
         <CompactCard>
           <Stack>
-            <ProfileAvatarEditor name={`${me.person.firstName} ${me.person.lastName}`} photoUrl={me.avatarUrl}
-              disabled={!me.canUploadAvatar} busy={avatar.isPending} onSelect={uploadAvatar} />
+            <ProfileAvatarEditor
+              name={`${me.person.firstName} ${me.person.lastName}`}
+              photoUrl={me.avatarUrl}
+              disabled={!me.canUploadAvatar}
+              busy={avatar.isPending}
+              onSelect={uploadAvatar}
+            />
             {avatarError && <Notice tone="error">{avatarError}</Notice>}
             {avatar.feedback}
             <Row>
-              <Button variant="text" icon="lock" onClick={() => setPasswordOpen(true)}>{t('changePassword')}</Button>
+              <Button variant="text" icon="lock" onClick={() => setPasswordOpen(true)}>
+                {t('changePassword')}
+              </Button>
             </Row>
           </Stack>
         </CompactCard>
       </ProfileColumns>
-      <Dialog open={passwordOpen} title={t('changePassword')} onClose={() => setPasswordOpen(false)}>
-        <BasicForm compact fields={[
-          { key: 'currentPassword', label: 'currentPassword', type: 'password' },
-          { key: 'newPassword', label: 'newPassword', type: 'password' },
-        ]} onSubmit={change.mutate} busy={change.isPending} />
+      <Dialog
+        open={passwordOpen}
+        title={t('changePassword')}
+        onClose={() => setPasswordOpen(false)}
+      >
+        <BasicForm
+          compact
+          fields={[
+            { key: 'currentPassword', label: 'currentPassword', type: 'password' },
+            { key: 'newPassword', label: 'newPassword', type: 'password' },
+          ]}
+          onSubmit={change.mutate}
+          busy={change.isPending}
+        />
         {change.feedback}
       </Dialog>
     </>
@@ -380,7 +417,7 @@ export function PersonForm({
           fatherName: person.fatherName ?? '',
           phone: person.phone ?? '',
           birthDate: person.birthDate ?? '',
-          nationalId: '',
+          nationalId: person.nationalId ?? '',
         }
       : {
           firstName: '',
@@ -399,6 +436,7 @@ export function PersonForm({
     ) as Partial<PersonInput>;
     if (person) {
       const { orgLevel: _level, groupId: _group, ...data } = submitted;
+      if (person.verified) delete data.nationalId;
       return unwrap(
         await client.PATCH('/api/v1/people/{id}', {
           params: { path: { id: person.id } },
@@ -437,6 +475,7 @@ export function PersonForm({
                 label={t(key)}
                 type={key === 'phone' ? 'tel' : 'text'}
                 error={fieldState.error?.message}
+                size={compact ? 'small' : 'medium'}
               />
             )}
           />
@@ -447,9 +486,15 @@ export function PersonForm({
           render={({ field, fieldState }) => (
             <Input
               {...field}
-              value={field.value ?? ''}
+              value={
+                person?.verified
+                  ? persianDigits(field.value ?? '')
+                  : (field.value ?? '')
+              }
               label={t('nationalId')}
               error={fieldState.error?.message}
+              readOnly={person?.verified}
+              size={compact ? 'small' : 'medium'}
             />
           )}
         />
@@ -464,6 +509,7 @@ export function PersonForm({
                 field.onChange(date && !Number.isNaN(date.valueOf()) ? calendarDate(date) : '')
               }
               error={fieldState.error?.message}
+              size={compact ? 'small' : 'medium'}
             />
           )}
         />

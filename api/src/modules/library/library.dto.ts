@@ -110,6 +110,7 @@ export class StudyPathItemDto {
 export class StudyPathSummaryDto {
   @ApiProperty() id!: string;
   @ApiProperty() groupId!: string;
+  @ApiPropertyOptional() groupName?: string;
   @ApiProperty() title!: string;
   @ApiPropertyOptional({ nullable: true, type: String })
   description!: string | null;

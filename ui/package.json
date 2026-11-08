@@ -66,6 +66,7 @@
     "openapi-fetch": "^0.14.0",
     "react": "19.1.10",
     "react-dom": "19.1.10",
+    "react-easy-crop": "^6.2.4",
     "react-hook-form": "^7.58.1",
     "react-i18next": "^15.4.1",
     "simplebar-react": "^3.3.0",

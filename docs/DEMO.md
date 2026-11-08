@@ -6,9 +6,9 @@
 docker compose run --rm -e NODE_ENV=development backend node dist/seed-demo.js
 ```
 
-بدون Docker: `npm --prefix api run seed:demo`. رمز همهٔ حساب‌های اولیه `SafanoorDemo#1405` است؛ این دستور رمزِ ویرایش‌شده را بازنشانی نمی‌کند.
+بدون Docker: `npm --prefix api run seed:demo`. رمز همهٔ حساب‌های اولیه `12345678` است؛ این دستور رمزِ ویرایش‌شده را بازنشانی نمی‌کند.
 
-سلسله‌مراتب واقعی صفا (۳۹ نفر، جدا از این جدول): `npm --prefix api run seed:hierarchy` — راهنما در [REAL_HIERARCHY_SEED.md](./REAL_HIERARCHY_SEED.md).
+سلسله‌مراتب واقعی صفا (۳۹ نفر، جدا از این جدول): `npm --prefix api run seed:hierarchy` — راهنما در [REAL_HIERARCHY_SEED.md](./REAL_HIERARCHY_SEED.md). محمدجواد رضوانیان (`+989120000012` / `09120000012`) علاوه بر مربی/کمک‌مربی، نقش **مدیر فنی** دارد؛ از فلش کنار نقش در سایدبار نقش فعال را عوض کنید تا دامنهٔ دسترسی جدا شود.
 
 | نقش | شمارهٔ ورود | آنچه می‌توان دید |
 |---|---|---|

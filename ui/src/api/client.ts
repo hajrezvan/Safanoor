@@ -90,6 +90,8 @@ export function unwrap<T>({
 }
 export const api = {
   me: async () => unwrap(await client.GET('/api/v1/people/me')),
+  setActiveRole: async (roleId: string) =>
+    unwrap(await client.POST('/api/v1/people/me/active-role', { body: { roleId } })),
   login: async (body: { login: string; password: string }) =>
     unwrap(await client.POST('/api/v1/auth/login', { body })),
   logout: async () => unwrap(await client.POST('/api/v1/auth/logout')),

@@ -1,11 +1,6 @@
 'use client';
 
-import type {
-  ReactNode,
-  MouseEvent,
-  KeyboardEvent,
-  ChangeEventHandler,
-} from 'react';
+import type { ReactNode, MouseEvent, KeyboardEvent, ChangeEventHandler } from 'react';
 import type { TextKey } from 'src/locales/fa';
 
 import Link from 'next/link';
@@ -42,10 +37,12 @@ import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
 import PhotoLibraryRounded from '@mui/icons-material/PhotoLibraryRounded';
 import NotificationsRounded from '@mui/icons-material/NotificationsRounded';
 import EventAvailableRounded from '@mui/icons-material/EventAvailableRounded';
+import KeyboardArrowDownRounded from '@mui/icons-material/KeyboardArrowDownRounded';
 import AccountBalanceWalletRounded from '@mui/icons-material/AccountBalanceWalletRounded';
 import {
   Box,
   Tab,
+  Menu,
   Paper,
   Alert,
   Table,
@@ -90,6 +87,8 @@ import { useMode } from 'src/theme/mode-context';
 import { makeTheme } from 'src/theme/safanoor-theme';
 
 import { Iconify } from 'src/components/iconify';
+
+import { AvatarCropPanel } from './avatar-crop';
 
 const DEFAULT_AVATAR_ICON = 'solar:user-rounded-bold';
 function AvatarFallbackIcon({ size }: { size: number }) {
@@ -378,7 +377,9 @@ export function BookCoverThumb({ src, alt }: { src: string; alt: string }) {
     <BookCoverPlaceholder role="img" aria-label={alt}>
       <Icon name="library" />
     </BookCoverPlaceholder>
-  ) : <BookCoverImage src={src} alt={alt} onError={() => setFailedSrc(src)} />;
+  ) : (
+    <BookCoverImage src={src} alt={alt} onError={() => setFailedSrc(src)} />
+  );
 }
 export const BookCoverButton = styled('button')(({ theme }) => ({
   appearance: 'none',
@@ -446,32 +447,28 @@ export const ClassPlaylist = styled('div')(({ theme }) => ({
   maxHeight: 560,
   overflow: 'auto',
 }));
-export const ClassPlaylistItem = styled('button')<{ $active?: boolean }>(
-  ({ theme, $active }) => ({
-    appearance: 'none',
-    border: `1px solid ${$active ? theme.palette.primary.main : theme.palette.divider}`,
-    backgroundColor: $active
-      ? theme.palette.action.selected
-      : theme.palette.background.paper,
-    borderRadius: tokens.radius.button,
-    padding: tokens.space.md,
-    textAlign: 'start',
-    cursor: 'pointer',
-    font: 'inherit',
-    color: 'inherit',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.space.xs,
-    minWidth: 0,
-    transition: `background-color ${tokens.motion.duration}ms, border-color ${tokens.motion.duration}ms`,
-    '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
-    '&:hover': { borderColor: theme.palette.primary.main },
-    '&:focus-visible': {
-      outline: `2px solid ${theme.palette.primary.main}`,
-      outlineOffset: 2,
-    },
-  }),
-);
+export const ClassPlaylistItem = styled('button')<{ $active?: boolean }>(({ theme, $active }) => ({
+  appearance: 'none',
+  border: `1px solid ${$active ? theme.palette.primary.main : theme.palette.divider}`,
+  backgroundColor: $active ? theme.palette.action.selected : theme.palette.background.paper,
+  borderRadius: tokens.radius.button,
+  padding: tokens.space.md,
+  textAlign: 'start',
+  cursor: 'pointer',
+  font: 'inherit',
+  color: 'inherit',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: tokens.space.xs,
+  minWidth: 0,
+  transition: `background-color ${tokens.motion.duration}ms, border-color ${tokens.motion.duration}ms`,
+  '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
+  '&:hover': { borderColor: theme.palette.primary.main },
+  '&:focus-visible': {
+    outline: `2px solid ${theme.palette.primary.main}`,
+    outlineOffset: 2,
+  },
+}));
 /** Dense consultation tiles: up to 5–6 per row on wide screens. */
 export const ConsultationCardsGrid = styled('div')(({ theme }) => ({
   display: 'grid',
@@ -560,11 +557,7 @@ export function PhotoThumb({
       <PhotoThumbImage src={src} alt={alt} loading="lazy" />
       {(title || subtitle) && (
         <PhotoThumbMeta>
-          {title && (
-            <Text variant="caption">
-              {title}
-            </Text>
-          )}
+          {title && <Text variant="caption">{title}</Text>}
           {subtitle && (
             <Text variant="caption" muted>
               {subtitle}
@@ -778,6 +771,8 @@ export function Input({
   placeholder,
   autoComplete,
   disabled = false,
+  readOnly = false,
+  size = 'medium',
   helperText,
   multiline = false,
 }: {
@@ -790,6 +785,8 @@ export function Input({
   placeholder?: string;
   autoComplete?: string;
   disabled?: boolean;
+  readOnly?: boolean;
+  size?: 'small' | 'medium';
   helperText?: string;
   multiline?: boolean;
 }) {
@@ -806,9 +803,23 @@ export function Input({
       placeholder={placeholder}
       autoComplete={autoComplete}
       disabled={disabled}
+      size={size}
       multiline={multiline}
       minRows={multiline ? 3 : undefined}
-      slotProps={{ htmlInput: { dir: type === 'tel' || type === 'password' ? 'ltr' : undefined } }}
+      sx={
+        type === 'tel'
+          ? {
+              // Theme uses tabular-nums globally; Persian phone digits look too wide with it.
+              '& .MuiInputBase-input': { letterSpacing: 0, fontVariantNumeric: 'normal' },
+            }
+          : undefined
+      }
+      slotProps={{
+        htmlInput: {
+          dir: type === 'tel' || type === 'password' ? 'ltr' : undefined,
+          readOnly,
+        },
+      }}
     />
   );
 }
@@ -883,27 +894,103 @@ export type AutocompleteOption = {
   photoUrl?: string;
   inputValue?: string;
 };
-export function ProfileAvatarEditor({ name, photoUrl, disabled, busy, onSelect }: {
-  name: string; photoUrl?: string; disabled: boolean; busy: boolean; onSelect: (file: File) => void;
+export function ProfileAvatarEditor({
+  name,
+  photoUrl,
+  disabled,
+  busy,
+  onSelect,
+}: {
+  name: string;
+  photoUrl?: string;
+  disabled: boolean;
+  busy: boolean;
+  onSelect: (file: File) => void;
 }) {
   const t = useFa();
   const input = useRef<HTMLInputElement>(null);
+  const compact = useCompactLayout();
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+
+  const closeCrop = () => {
+    setCropSrc((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  };
+
+  const cropActions = ({
+    disabled: cropDisabled,
+    confirmDisabled,
+    onConfirm,
+  }: {
+    disabled: boolean;
+    confirmDisabled: boolean;
+    onConfirm: () => void;
+  }) => (
+    <Row sx={{ justifyContent: 'flex-end', width: 1, gap: tokens.space.md }}>
+      <Button variant="text" disabled={cropDisabled} onClick={closeCrop}>
+        {t('cancel')}
+      </Button>
+      <Button disabled={confirmDisabled} onClick={onConfirm}>
+        {t(cropDisabled ? 'busy' : 'avatarCropConfirm')}
+      </Button>
+    </Row>
+  );
+
+  const cropPanel = cropSrc ? (
+    <AvatarCropPanel
+      imageSrc={cropSrc}
+      busy={busy}
+      actions={cropActions}
+      onConfirm={(file) => {
+        closeCrop();
+        onSelect(file);
+      }}
+    />
+  ) : null;
+
   return (
     <Stack>
       <Text variant="subtitle">{t('profilePhoto')}</Text>
       <Row>
         <ProfileAvatar name={name} photoUrl={photoUrl} size={tokens.layout.profileAvatar} />
-        <Button size="small" variant="outlined" icon="imports" disabled={disabled || busy} onClick={() => input.current?.click()}>
+        <Button
+          size="small"
+          variant="outlined"
+          icon="imports"
+          disabled={disabled || busy}
+          onClick={() => input.current?.click()}
+        >
           {t(busy ? 'busy' : photoUrl ? 'changeProfilePhoto' : 'uploadProfilePhoto')}
         </Button>
       </Row>
-      <input ref={input} hidden type="file" accept="image/jpeg,image/png,image/webp"
-        aria-label={t('uploadProfilePhoto')} disabled={disabled || busy}
+      <input
+        ref={input}
+        hidden
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        aria-label={t('uploadProfilePhoto')}
+        disabled={disabled || busy}
         onChange={(event) => {
           const file = event.target.files?.[0];
-          if (file) onSelect(file);
           event.target.value = '';
-        }} />
+          if (!file) return;
+          setCropSrc((prev) => {
+            if (prev) URL.revokeObjectURL(prev);
+            return URL.createObjectURL(file);
+          });
+        }}
+      />
+      {compact ? (
+        <BottomSheet open={!!cropSrc} title={t('avatarCropTitle')} onClose={closeCrop}>
+          {cropPanel}
+        </BottomSheet>
+      ) : (
+        <Dialog open={!!cropSrc} title={t('avatarCropTitle')} onClose={closeCrop}>
+          {cropPanel}
+        </Dialog>
+      )}
     </Stack>
   );
 }
@@ -955,8 +1042,7 @@ export function AutocompleteSelect({
 }) {
   const [inputValue, setInputValue] = useState('');
   const selected =
-    options.find((option) => option.value === value) ??
-    (value ? { value, label: value } : null);
+    options.find((option) => option.value === value) ?? (value ? { value, label: value } : null);
   return (
     <Autocomplete
       fullWidth
@@ -968,15 +1054,12 @@ export function AutocompleteSelect({
       inputValue={inputValue}
       filterOptions={(items, params) => {
         const filtered = defaultFilter(items, params);
-        const capped =
-          limit && limit > 0 ? filtered.slice(0, limit) : [...filtered];
+        const capped = limit && limit > 0 ? filtered.slice(0, limit) : [...filtered];
         const typed = params.inputValue.trim();
         if (
           freeSolo &&
           typed &&
-          !items.some(
-            (item) => item.label === typed || item.inputValue === typed,
-          ) &&
+          !items.some((item) => item.label === typed || item.inputValue === typed) &&
           !capped.some((item) => item.label === typed)
         ) {
           capped.push({
@@ -1048,11 +1131,7 @@ export function AutocompleteSelect({
               showAvatar && selected && !clearOnSelect ? (
                 <>
                   <InputAdornment position="start">
-                    <ProfileAvatar
-                      name={selected.label}
-                      photoUrl={selected.photoUrl}
-                      size={24}
-                    />
+                    <ProfileAvatar name={selected.label} photoUrl={selected.photoUrl} size={24} />
                   </InputAdornment>
                   {params.InputProps.startAdornment}
                 </>
@@ -1070,11 +1149,13 @@ export function JalaliInput({
   value,
   onChange,
   error,
+  size = 'medium',
 }: {
   label: string;
   value: Date | null;
   onChange: (date: Date | null) => void;
   error?: string;
+  size?: 'small' | 'medium';
 }) {
   return (
     <DatePicker
@@ -1082,7 +1163,10 @@ export function JalaliInput({
       value={value}
       onChange={onChange}
       format="yyyy/MM/dd"
-      slotProps={{ textField: { fullWidth: true, error: !!error, helperText: error } }}
+      formatDensity="dense"
+      slotProps={{
+        textField: { fullWidth: true, error: !!error, helperText: error, size },
+      }}
     />
   );
 }
@@ -1107,9 +1191,7 @@ export function Chip({
       variant="outlined"
       onDelete={onDelete}
       {...(avatar ? { avatar: avatar as never } : {})}
-      {...(href
-        ? { component: Link, href, clickable: true }
-        : {})}
+      {...(href ? { component: Link, href, clickable: true } : {})}
     />
   );
 }
@@ -1406,7 +1488,9 @@ const ReadingProgressTrack = styled(LinearProgress)({
 export function ReadingProgress({ value, label }: { value: number; label: string }) {
   return (
     <Stack>
-      <Text muted variant="caption">{label}</Text>
+      <Text muted variant="caption">
+        {label}
+      </Text>
       <ReadingProgressTrack variant="determinate" value={value} aria-label={label} />
     </Stack>
   );
@@ -1426,14 +1510,16 @@ export function PageHeader({
   return (
     <Spread>
       <HeaderCopy compact={compact}>
-        <Text variant={compact ? "subtitle" : "title"}>{title}</Text>
+        <Text variant={compact ? 'subtitle' : 'title'}>{title}</Text>
         {hint && <Text muted>{hint}</Text>}
       </HeaderCopy>
       {action}
     </Spread>
   );
 }
-const statCardInteractive = (theme: { palette: { action: { hover: string }; primary: { main: string } } }) => ({
+const statCardInteractive = (theme: {
+  palette: { action: { hover: string }; primary: { main: string } };
+}) => ({
   cursor: 'pointer',
   textDecoration: 'none',
   color: 'inherit',
@@ -1620,12 +1706,7 @@ export function QueryState({
   if (empty)
     return (
       <Card>
-        <EmptyState
-          title={emptyTitle}
-          hint={emptyHint}
-          icon={emptyIcon}
-          action={emptyAction}
-        />
+        <EmptyState title={emptyTitle} hint={emptyHint} icon={emptyIcon} action={emptyAction} />
       </Card>
     );
   return <>{children}</>;
@@ -1700,7 +1781,9 @@ export function Pagination({
   const t = useFa();
   return (
     <Spread>
-      {hideTotal ? <span /> : (
+      {hideTotal ? (
+        <span />
+      ) : (
         <Text muted>
           {t('total')}: {formatNumber(total)}
         </Text>
@@ -1868,9 +1951,7 @@ const Sidebar = styled('nav')(({ theme }) => ({
   padding: tokens.space.page,
   minHeight: 'calc(100dvh - 72px)',
   background:
-    theme.palette.mode === 'light'
-      ? tokens.palette.light.elevated
-      : tokens.palette.dark.elevated,
+    theme.palette.mode === 'light' ? tokens.palette.light.elevated : tokens.palette.dark.elevated,
   boxShadow: tokens.shadow[theme.palette.mode],
   borderInlineEnd: `1px solid ${theme.palette.divider}`,
   [theme.breakpoints.down('md')]: { display: 'none' },
@@ -1971,7 +2052,18 @@ const Bottom = styled(Paper)(({ theme }) => ({
   '& .MuiSvgIcon-root': { fontSize: 22 },
 }));
 export type NavItem = { key: TextKey; href: string; icon: IconName; visible?: boolean };
-export type ShellUser = { name: string; role: string; groupName?: string; photoUrl?: string };
+export type ShellRoleOption = { id: string; label: string };
+export type ShellUser = {
+  name: string;
+  role: string;
+  /** Prefers server `activeRole.label` (e.g. «صفا ۳۳ - مربی»). */
+  roleLabel?: string;
+  groupName?: string;
+  photoUrl?: string;
+  roles?: ShellRoleOption[];
+  activeRoleId?: string;
+};
+
 /** Desktop sidebar destinations for the member experience. */
 const memberNav: NavItem[] = [
   { href: '/', key: 'home', icon: 'home' },
@@ -2006,20 +2098,30 @@ export function Shell({
   nav = [],
   user,
   onLogout,
+  onRoleChange,
+  roleSwitchBusy = false,
 }: {
   children: ReactNode;
   admin?: boolean;
   nav?: NavItem[];
   user?: ShellUser;
   onLogout: () => void;
+  onRoleChange?: (roleId: string) => void;
+  roleSwitchBusy?: boolean;
 }) {
   const t = useFa();
   const path = usePathname();
+  const [roleMenu, setRoleMenu] = useState<null | HTMLElement>(null);
   const adminItems = nav.filter((item) => item.visible !== false);
   const items = [...memberNav, ...adminItems];
   const showBottom =
     !admin || bottomNav.some((item) => item.href !== '/' && navActive(path, item.href));
   const bottomValue = bottomNav.find((item) => navActive(path, item.href))?.href ?? false;
+  const roleLabel = user
+    ? (user.roleLabel ??
+      (user.groupName ? `${user.groupName} - ${t(user.role as TextKey)}` : t(user.role as TextKey)))
+    : '';
+  const canSwitchRole = !!user?.roles && user.roles.length > 1 && !!onRoleChange;
   return (
     <ShellRoot>
       <Header>
@@ -2050,12 +2152,47 @@ export function Shell({
               </Link>
               <SidebarUserMeta>
                 <Text variant="subtitle">{user.name}</Text>
-                <Text variant="caption" muted>
-                  {user.groupName
-                    ? `${t(user.role as TextKey)} · ${user.groupName}`
-                    : t(user.role as TextKey)}
-                </Text>
+                {canSwitchRole ? (
+                  <RoleSwitchButton
+                    type="button"
+                    aria-label={t('switchRole')}
+                    aria-haspopup="menu"
+                    aria-expanded={Boolean(roleMenu)}
+                    disabled={roleSwitchBusy}
+                    onClick={(event) => setRoleMenu(event.currentTarget)}
+                  >
+                    <Text variant="caption" muted>
+                      {roleLabel}
+                    </Text>
+                    <KeyboardArrowDownRounded fontSize="small" />
+                  </RoleSwitchButton>
+                ) : (
+                  <Text variant="caption" muted>
+                    {roleLabel}
+                  </Text>
+                )}
               </SidebarUserMeta>
+              <Menu
+                anchorEl={roleMenu}
+                open={Boolean(roleMenu)}
+                onClose={() => setRoleMenu(null)}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+              >
+                {(user.roles ?? []).map((role) => (
+                  <MenuItem
+                    key={role.id}
+                    selected={role.id === user.activeRoleId}
+                    disabled={roleSwitchBusy}
+                    onClick={() => {
+                      setRoleMenu(null);
+                      if (role.id !== user.activeRoleId) onRoleChange?.(role.id);
+                    }}
+                  >
+                    {role.label}
+                  </MenuItem>
+                ))}
+              </Menu>
             </SidebarUser>
           )}
           <SidebarLinks>
@@ -2094,6 +2231,22 @@ export function Shell({
     </ShellRoot>
   );
 }
+const RoleSwitchButton = styled('button')(({ theme }) => ({
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: tokens.space.xs,
+  margin: 0,
+  padding: `2px ${tokens.space.xs}px`,
+  border: 'none',
+  borderRadius: tokens.radius.input,
+  background: 'transparent',
+  color: theme.palette.text.secondary,
+  cursor: 'pointer',
+  minHeight: 44,
+  '&:disabled': { opacity: 0.6, cursor: 'default' },
+  '& .MuiSvgIcon-root': { fontSize: 18 },
+}));
 const AuthRoot = styled('main')(({ theme }) => ({
   minHeight: '100dvh',
   display: 'grid',
@@ -2110,6 +2263,8 @@ const AuthArtwork = styled(Stack)(({ theme }) => ({
   borderRadius: tokens.radius.dialog,
   padding: tokens.space.huge,
   justifyContent: 'center',
+  alignItems: 'center',
+  textAlign: 'center',
   background: theme.palette.background.paper,
   border: `1px solid ${theme.palette.divider}`,
   [theme.breakpoints.down('md')]: { minHeight: 'auto', padding: tokens.space.xl },
@@ -2126,7 +2281,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
         <Text variant="display">{t('tagline')}</Text>
         <Text muted>{t('dashboardHint')}</Text>
         <Rule />
-        <Row>
+        <Row justifyContent="center">
           <Icon name="lock" />
           <Text>{t('private')}</Text>
         </Row>
@@ -2541,7 +2696,13 @@ export function ChatThreadHeader({
         {lastActivity ? (
           <>
             <ChatHeaderMetaSep aria-hidden>
-              <Iconify icon="solar:alt-arrow-left-linear" width={14} height={14} className="" sx={{}} />
+              <Iconify
+                icon="solar:alt-arrow-left-linear"
+                width={14}
+                height={14}
+                className=""
+                sx={{}}
+              />
             </ChatHeaderMetaSep>
             <ChatHeaderMetaItem>
               <Iconify icon="solar:clock-circle-bold" width={16} height={16} className="" sx={{}} />
@@ -2590,9 +2751,7 @@ const Bubble = styled('div')<{ mine?: boolean }>(({ theme, mine }) => ({
       ? theme.palette.grey[100]
       : theme.palette.grey[800],
   color: theme.palette.text.primary,
-  border: `1px solid ${
-    mine ? theme.palette.primary.light : theme.palette.divider
-  }`,
+  border: `1px solid ${mine ? theme.palette.primary.light : theme.palette.divider}`,
   display: 'flex',
   flexDirection: 'column',
   gap: tokens.space.xs,
@@ -2669,3 +2828,4 @@ export const DesignLayout = styled('main')({
 });
 
 export { DonutChart, BarSeriesChart } from './charts';
+export { AvatarCropPanel, cropAvatarFile } from './avatar-crop';

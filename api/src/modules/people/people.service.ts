@@ -9,6 +9,13 @@ import { ageOn, normalizePersian, personSchema } from '@safanoor/shared';
 import { CryptoService } from '../../libs/security/crypto.service';
 import { one, pageOf, rows } from '../../libs/database/database.types';
 import { PaginationDto } from '../../libs/http/http.dto';
+import {
+  assertSelectableRole,
+  listAvailableRoles,
+  loadActorWithRole,
+  persistActiveRole,
+  resolveActiveRole,
+} from '../access/active-role';
 import { AccessService } from '../access/access.service';
 import { Actor } from '../access/access.types';
 import { AuditService } from '../audit/audit.service';
@@ -48,11 +55,43 @@ export class PeopleService {
       type: 'person',
       ownerId: actor.personId,
     });
-    const scope = `p.status='active' AND (p.id=$1 OR $2 OR EXISTS(SELECT 1 FROM membership m JOIN organization_group g ON g.id=m.group_id WHERE m.person_id=p.id AND m.role='member' AND m.valid_to IS NULL AND g.owner_person_id=$1) OR EXISTS(SELECT 1 FROM follow_up_assignment f WHERE f.member_person_id=p.id AND f.assistant_person_id=$1 AND f.to_date IS NULL) OR EXISTS(SELECT 1 FROM person_ancestors pa WHERE pa.person_id=p.id AND pa.ancestor_id=$1)) AND ($3='' OR p.search_name LIKE '%'||$3||'%')`;
+    const allowMentor =
+      !actor.activeRoleKind || actor.activeRoleKind === 'mentor';
+    const allowAssistant =
+      !actor.activeRoleKind || actor.activeRoleKind === 'assistant';
+    const allowSuperior =
+      !actor.activeRoleKind ||
+      actor.activeRoleKind === 'supervisor' ||
+      actor.activeRoleKind === 'head_mentor';
+    const activeGroup = actor.activeGroupId ?? null;
+    const scope = `p.status='active' AND (
+      p.id=$1
+      OR $2
+      OR ($4::boolean AND EXISTS(
+        SELECT 1 FROM membership m
+        JOIN organization_group g ON g.id=m.group_id
+        WHERE m.person_id=p.id AND m.role='member' AND m.valid_to IS NULL
+          AND g.owner_person_id=$1
+          AND ($7::uuid IS NULL OR g.id=$7::uuid)
+      ))
+      OR ($5::boolean AND EXISTS(
+        SELECT 1 FROM follow_up_assignment f
+        WHERE f.member_person_id=p.id AND f.assistant_person_id=$1 AND f.to_date IS NULL
+          AND ($7::uuid IS NULL OR f.group_id=$7::uuid)
+      ))
+      OR ($6::boolean AND EXISTS(
+        SELECT 1 FROM person_ancestors pa
+        WHERE pa.person_id=p.id AND pa.ancestor_id=$1
+      ))
+    ) AND ($3='' OR p.search_name LIKE '%'||$3||'%')`;
     const params = [
       actor.personId,
       actor.isAdmin,
       normalizePersian(query.search ?? ''),
+      allowMentor,
+      allowAssistant,
+      allowSuperior,
+      activeGroup,
     ];
     const count = await one<{ count: string }>(
       this.db,
@@ -61,7 +100,7 @@ export class PeopleService {
     );
     const ids = await rows<{ id: string }>(
       this.db,
-      `SELECT p.id FROM person p WHERE ${scope} ORDER BY p.first_name,p.last_name,p.id LIMIT $4 OFFSET $5`,
+      `SELECT p.id FROM person p WHERE ${scope} ORDER BY p.first_name,p.last_name,p.id LIMIT $8 OFFSET $9`,
       [...params, query.limit, (query.page - 1) * query.limit],
     );
     return pageOf(
@@ -326,8 +365,39 @@ export class PeopleService {
           [actor.userId],
         )
       : [];
+    const isAdmin = await this.rawIsAdmin(actor.userId);
+    const orgLevel = await this.rawOrgLevel(actor.personId);
+    const availableRoles = await listAvailableRoles(this.db, {
+      personId: actor.personId,
+      userId: actor.userId,
+      isAdmin,
+      orgLevel,
+    });
+    const activeRole =
+      availableRoles.find((role) => role.id === actor.activeRoleId) ??
+      resolveActiveRole(availableRoles, actor.activeRoleId, orgLevel);
+    const person = await this.get(actor, actor.personId);
+    const nationalIdRow = person.verified
+      ? await one<{ encrypted: string | null }>(
+          this.db,
+          'SELECT national_id_enc AS encrypted FROM person WHERE id=$1',
+          [actor.personId],
+        )
+      : undefined;
+    const nationalId = nationalIdRow?.encrypted
+      ? this.crypto.decrypt(nationalIdRow.encrypted, 'national-id')
+      : undefined;
     return {
-      person: await this.get(actor, actor.personId),
+      person: {
+        ...person,
+        ...(nationalId ? { nationalId } : {}),
+        orgLevel:
+          activeRole.kind === 'technical_manager'
+            ? 'technical_manager'
+            : activeRole.kind,
+        groupId: activeRole.groupId,
+        groupName: activeRole.groupName,
+      },
       isParent: actor.isParent,
       consentRequired: actor.consentRequired,
       capabilities: {
@@ -342,7 +412,62 @@ export class PeopleService {
       },
       children,
       moneyUnit: process.env.MONEY_UNIT ?? 'toman',
+      activeRole,
+      availableRoles,
     };
+  }
+
+  async setActiveRole(
+    actor: Actor,
+    sessionId: string,
+    roleId: string,
+  ): Promise<MeDto> {
+    const isAdmin = await this.rawIsAdmin(actor.userId);
+    const orgLevel = await this.rawOrgLevel(actor.personId);
+    await assertSelectableRole(
+      this.db,
+      {
+        personId: actor.personId,
+        userId: actor.userId,
+        isAdmin,
+        orgLevel,
+      },
+      roleId,
+    );
+    await persistActiveRole(this.db, sessionId, actor.userId, roleId);
+    const { actor: next } = await loadActorWithRole(
+      this.db,
+      {
+        userId: actor.userId,
+        personId: actor.personId,
+        isAdmin,
+        isParent: actor.isParent,
+        external: actor.external,
+        orgLevel,
+        status: actor.status,
+        consentRequired: actor.consentRequired,
+      },
+      roleId,
+    );
+    return this.me(next);
+  }
+
+  private async rawIsAdmin(userId: string): Promise<boolean> {
+    const row = await one<{ isAdmin: boolean }>(
+      this.db,
+      'SELECT is_admin AS "isAdmin" FROM app_user WHERE id=$1',
+      [userId],
+    );
+    return !!row?.isAdmin;
+  }
+
+  private async rawOrgLevel(personId: string): Promise<string> {
+    const row = await one<{ orgLevel: string }>(
+      this.db,
+      'SELECT org_level AS "orgLevel" FROM person WHERE id=$1',
+      [personId],
+    );
+    return row?.orgLevel ?? 'member';
   }
   async create(
     actor: Actor,
@@ -375,7 +500,9 @@ export class PeopleService {
           input.nationalId
             ? this.crypto.encrypt(input.nationalId, 'national-id')
             : null,
-          input.nationalId ? this.crypto.nationalIdHash(input.nationalId) : null,
+          input.nationalId
+            ? this.crypto.nationalIdHash(input.nationalId)
+            : null,
           input.phone,
           input.orgLevel,
           normalizePersian(`${input.firstName} ${input.lastName}`),
@@ -452,6 +579,11 @@ export class PeopleService {
           ),
         ],
       );
+      if (input.phone !== undefined)
+        await rows(manager, 'UPDATE app_user SET login=$2 WHERE person_id=$1', [
+          id,
+          input.phone,
+        ]);
       await this.audit.record(
         actor.personId,
         'person.identity_updated',

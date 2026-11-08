@@ -249,12 +249,17 @@ export async function seedHierarchy(db: DataSource): Promise<{
           normalizePersian(`${row.first} ${row.last}`),
         ],
       );
+      // محمدجواد رضوانیان (n=12) is the product owner / technical manager.
+      const isAdmin = row.n === 12;
       await rows(
         manager,
         `INSERT INTO app_user(id,person_id,login,password_hash,is_admin,is_parent)
-         VALUES($1,$2,$3,$4,false,false)
-         ON CONFLICT(person_id) DO UPDATE SET login=EXCLUDED.login`,
-        [hierarchyUserId(row.n), id, hierarchyPhone(row.n), password],
+         VALUES($1,$2,$3,$4,$5,false)
+         ON CONFLICT(person_id) DO UPDATE SET
+           login=EXCLUDED.login,
+           password_hash=EXCLUDED.password_hash,
+           is_admin=EXCLUDED.is_admin`,
+        [hierarchyUserId(row.n), id, hierarchyPhone(row.n), password, isAdmin],
       );
     }
 

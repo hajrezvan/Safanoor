@@ -30,7 +30,8 @@
     "seed:demo": "ts-node src/seed-demo.ts",
     "seed:hierarchy": "ts-node src/seed-hierarchy.ts",
     "seed:mustafa-demo": "node --env-file=.env scripts/seed-mustafa-demo.cjs",
-    "seed:hierarchy-demo": "ts-node src/seed-hierarchy-demo.ts"
+    "seed:hierarchy-demo": "ts-node src/seed-hierarchy-demo.ts",
+    "seed:demo-session": "ts-node src/seed-demo-session.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.900.0",

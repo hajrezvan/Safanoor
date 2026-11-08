@@ -8,6 +8,10 @@ import { JwtService } from '@nestjs/jwt';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { DataSource, EntityManager } from 'typeorm';
 import { one, rows } from '../../libs/database/database.types';
+import {
+  ActorIdentity,
+  loadActorWithRole,
+} from '../access/active-role';
 import { Actor } from '../access/access.types';
 import { AuditService } from '../audit/audit.service';
 import { AUTH_PROVIDER, AuthenticationProvider } from './password.provider';
@@ -51,14 +55,23 @@ export class AuthService implements OnModuleInit {
     userId: string,
     transaction: EntityManager,
     familyId: string = randomUUID(),
+    activeRoleId: string | null = null,
   ): Promise<TokenPair> {
     const id = randomUUID();
     const refreshToken = randomBytes(48).toString('base64url');
     const csrfToken = randomBytes(32).toString('base64url');
     await rows(
       transaction,
-      `INSERT INTO auth_session(id,user_id,family_id,refresh_hash,csrf_hash,expires_at) VALUES($1,$2,$3,$4,$5,now()+interval '30 days')`,
-      [id, userId, familyId, tokenHash(refreshToken), tokenHash(csrfToken)],
+      `INSERT INTO auth_session(id,user_id,family_id,refresh_hash,csrf_hash,expires_at,active_role_id)
+       VALUES($1,$2,$3,$4,$5,now()+interval '30 days',$6)`,
+      [
+        id,
+        userId,
+        familyId,
+        tokenHash(refreshToken),
+        tokenHash(csrfToken),
+        activeRoleId,
+      ],
     );
     const accessToken = await this.jwt.signAsync(
       { sub: userId, sid: id },
@@ -122,9 +135,11 @@ export class AuthService implements OnModuleInit {
   }
   async refresh(refreshToken: string): Promise<TokenPair> {
     const tokens = await this.db.transaction(async (transaction) => {
-      const session = await one<SessionRow>(
+      const session = await one<SessionRow & { activeRoleId: string | null }>(
         transaction,
-        `SELECT id,user_id AS "userId",family_id AS "familyId",revoked_at AS "revokedAt",expires_at AS "expiresAt" FROM auth_session WHERE refresh_hash=$1 FOR UPDATE`,
+        `SELECT id,user_id AS "userId",family_id AS "familyId",revoked_at AS "revokedAt",expires_at AS "expiresAt",
+                active_role_id AS "activeRoleId"
+         FROM auth_session WHERE refresh_hash=$1 FOR UPDATE`,
         [tokenHash(refreshToken)],
       );
       if (!session) return null;
@@ -146,6 +161,7 @@ export class AuthService implements OnModuleInit {
         session.userId,
         transaction,
         session.familyId,
+        session.activeRoleId,
       );
       await rows(
         transaction,
@@ -174,12 +190,20 @@ export class AuthService implements OnModuleInit {
     } catch {
       throw new UnauthorizedException();
     }
-    const actor = await one<Actor>(
+    const row = await one<ActorIdentity & { activeRoleId: string | null }>(
       this.db,
-      `SELECT u.id AS "userId",p.id AS "personId",u.is_admin AS "isAdmin",u.is_parent AS "isParent",p.org_level AS "orgLevel",p.status,p.external,p.consent_required AS "consentRequired" FROM auth_session s JOIN app_user u ON u.id=s.user_id JOIN person p ON p.id=u.person_id WHERE s.id=$1 AND s.user_id=$2 AND s.revoked_at IS NULL AND s.expires_at>now() AND p.status='active'`,
+      `SELECT u.id AS "userId",p.id AS "personId",u.is_admin AS "isAdmin",u.is_parent AS "isParent",
+              p.org_level AS "orgLevel",p.status,p.external,p.consent_required AS "consentRequired",
+              s.active_role_id AS "activeRoleId"
+       FROM auth_session s
+       JOIN app_user u ON u.id=s.user_id
+       JOIN person p ON p.id=u.person_id
+       WHERE s.id=$1 AND s.user_id=$2 AND s.revoked_at IS NULL AND s.expires_at>now() AND p.status='active'`,
       [payload.sid, payload.sub],
     );
-    if (!actor) throw new UnauthorizedException();
+    if (!row) throw new UnauthorizedException();
+    const { activeRoleId, ...identity } = row;
+    const { actor } = await loadActorWithRole(this.db, identity, activeRoleId);
     return { actor, sessionId: payload.sid };
   }
   async logout(actor: Actor, sessionId: string): Promise<void> {

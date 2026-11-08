@@ -30,6 +30,10 @@ import { StudyReading1792195200022 } from './migrations/1792195200022-StudyReadi
 import { MemberFinance1792195200023 } from './migrations/1792195200023-MemberFinance';
 
 import { Avatar1792195200024 } from './migrations/1792195200024-Avatar';
+import { StorageSettings1792195200025 } from './migrations/1792195200025-StorageSettings';
+import { ActiveRole1792195200026 } from './migrations/1792195200026-ActiveRole';
+import { TechManagerReadPolicies1792195200027 } from './migrations/1792195200027-TechManagerReadPolicies';
+import { RestrictSuperiorProfiles1792195200028 } from './migrations/1792195200028-RestrictSuperiorProfiles';
 
 config();
 export const databaseOptions = {
@@ -64,6 +68,10 @@ export const databaseOptions = {
     StudyReading1792195200022,
     MemberFinance1792195200023,
     Avatar1792195200024,
+    StorageSettings1792195200025,
+    ActiveRole1792195200026,
+    TechManagerReadPolicies1792195200027,
+    RestrictSuperiorProfiles1792195200028,
   ],
   logging: false,
   ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: true } : false,

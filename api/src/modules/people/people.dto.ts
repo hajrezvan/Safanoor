@@ -71,6 +71,11 @@ export class PersonDto {
   @ApiProperty() age!: number;
   @ApiProperty() availability!: string;
   @ApiProperty() nationalIdMasked!: string;
+  @ApiPropertyOptional({
+    description:
+      'Returned only to the verified person viewing their own profile',
+  })
+  nationalId?: string;
   @ApiPropertyOptional() fatherName?: string;
   @ApiPropertyOptional({ format: 'date' }) birthDate?: string;
   @ApiPropertyOptional() phone?: string;
@@ -143,6 +148,29 @@ export class AvatarStateDto {
   @ApiPropertyOptional() avatarUrl?: string;
   @ApiProperty() canUploadAvatar!: boolean;
 }
+export class ActiveRoleDto {
+  @ApiProperty() id!: string;
+  @ApiProperty({
+    enum: [
+      'technical_manager',
+      'supervisor',
+      'head_mentor',
+      'mentor',
+      'assistant',
+      'member',
+    ],
+  })
+  kind!: string;
+  @ApiPropertyOptional() groupId?: string;
+  @ApiPropertyOptional() groupName?: string;
+  @ApiProperty() label!: string;
+}
+export class SetActiveRoleDto {
+  @ApiProperty()
+  @IsString()
+  @Length(1, 120)
+  roleId!: string;
+}
 export class MeDto {
   @ApiPropertyOptional() avatarUrl?: string;
   @ApiPropertyOptional() canUploadAvatar?: boolean;
@@ -152,6 +180,8 @@ export class MeDto {
   @ApiProperty({ type: MeCapabilitiesDto }) capabilities!: MeCapabilitiesDto;
   @ApiProperty({ type: [ParentChildDto] }) children!: ParentChildDto[];
   @ApiProperty() moneyUnit!: string;
+  @ApiProperty({ type: ActiveRoleDto }) activeRole!: ActiveRoleDto;
+  @ApiProperty({ type: [ActiveRoleDto] }) availableRoles!: ActiveRoleDto[];
 }
 export class VerifyDto {
   @ApiProperty() @IsBoolean() verified!: boolean;

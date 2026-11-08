@@ -51,6 +51,14 @@ export type Action =
   | 'manage'
   | 'emergency'
   | 'print';
+export type ActiveRoleKind =
+  | 'technical_manager'
+  | 'supervisor'
+  | 'head_mentor'
+  | 'mentor'
+  | 'assistant'
+  | 'member';
+
 export interface Actor {
   userId: string;
   personId: string;
@@ -60,6 +68,12 @@ export interface Actor {
   orgLevel: string;
   status: string;
   consentRequired: boolean;
+  /** Selected role id (`mentor:<groupId>`, `technical_manager`, …). */
+  activeRoleId?: string | null;
+  /** When set, org powers and list scopes are isolated to this role. */
+  activeRoleKind?: ActiveRoleKind | null;
+  /** Group bound to the active membership/ownership role, if any. */
+  activeGroupId?: string | null;
 }
 export interface Resource {
   type: ResourceType;

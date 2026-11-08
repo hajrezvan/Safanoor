@@ -698,6 +698,112 @@
         ]
       }
     },
+    "/api/v1/people/me/active-role": {
+      "post": {
+        "operationId": "People_setActiveRole",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetActiveRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "people"
+        ]
+      }
+    },
     "/api/v1/people/me/avatar": {
       "post": {
         "operationId": "People_uploadAvatar",
@@ -4386,6 +4492,132 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StudyPathDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "library"
+        ]
+      }
+    },
+    "/api/v1/study-paths": {
+      "get": {
+        "operationId": "Library_listAll",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudyPathsPageDto"
                 }
               }
             }
@@ -11132,6 +11364,102 @@
         ]
       }
     },
+    "/api/v1/admin/ops-dashboard": {
+      "get": {
+        "operationId": "Admin_opsDashboard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsDashboardDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/audit": {
       "get": {
         "operationId": "Admin_audit",
@@ -12018,6 +12346,206 @@
           "admin"
         ]
       }
+    },
+    "/api/v1/admin/storage": {
+      "get": {
+        "operationId": "Admin_storage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageSettingsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "patch": {
+        "operationId": "Admin_updateStorage",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStorageSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageSettingsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
     }
   },
   "info": {
@@ -12201,6 +12729,10 @@
           "nationalIdMasked": {
             "type": "string"
           },
+          "nationalId": {
+            "type": "string",
+            "description": "Returned only to the verified person viewing their own profile"
+          },
           "fatherName": {
             "type": "string"
           },
@@ -12291,6 +12823,39 @@
           "name"
         ]
       },
+      "ActiveRoleDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "technical_manager",
+              "supervisor",
+              "head_mentor",
+              "mentor",
+              "assistant",
+              "member"
+            ]
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "groupName": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "label"
+        ]
+      },
       "MeDto": {
         "type": "object",
         "properties": {
@@ -12320,6 +12885,15 @@
           },
           "moneyUnit": {
             "type": "string"
+          },
+          "activeRole": {
+            "$ref": "#/components/schemas/ActiveRoleDto"
+          },
+          "availableRoles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActiveRoleDto"
+            }
           }
         },
         "required": [
@@ -12328,7 +12902,20 @@
           "consentRequired",
           "capabilities",
           "children",
-          "moneyUnit"
+          "moneyUnit",
+          "activeRole",
+          "availableRoles"
+        ]
+      },
+      "SetActiveRoleDto": {
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "roleId"
         ]
       },
       "AvatarStateDto": {
@@ -13633,6 +14220,9 @@
           "groupId": {
             "type": "string"
           },
+          "groupName": {
+            "type": "string"
+          },
           "title": {
             "type": "string"
           },
@@ -13801,6 +14391,9 @@
             "type": "string"
           },
           "groupId": {
+            "type": "string"
+          },
+          "groupName": {
             "type": "string"
           },
           "title": {
@@ -15938,6 +16531,177 @@
           "organizationReady"
         ]
       },
+      "OpsHealthDto": {
+        "type": "object",
+        "properties": {
+          "api": {
+            "type": "string"
+          },
+          "database": {
+            "type": "string"
+          },
+          "storageMode": {
+            "type": "string",
+            "enum": [
+              "local",
+              "remote"
+            ]
+          },
+          "storageDriver": {
+            "type": "string",
+            "enum": [
+              "s3",
+              "local"
+            ]
+          },
+          "storageHealthy": {
+            "type": "boolean"
+          },
+          "storageError": {
+            "type": "string"
+          },
+          "storageEndpoint": {
+            "type": "string"
+          },
+          "storageBucket": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "api",
+          "database",
+          "storageMode",
+          "storageDriver",
+          "storageHealthy",
+          "storageEndpoint",
+          "storageBucket"
+        ]
+      },
+      "OpsCampStatusCountDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "status",
+          "count"
+        ]
+      },
+      "OpsQueueCountDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "state",
+          "count"
+        ]
+      },
+      "OpsEventDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "resourceType": {
+            "type": "string"
+          },
+          "actorName": {
+            "type": "string",
+            "nullable": true
+          },
+          "at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "resourceType",
+          "at"
+        ]
+      },
+      "OpsDashboardDto": {
+        "type": "object",
+        "properties": {
+          "health": {
+            "$ref": "#/components/schemas/OpsHealthDto"
+          },
+          "peopleCount": {
+            "type": "number"
+          },
+          "groupCount": {
+            "type": "number"
+          },
+          "unreadNotifications": {
+            "type": "number"
+          },
+          "auditLast24h": {
+            "type": "number"
+          },
+          "openImports": {
+            "type": "number"
+          },
+          "lmsItemCount": {
+            "type": "number"
+          },
+          "fileCount": {
+            "type": "number"
+          },
+          "fileBytes": {
+            "type": "number"
+          },
+          "campsByStatus": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsCampStatusCountDto"
+            }
+          },
+          "jobQueues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsQueueCountDto"
+            }
+          },
+          "recentEvents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsEventDto"
+            }
+          }
+        },
+        "required": [
+          "health",
+          "peopleCount",
+          "groupCount",
+          "unreadNotifications",
+          "auditLast24h",
+          "openImports",
+          "lmsItemCount",
+          "fileCount",
+          "fileBytes",
+          "campsByStatus",
+          "jobQueues",
+          "recentEvents"
+        ]
+      },
       "AuditDto": {
         "type": "object",
         "properties": {
@@ -15947,6 +16711,11 @@
           "actorId": {
             "type": "string",
             "nullable": true
+          },
+          "actorName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Display name of the actor (safe metadata; not sensitive content)"
           },
           "action": {
             "type": "string"
@@ -15969,6 +16738,7 @@
         "required": [
           "id",
           "actorId",
+          "actorName",
           "action",
           "resourceType",
           "resourceId",
@@ -16203,6 +16973,93 @@
         "required": [
           "personId",
           "orgLevel"
+        ]
+      },
+      "StorageSettingsDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "local",
+              "remote"
+            ]
+          },
+          "driver": {
+            "type": "string",
+            "enum": [
+              "s3",
+              "local"
+            ]
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "publicEndpoint": {
+            "type": "string"
+          },
+          "bucket": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "accessKey": {
+            "type": "string"
+          },
+          "hasSecret": {
+            "type": "boolean"
+          },
+          "healthy": {
+            "type": "boolean"
+          },
+          "healthError": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "driver",
+          "endpoint",
+          "publicEndpoint",
+          "bucket",
+          "region",
+          "accessKey",
+          "hasSecret",
+          "healthy"
+        ]
+      },
+      "UpdateStorageSettingsDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "local",
+              "remote"
+            ]
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "publicEndpoint": {
+            "type": "string"
+          },
+          "bucket": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "accessKey": {
+            "type": "string"
+          },
+          "secretKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
         ]
       },
       "ErrorDto": {

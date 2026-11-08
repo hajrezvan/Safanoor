@@ -1,23 +1,19 @@
 import { Module } from '@nestjs/common';
 import { FilesController } from './files.controller';
-import {
-  EncryptedStorageAdapter,
-  LocalStorageAdapter,
-  S3StorageAdapter,
-  STORAGE,
-} from './storage';
+import { StorageRuntimeService } from './storage-runtime.service';
+import { STORAGE, SwitchingStorageAdapter } from './storage';
 
 @Module({
   controllers: [FilesController],
   providers: [
+    StorageRuntimeService,
     {
       provide: STORAGE,
-      useFactory: () =>
-        process.env.STORAGE_DRIVER === 's3'
-          ? new EncryptedStorageAdapter(new S3StorageAdapter())
-          : new LocalStorageAdapter(),
+      useFactory: (runtime: StorageRuntimeService) =>
+        new SwitchingStorageAdapter(() => runtime.current()),
+      inject: [StorageRuntimeService],
     },
   ],
-  exports: [STORAGE],
+  exports: [STORAGE, StorageRuntimeService],
 })
 export class FilesModule {}

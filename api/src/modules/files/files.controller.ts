@@ -22,10 +22,9 @@ import { AccessService } from '../access/access.service';
 import { Actor } from '../access/access.types';
 import { CurrentActor, Policy, Public } from '../access/policy.decorator';
 import {
-  EncryptedStorageAdapter,
-  LocalStorageAdapter,
   STORAGE,
   StorageAdapter,
+  SwitchingStorageAdapter,
 } from './storage';
 
 export class FileUrlDto {
@@ -50,10 +49,7 @@ export class FilesController {
     @Query() query: DownloadQueryDto,
     @Res() response: Response,
   ): Promise<void> {
-    if (
-      !(this.storage instanceof LocalStorageAdapter) &&
-      !(this.storage instanceof EncryptedStorageAdapter)
-    )
+    if (!(this.storage instanceof SwitchingStorageAdapter))
       throw new ForbiddenException();
     let signed: { key: string; actorId: string };
     try {

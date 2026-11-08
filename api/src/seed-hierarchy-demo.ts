@@ -1,17 +1,18 @@
 import 'dotenv/config';
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  writeFileSync,
-} from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { DataSource, EntityManager } from 'typeorm';
 import { normalizePersian } from '@safanoor/shared';
 import database from './libs/database/data-source';
 import { one, rows } from './libs/database/database.types';
+import { CryptoService } from './libs/security/crypto.service';
+import {
+  EncryptedStorageAdapter,
+  LocalStorageAdapter,
+  S3StorageAdapter,
+  StorageAdapter,
+} from './modules/files/storage';
 import {
   hierarchyGroupId,
   hierarchyPersonId,
@@ -30,8 +31,35 @@ const MIME: Record<string, string> = {
   '.webp': 'image/webp',
 };
 
+/** App storage: encrypted S3 when STORAGE_DRIVER=s3 (local MinIO/S3Proxy), else local disk. */
+let demoStorage: StorageAdapter | null = null;
+let s3ObjectsWritten = 0;
+
+function getDemoStorage(): StorageAdapter {
+  if (demoStorage) return demoStorage;
+  if (process.env.STORAGE_DRIVER === 's3') {
+    demoStorage = new EncryptedStorageAdapter(new S3StorageAdapter());
+  } else {
+    demoStorage = new LocalStorageAdapter();
+  }
+  return demoStorage;
+}
+
+async function putDemoObject(
+  key: string,
+  body: Buffer,
+  mime: string,
+): Promise<void> {
+  await getDemoStorage().put(key, body, mime);
+  if (process.env.STORAGE_DRIVER === 's3') s3ObjectsWritten += 1;
+}
+
 function daysAgo(days: number): Date {
   return new Date(Date.now() - days * 86400000);
+}
+
+function minutesAgo(minutes: number): Date {
+  return new Date(Date.now() - minutes * 60000);
 }
 
 function daysFromNow(days: number): Date {
@@ -102,28 +130,20 @@ async function seedFollowUps(manager: EntityManager): Promise<number> {
     [groupId],
   );
   if (!assistants.length || !members.length) return 0;
-  await rows(
-    manager,
-    `UPDATE follow_up_assignment SET to_date=now()
-     WHERE group_id=$1 AND to_date IS NULL`,
-    [groupId],
-  );
   let n = 0;
   for (const [index, member] of members.entries()) {
     const assistant = assistants[index % assistants.length]!;
     if (assistant.id === member.id) continue;
+    const id = hierarchyDemoId(100 + n);
     await rows(
       manager,
-      `INSERT INTO follow_up_assignment(id,member_person_id,assistant_person_id,group_id,from_date)
-       VALUES($1,$2,$3,$4,$5)
-       ON CONFLICT DO NOTHING`,
-      [
-        hierarchyDemoId(100 + n),
-        member.id,
-        assistant.id,
-        groupId,
-        daysAgo(30 + (n % 10)),
-      ],
+      `INSERT INTO follow_up_assignment(id,member_person_id,assistant_person_id,group_id,from_date,to_date)
+       VALUES($1,$2,$3,$4,$5,NULL)
+       ON CONFLICT(id) DO UPDATE SET
+         member_person_id=EXCLUDED.member_person_id,
+         assistant_person_id=EXCLUDED.assistant_person_id,
+         to_date=NULL`,
+      [id, member.id, assistant.id, groupId, daysAgo(30 + (n % 10))],
     );
     n += 1;
   }
@@ -143,19 +163,56 @@ async function seedFollowUps(manager: EntityManager): Promise<number> {
      ORDER BY m.person_id`,
     [g20],
   );
-  await rows(
-    manager,
-    `UPDATE follow_up_assignment SET to_date=now()
-     WHERE group_id=$1 AND to_date IS NULL`,
-    [g20],
-  );
+  // Presentation focus first: مصطفی بهبهانی follows up to 8 صفا ۲۰ members
+  // (unique partial index: one active follow-up per member).
+  const behbahani = hierarchyPersonId(3);
+  const behbahaniFocus = new Set<string>();
+  for (const [index, member] of m20.slice(0, 8).entries()) {
+    if (member.id === behbahani) continue;
+    behbahaniFocus.add(member.id);
+    await rows(
+      manager,
+      `UPDATE follow_up_assignment SET to_date=COALESCE(to_date,now())
+       WHERE member_person_id=$1 AND to_date IS NULL AND id<>$2`,
+      [member.id, hierarchyDemoId(190 + index)],
+    );
+    await rows(
+      manager,
+      `INSERT INTO follow_up_assignment(id,member_person_id,assistant_person_id,group_id,from_date,to_date)
+       VALUES($1,$2,$3,$4,$5,NULL)
+       ON CONFLICT(id) DO UPDATE SET
+         member_person_id=EXCLUDED.member_person_id,
+         assistant_person_id=EXCLUDED.assistant_person_id,
+         to_date=NULL`,
+      [
+        hierarchyDemoId(190 + index),
+        member.id,
+        behbahani,
+        g20,
+        daysAgo(7),
+      ],
+    );
+    n += 1;
+  }
+
   for (const [index, member] of m20.entries()) {
+    if (behbahaniFocus.has(member.id)) continue;
     const assistant = a20[index % Math.max(a20.length, 1)];
     if (!assistant || assistant.id === member.id) continue;
     await rows(
       manager,
-      `INSERT INTO follow_up_assignment(id,member_person_id,assistant_person_id,group_id,from_date)
-       VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`,
+      `UPDATE follow_up_assignment SET to_date=COALESCE(to_date,now())
+       WHERE member_person_id=$1 AND to_date IS NULL AND id<>$2`,
+      [member.id, hierarchyDemoId(180 + index)],
+    );
+    await rows(
+      manager,
+      `INSERT INTO follow_up_assignment(id,member_person_id,assistant_person_id,group_id,from_date,to_date)
+       VALUES($1,$2,$3,$4,$5,NULL)
+       ON CONFLICT(id) DO UPDATE SET
+         member_person_id=EXCLUDED.member_person_id,
+         assistant_person_id=EXCLUDED.assistant_person_id,
+         to_date=NULL`,
       [
         hierarchyDemoId(180 + index),
         member.id,
@@ -434,23 +491,20 @@ async function seedCampsAndFinance(manager: EntityManager): Promise<number> {
     [hierarchyDemoId(410), hierarchyDemoId(411), campId, starts],
   );
 
-  // Permit image reuses album file seeded later if present; create placeholder file now
+  // Permit image — store via app adapter (encrypted S3 in local demo).
   const permitFileId = hierarchyDemoId(420);
-  // LocalStorageAdapter only accepts UUID storage keys.
   const permitKey = hierarchyDemoId(4210);
-  const storageRoot = resolve(process.env.LOCAL_STORAGE_PATH ?? '.storage');
-  mkdirSync(storageRoot, { recursive: true });
-  const permitPath = join(storageRoot, permitKey);
   const sample = join(__dirname, '../seed-assets/album/06-logo.png');
-  if (existsSync(sample)) copyFileSync(sample, permitPath);
-  else writeFileSync(permitPath, Buffer.from('demo-permit'));
-  const permitSize = readFileSync(permitPath).length || 1;
+  const permitBody = existsSync(sample)
+    ? readFileSync(sample)
+    : Buffer.from('demo-permit-png-placeholder');
+  await putDemoObject(permitKey, permitBody, 'image/png');
   await rows(
     manager,
     `INSERT INTO file_record(id,kind,storage_key,size,mime_type,created_by)
      VALUES($1,'camp_permit',$2,$3,'image/png',$4)
      ON CONFLICT(id) DO UPDATE SET storage_key=EXCLUDED.storage_key, size=EXCLUDED.size`,
-    [permitFileId, permitKey, permitSize, mentorId],
+    [permitFileId, permitKey, permitBody.length || 1, mentorId],
   );
   await rows(
     manager,
@@ -560,9 +614,7 @@ async function seedFileFromBuffer(
 ): Promise<string> {
   const fileId = hierarchyDemoId(opts.id);
   const storageKey = hierarchyDemoId(opts.storageN);
-  const storageRoot = resolve(process.env.LOCAL_STORAGE_PATH ?? '.storage');
-  mkdirSync(storageRoot, { recursive: true });
-  writeFileSync(join(storageRoot, storageKey), opts.body);
+  await putDemoObject(storageKey, opts.body, opts.mime);
   await rows(
     manager,
     `INSERT INTO file_record(id,kind,storage_key,size,mime_type,created_by)
@@ -572,7 +624,7 @@ async function seedFileFromBuffer(
       fileId,
       opts.kind,
       storageKey,
-      opts.body.length,
+      Math.max(opts.body.length, 1),
       opts.mime,
       opts.createdBy,
     ],
@@ -1073,8 +1125,6 @@ async function seedAlbum(
   if (!existsSync(assetsDir)) {
     throw new Error(`Missing album assets at ${assetsDir}`);
   }
-  const storageRoot = resolve(process.env.LOCAL_STORAGE_PATH ?? '.storage');
-  mkdirSync(storageRoot, { recursive: true });
 
   const files = readdirSync(assetsDir)
     .filter((name) => MIME[extname(name).toLowerCase()])
@@ -1128,9 +1178,9 @@ async function seedAlbum(
     const mime = MIME[ext] ?? 'image/jpeg';
     const photoId = hierarchyDemoId(700 + i);
     const fileId = hierarchyDemoId(750 + i);
-    // Must be a UUID — LocalStorageAdapter rejects non-UUID keys.
+    // Must be a UUID — storage adapters reject non-UUID keys.
     const storageKey = hierarchyDemoId(7600 + i);
-    copyFileSync(full, join(storageRoot, storageKey));
+    await putDemoObject(storageKey, buf, mime);
     const slot = albumSlots[i] ?? {
       albumTitle: 'سایر برنامه‌ها',
       caption: `تصویر ${i + 1}`,
@@ -1143,7 +1193,7 @@ async function seedAlbum(
       `INSERT INTO file_record(id,kind,storage_key,size,mime_type,created_by)
        VALUES($1,'album_photo',$2,$3,$4,$5)
        ON CONFLICT(id) DO UPDATE SET storage_key=EXCLUDED.storage_key, size=EXCLUDED.size, mime_type=EXCLUDED.mime_type`,
-      [fileId, storageKey, buf.length, mime, mentorId],
+      [fileId, storageKey, Math.max(buf.length, 1), mime, mentorId],
     );
     await rows(
       manager,
@@ -1265,29 +1315,1364 @@ async function seedInvitesAndNotifications(
   );
 }
 
-async function seedAuditSamples(manager: EntityManager): Promise<void> {
-  const mentorId = hierarchyPersonId(37);
-  for (let i = 0; i < 8; i += 1) {
+/**
+ * Presentation audit feed for the five demo personas.
+ * Metadata only — no private notes, medical data, or national IDs in meta.
+ * Uses the same action / resource_type naming as AuditService.record callers.
+ */
+async function seedAuditSamples(manager: EntityManager): Promise<number> {
+  const mehdi = hierarchyPersonId(1); // مهدی رضوانیان
+  const goodarzi = hierarchyPersonId(37); // محمد گودرزی
+  const mj = hierarchyPersonId(12); // محمدجواد رضوانیان
+  const behbahani = hierarchyPersonId(3); // مصطفی بهبهانی
+  const seif = hierarchyPersonId(16); // مهدی سیف‌الهی
+
+  const samples: {
+    n: number;
+    actorId: string;
+    action: string;
+    resourceType: string;
+    resourceId: string | null;
+    at: Date;
+    meta?: Record<string, string | number | boolean | null>;
+  }[] = [
+    // Front-of-feed variety (last ~2h) so /admin/audit page 1 feels alive.
+    {
+      n: 0,
+      actorId: seif,
+      action: 'auth.login',
+      resourceType: 'person',
+      resourceId: seif,
+      at: minutesAgo(4),
+    },
+    {
+      n: 1,
+      actorId: goodarzi,
+      action: 'consultation.created',
+      resourceType: 'consultation',
+      resourceId: hierarchyDemoId(200),
+      at: minutesAgo(7),
+      meta: { kind: 'followup', memberCount: 1 },
+    },
+    {
+      n: 2,
+      actorId: behbahani,
+      action: 'attendance.marked',
+      resourceType: 'attendance',
+      resourceId: hierarchyDemoId(1861),
+      at: minutesAgo(11),
+      meta: { count: 8 },
+    },
+    {
+      n: 3,
+      actorId: seif,
+      action: 'rsvp.submitted',
+      resourceType: 'rsvp',
+      resourceId: hierarchyDemoId(1860),
+      at: minutesAgo(14),
+      meta: { status: 'yes' },
+    },
+    {
+      n: 4,
+      actorId: goodarzi,
+      action: 'finance.handover_confirmed',
+      resourceType: 'ledger_entry',
+      resourceId: hierarchyDemoId(1862),
+      at: minutesAgo(18),
+      meta: { status: 'confirmed' },
+    },
+    {
+      n: 5,
+      actorId: behbahani,
+      action: 'finance.handover_recorded',
+      resourceType: 'ledger_entry',
+      resourceId: hierarchyDemoId(1862),
+      at: minutesAgo(22),
+      meta: { status: 'in_transit' },
+    },
+    {
+      n: 6,
+      actorId: goodarzi,
+      action: 'lms.published',
+      resourceType: 'lms_item',
+      resourceId: hierarchyDemoId(510),
+      at: minutesAgo(26),
+    },
+    {
+      n: 7,
+      actorId: behbahani,
+      action: 'photo.tags_updated',
+      resourceType: 'photo',
+      resourceId: hierarchyDemoId(701),
+      at: minutesAgo(30),
+      meta: { count: 3 },
+    },
+    {
+      n: 8,
+      actorId: goodarzi,
+      action: 'message.sent',
+      resourceType: 'message',
+      resourceId: hierarchyDemoId(610),
+      at: minutesAgo(33),
+    },
+    {
+      n: 9,
+      actorId: seif,
+      action: 'message.sent',
+      resourceType: 'message',
+      resourceId: hierarchyDemoId(612),
+      at: minutesAgo(36),
+    },
+    {
+      n: 10,
+      actorId: mehdi,
+      action: 'consultation.created',
+      resourceType: 'consultation',
+      resourceId: hierarchyDemoId(1300),
+      at: minutesAgo(40),
+      meta: { kind: 'general', memberCount: 1 },
+    },
+    {
+      n: 11,
+      actorId: goodarzi,
+      action: 'camp.participant_invited',
+      resourceType: 'camp',
+      resourceId: hierarchyDemoId(400),
+      at: minutesAgo(45),
+      meta: { count: 12 },
+    },
+    {
+      n: 12,
+      actorId: seif,
+      action: 'camp.invite_accepted',
+      resourceType: 'camp',
+      resourceId: hierarchyDemoId(400),
+      at: minutesAgo(48),
+    },
+    {
+      n: 13,
+      actorId: mj,
+      action: 'auth.role_switched',
+      resourceType: 'session',
+      resourceId: null,
+      at: minutesAgo(52),
+      meta: { status: 'technical_manager' },
+    },
+    {
+      n: 14,
+      actorId: mj,
+      action: 'storage.local',
+      resourceType: 'admin',
+      resourceId: null,
+      at: minutesAgo(55),
+      meta: { status: 'ok' },
+    },
+    {
+      n: 15,
+      actorId: goodarzi,
+      action: 'grant.created',
+      resourceType: 'person_file',
+      resourceId: hierarchyDemoId(1101),
+      at: minutesAgo(60),
+    },
+    {
+      n: 16,
+      actorId: mehdi,
+      action: 'access.read',
+      resourceType: 'person_file',
+      resourceId: hierarchyDemoId(1100),
+      at: minutesAgo(65),
+      meta: { level: 'detail', reasonCode: 'referral' },
+    },
+    {
+      n: 17,
+      actorId: behbahani,
+      action: 'consultation.updated',
+      resourceType: 'consultation',
+      resourceId: hierarchyDemoId(201),
+      at: minutesAgo(70),
+    },
+    {
+      n: 18,
+      actorId: goodarzi,
+      action: 'camp.updated',
+      resourceType: 'camp',
+      resourceId: hierarchyDemoId(401),
+      at: minutesAgo(75),
+    },
+    {
+      n: 19,
+      actorId: behbahani,
+      action: 'photo.uploaded',
+      resourceType: 'photo',
+      resourceId: hierarchyDemoId(702),
+      at: minutesAgo(80),
+    },
+    {
+      n: 20,
+      actorId: mehdi,
+      action: 'meeting.updated',
+      resourceType: 'meeting',
+      resourceId: hierarchyDemoId(1330),
+      at: minutesAgo(85),
+    },
+    {
+      n: 21,
+      actorId: mj,
+      action: 'cost_item.created',
+      resourceType: 'program_event',
+      resourceId: hierarchyDemoId(1470),
+      at: minutesAgo(90),
+      meta: { amount: 2500000 },
+    },
+    {
+      n: 22,
+      actorId: goodarzi,
+      action: 'import.committed',
+      resourceType: 'import',
+      resourceId: hierarchyDemoId(1200 + 37 * 10),
+      at: minutesAgo(95),
+      meta: { count: 1 },
+    },
+    {
+      n: 23,
+      actorId: behbahani,
+      action: 'auth.login',
+      resourceType: 'person',
+      resourceId: behbahani,
+      at: minutesAgo(100),
+    },
+    {
+      n: 24,
+      actorId: mehdi,
+      action: 'auth.login',
+      resourceType: 'person',
+      resourceId: mehdi,
+      at: minutesAgo(105),
+    },
+    {
+      n: 25,
+      actorId: mj,
+      action: 'auth.login',
+      resourceType: 'person',
+      resourceId: mj,
+      at: minutesAgo(110),
+    },
+    {
+      n: 26,
+      actorId: goodarzi,
+      action: 'auth.login',
+      resourceType: 'person',
+      resourceId: goodarzi,
+      at: minutesAgo(115),
+    },
+    {
+      n: 27,
+      actorId: seif,
+      action: 'message.sent',
+      resourceType: 'message',
+      resourceId: hierarchyDemoId(611),
+      at: minutesAgo(120),
+    },
+    // Older depth for pagination
+    {
+      n: 28,
+      actorId: mehdi,
+      action: 'lms.published',
+      resourceType: 'lms_item',
+      resourceId: hierarchyDemoId(1510),
+      at: daysAgo(1),
+    },
+    {
+      n: 29,
+      actorId: goodarzi,
+      action: 'meeting.created',
+      resourceType: 'meeting',
+      resourceId: hierarchyDemoId(300),
+      at: daysAgo(2),
+      meta: { kind: 'workgroup' },
+    },
+    {
+      n: 30,
+      actorId: goodarzi,
+      action: 'camp.permit_uploaded',
+      resourceType: 'camp',
+      resourceId: hierarchyDemoId(400),
+      at: daysAgo(3),
+    },
+    {
+      n: 31,
+      actorId: goodarzi,
+      action: 'person.verified',
+      resourceType: 'person',
+      resourceId: hierarchyPersonId(6),
+      at: daysAgo(1),
+    },
+    {
+      n: 32,
+      actorId: mehdi,
+      action: 'grant.created',
+      resourceType: 'consultation_summary',
+      resourceId: hierarchyDemoId(1300),
+      at: daysAgo(2),
+    },
+    {
+      n: 33,
+      actorId: goodarzi,
+      action: 'assistant_invite.created',
+      resourceType: 'assistant_invite',
+      resourceId: hierarchyDemoId(800),
+      at: daysAgo(4),
+    },
+    {
+      n: 34,
+      actorId: mj,
+      action: 'retention.updated',
+      resourceType: 'admin',
+      resourceId: null,
+      at: daysAgo(5),
+      meta: { count: 30 },
+    },
+    {
+      n: 35,
+      actorId: goodarzi,
+      action: 'program_event.created',
+      resourceType: 'program_event',
+      resourceId: hierarchyDemoId(430),
+      at: daysAgo(5),
+      meta: { kind: 'camp' },
+    },
+    {
+      n: 36,
+      actorId: goodarzi,
+      action: 'camp.created',
+      resourceType: 'camp',
+      resourceId: hierarchyDemoId(400),
+      at: daysAgo(6),
+    },
+    {
+      n: 37,
+      actorId: behbahani,
+      action: 'assignment.changed',
+      resourceType: 'person',
+      resourceId: seif,
+      at: daysAgo(7),
+    },
+    {
+      n: 38,
+      actorId: seif,
+      action: 'consent.recorded',
+      resourceType: 'consent',
+      resourceId: seif,
+      at: daysAgo(8),
+      meta: { version: 1 },
+    },
+    {
+      n: 39,
+      actorId: seif,
+      action: 'auth.logout',
+      resourceType: 'person',
+      resourceId: seif,
+      at: daysAgo(2),
+    },
+    {
+      n: 40,
+      actorId: goodarzi,
+      action: 'study_path.item_added',
+      resourceType: 'study_path',
+      resourceId: hierarchyDemoId(520),
+      at: daysAgo(3),
+    },
+    {
+      n: 41,
+      actorId: mj,
+      action: 'account.provisioned',
+      resourceType: 'person',
+      resourceId: hierarchyPersonId(9),
+      at: daysAgo(11),
+    },
+    {
+      n: 42,
+      actorId: goodarzi,
+      action: 'group.finance_officer_assigned',
+      resourceType: 'group',
+      resourceId: hierarchyGroupId(27),
+      at: daysAgo(12),
+    },
+    {
+      n: 43,
+      actorId: mj,
+      action: 'qualification.changed',
+      resourceType: 'person',
+      resourceId: behbahani,
+      at: daysAgo(14),
+    },
+    {
+      n: 44,
+      actorId: goodarzi,
+      action: 'photo.uploaded',
+      resourceType: 'photo',
+      resourceId: hierarchyDemoId(700),
+      at: daysAgo(1),
+    },
+  ];
+
+  // Id band 1950+ (append-only audit_log — re-seed cannot rewrite earlier bands).
+  let n = 0;
+  for (const sample of samples) {
+    const meta = {
+      source: 'hierarchy-demo',
+      ...(sample.meta ?? {}),
+    };
+    const inserted = await rows<{ id: string }>(
+      manager,
+      `INSERT INTO audit_log(id,actor_id,action,resource_type,resource_id,at,meta)
+       VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(id) DO NOTHING RETURNING id`,
+      [
+        hierarchyDemoId(1950 + sample.n),
+        sample.actorId,
+        sample.action,
+        sample.resourceType,
+        sample.resourceId,
+        sample.at,
+        JSON.stringify(meta),
+      ],
+    );
+    if (inserted.length) n += 1;
+  }
+  return n;
+}
+
+/** Joint feel: participants from صفا ۲۰ join the north camp of صفا ۲۷. */
+async function seedJointCampParticipants(
+  manager: EntityManager,
+): Promise<number> {
+  const campId = hierarchyDemoId(400);
+  const g20 = hierarchyGroupId(20);
+  const members = await rows<{ id: string }>(
+    manager,
+    `SELECT m.person_id AS id FROM membership m
+     JOIN person p ON p.id=m.person_id
+     WHERE m.group_id=$1 AND m.role='member' AND m.valid_to IS NULL
+       AND p.org_level='member'
+     ORDER BY m.person_id LIMIT 8`,
+    [g20],
+  );
+  let n = 0;
+  for (const person of members) {
+    await rows(
+      manager,
+      `INSERT INTO camp_participant(camp_id,person_id,group_id,status)
+       VALUES($1,$2,$3,'confirmed') ON CONFLICT DO NOTHING`,
+      [campId, person.id, g20],
+    );
+    n += 1;
+  }
+  // Ensure target member مهدی سیف‌الهی is on both camps when in صفا ۲۰
+  const seif = hierarchyPersonId(16);
+  await rows(
+    manager,
+    `INSERT INTO camp_participant(camp_id,person_id,group_id,status)
+     VALUES($1,$2,$3,'confirmed') ON CONFLICT DO NOTHING`,
+    [campId, seif, g20],
+  );
+  await rows(
+    manager,
+    `INSERT INTO camp_participant(camp_id,person_id,group_id,status)
+     VALUES($1,$2,$3,'accepted') ON CONFLICT DO NOTHING`,
+    [hierarchyDemoId(401), seif, g20],
+  );
+  return n;
+}
+
+async function seedStudyReadings(manager: EntityManager): Promise<number> {
+  const readers = [
+    hierarchyPersonId(16), // سیف‌الهی
+    hierarchyPersonId(6),
+    hierarchyPersonId(3),
+    hierarchyPersonId(12),
+  ];
+  const items = [
+    hierarchyDemoId(510),
+    hierarchyDemoId(511),
+    hierarchyDemoId(521),
+    hierarchyDemoId(531),
+  ];
+  let n = 0;
+  for (const [i, personId] of readers.entries()) {
+    for (const [j, itemId] of items.entries()) {
+      const status =
+        j === 0 ? 'completed' : j === 1 ? 'reading' : 'completed';
+      if (j > 1 && i % 2 === 1) continue;
+      await rows(
+        manager,
+        `INSERT INTO study_path_reading(item_id,person_id,status)
+         VALUES($1,$2,$3)
+         ON CONFLICT(person_id,item_id) DO UPDATE SET status=EXCLUDED.status, updated_at=now()`,
+        [itemId, personId, j === 1 && i === 0 ? 'reading' : status],
+      );
+      n += 1;
+    }
+  }
+  return n;
+}
+
+async function seedGrants(manager: EntityManager): Promise<number> {
+  const mentor27 = hierarchyPersonId(37);
+  const mentor33 = hierarchyPersonId(12);
+  const supervisor = hierarchyPersonId(1);
+  const member = hierarchyPersonId(16);
+  const g20 = hierarchyGroupId(20);
+  const g27 = hierarchyGroupId(27);
+
+  const specs: {
+    n: number;
+    memberId: string;
+    ownerId: string;
+    granteeId: string;
+    groupId: string;
+    revoked: boolean;
+    reason: string;
+  }[] = [
+    {
+      n: 0,
+      memberId: member,
+      ownerId: supervisor,
+      granteeId: supervisor,
+      groupId: g20,
+      revoked: false,
+      reason: 'ارجاع آزمایشی پروندهٔ نیرو به ناظر برای بررسی',
+    },
+    {
+      n: 1,
+      memberId: hierarchyPersonId(6),
+      ownerId: mentor27,
+      granteeId: supervisor,
+      groupId: g27,
+      revoked: false,
+      reason: 'ارجاع نمایشی به ناظر صفا',
+    },
+    {
+      n: 2,
+      memberId: hierarchyPersonId(9),
+      ownerId: mentor27,
+      granteeId: supervisor,
+      groupId: g27,
+      revoked: true,
+      reason: 'ارجاع آزمایشی لغوشده',
+    },
+  ];
+
+  let n = 0;
+  for (const spec of specs) {
+    const resourceId = hierarchyDemoId(1100 + spec.n);
+    const grantId = hierarchyDemoId(1110 + spec.n);
+    await rows(
+      manager,
+      `INSERT INTO resource_registry(resource_type,resource_id,member_person_id,owner_person_id,owner_role,group_ids)
+       VALUES('person_file',$1,$2,$3,'mentor',$4) ON CONFLICT DO NOTHING`,
+      [resourceId, spec.memberId, spec.ownerId, [spec.groupId]],
+    );
+    await rows(
+      manager,
+      `INSERT INTO access_grant(id,resource_type,resource_id,member_person_id,grantee_person_id,
+       granted_by,granted_at,revoked_at,reason)
+       VALUES($1,'person_file',$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT(id) DO NOTHING`,
+      [
+        grantId,
+        resourceId,
+        spec.memberId,
+        spec.granteeId,
+        spec.ownerId,
+        daysAgo(5 + spec.n),
+        spec.revoked ? daysAgo(1) : null,
+        spec.reason,
+      ],
+    );
     await rows(
       manager,
       `INSERT INTO audit_log(id,actor_id,action,resource_type,resource_id,at,meta)
-       VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(id) DO NOTHING`,
+       VALUES($1,$2,'grant.created','person_file',$3,$4,$5) ON CONFLICT(id) DO NOTHING`,
       [
-        hierarchyDemoId(850 + i),
-        mentorId,
-        ['photo.uploaded', 'person.verified', 'access.read', 'camp.updated'][
-          i % 4
-        ],
-        ['photo', 'person', 'consultation', 'camp'][i % 4],
-        hierarchyDemoId(700 + (i % 5)),
-        daysAgo(i),
+        hierarchyDemoId(1120 + spec.n),
+        spec.ownerId,
+        resourceId,
+        daysAgo(5 + spec.n),
         JSON.stringify({ source: 'hierarchy-demo' }),
       ],
     );
+    n += 1;
   }
+
+  // Lightweight emergency access sample for mentor of صفا ۲۷
+  await rows(
+    manager,
+    `INSERT INTO emergency_access_log(id,person_id,accessed_by,reason_code,accessed_at)
+     VALUES($1,$2,$3,'camp_day',$4) ON CONFLICT(id) DO NOTHING`,
+    [hierarchyDemoId(1130), hierarchyPersonId(4), mentor27, daysAgo(2)],
+  );
+  void mentor33;
+  return n;
 }
 
-export async function seedHierarchyDemo(db: DataSource): Promise<{
+async function seedImportJobs(manager: EntityManager): Promise<number> {
+  const crypto = new CryptoService();
+  const owners: { personN: number; groupN: number }[] = [
+    { personN: 37, groupN: 27 },
+    { personN: 1, groupN: 20 },
+    { personN: 12, groupN: 33 },
+  ];
+  let n = 0;
+  for (const owner of owners) {
+    for (const [stage, status] of [
+      [0, 'completed'],
+      [1, 'ready'],
+      [2, 'invalid'],
+    ] as const) {
+      const id = hierarchyDemoId(1200 + owner.personN * 10 + stage);
+      const groupId = hierarchyGroupId(owner.groupN);
+      const createdBy = hierarchyPersonId(owner.personN);
+      const source = [
+        'firstName,lastName,fatherName,birthDate,nationalId,phone,group',
+        `نمونه,آزمایشی,محمد,1385/01/15,00${String(9000000 + owner.personN * 10 + stage).padStart(8, '0')},+9891999${String(owner.personN).padStart(4, '0')},${groupId}`,
+      ].join('\n');
+      const fileHash = createHash('sha256')
+        .update(`hierarchy-demo:${id}:${source}`)
+        .digest('hex');
+      const errorCount = status === 'invalid' ? 1 : 0;
+      const nationalId = `00${String(9000000 + owner.personN * 10 + stage).padStart(8, '0')}`;
+      const inserted = await rows<{ id: string }>(
+        manager,
+        `INSERT INTO import_job(id,created_by,group_id,file_hash,source_enc,format,status,row_count,valid_count,
+         error_count,created_at,updated_at,confirmed_at,completed_at)
+         VALUES($1,$2,$3,$4,$5,'csv',$6,1,$7,$8,$9,$9,$10,$10)
+         ON CONFLICT(id) DO NOTHING RETURNING id`,
+        [
+          id,
+          createdBy,
+          groupId,
+          fileHash,
+          status === 'completed'
+            ? null
+            : crypto.encrypt(
+                Buffer.from(source).toString('base64'),
+                'import-source',
+              ),
+          status,
+          1 - errorCount,
+          errorCount,
+          daysAgo(10 + stage),
+          status === 'completed' ? daysAgo(9 + stage) : null,
+        ],
+      );
+      if (!inserted.length) continue;
+      await rows(
+        manager,
+        `INSERT INTO import_row(job_id,row_number,data_enc,errors,person_id)
+         VALUES($1,1,$2,$3,NULL) ON CONFLICT DO NOTHING`,
+        [
+          id,
+          crypto.encrypt(
+            JSON.stringify({
+              firstName: 'نمونه',
+              lastName: 'آزمایشی',
+              fatherName: 'محمد',
+              birthDate: '2006-04-04',
+              nationalId,
+              phone: `+9891999${String(owner.personN).padStart(4, '0')}`,
+              group: groupId,
+            }),
+            'import-row',
+          ),
+          JSON.stringify(
+            status === 'invalid' ? ['کد ملی معتبر نیست.'] : [],
+          ),
+        ],
+      );
+      n += 1;
+    }
+  }
+  return n;
+}
+
+/** Extra activity for صفا ۲۰ (ناظر) and صفا ۳۳ (مربی) so those homes feel live. */
+async function seedSisterGroups(manager: EntityManager): Promise<{
+  consultations: number;
+  meetings: number;
+  camps: number;
+  threads: number;
+}> {
+  const g20 = hierarchyGroupId(20);
+  const g33 = hierarchyGroupId(33);
+  const owner20 = hierarchyPersonId(1);
+  const owner33 = hierarchyPersonId(12);
+  const seif = hierarchyPersonId(16);
+  const behbahani = hierarchyPersonId(3);
+
+  // Consultations in صفا ۲۰ including سیف‌الهی
+  const c20 = [
+    {
+      id: hierarchyDemoId(1300),
+      member: seif,
+      author: owner20,
+      summary:
+        'پیگیری وضعیت تحصیلی و حضور در برنامه‌های صفا ۲۰؛ خلاصه قابل‌مشاهده برای نیرو.',
+    },
+    {
+      id: hierarchyDemoId(1301),
+      member: hierarchyPersonId(6),
+      author: behbahani,
+      summary: 'گفت‌وگوی کوتاه دربارهٔ مطالعهٔ هفتگی و آمادگی اردو.',
+    },
+    {
+      id: hierarchyDemoId(1302),
+      member: seif,
+      author: behbahani,
+      summary: 'مرور مسئولیت‌های شخصی و هماهنگی با کمک‌مربی.',
+    },
+  ];
+  for (const [i, c] of c20.entries()) {
+    await rows(
+      manager,
+      `INSERT INTO consultation(id,group_id,author_id,held_at,kind,duration_minutes,place,shared_summary)
+       VALUES($1,$2,$3,$4,'in_person',$5,'مسجد جامع صفا',$6)
+       ON CONFLICT(id) DO UPDATE SET shared_summary=EXCLUDED.shared_summary`,
+      [c.id, g20, c.author, daysAgo(1 + i * 4), 25 + i * 5, c.summary],
+    );
+    await rows(
+      manager,
+      `INSERT INTO consultation_member(consultation_id,person_id) VALUES($1,$2)
+       ON CONFLICT DO NOTHING`,
+      [c.id, c.member],
+    );
+    if (i === 0) {
+      await rows(
+        manager,
+        `INSERT INTO consultation_private_note(id,consultation_id,author_id,body)
+         VALUES($1,$2,$3,$4)
+         ON CONFLICT(consultation_id) DO UPDATE SET body=EXCLUDED.body`,
+        [
+          hierarchyDemoId(1310),
+          c.id,
+          c.author,
+          'یادداشت خصوصی ناظر/مربی — نمایشی؛ برای سلسله‌مراتب بالاتر دیده نمی‌شود.',
+        ],
+      );
+    }
+  }
+
+  // صفا ۳۳ consultations
+  await rows(
+    manager,
+    `INSERT INTO consultation(id,group_id,author_id,held_at,kind,duration_minutes,shared_summary)
+     VALUES($1,$2,$3,$4,'phone',20,$5)
+     ON CONFLICT(id) DO UPDATE SET shared_summary=EXCLUDED.shared_summary`,
+    [
+      hierarchyDemoId(1320),
+      g33,
+      owner33,
+      daysAgo(3),
+      'هماهنگی برنامهٔ ماهانهٔ صفا ۳۳؛ خلاصه برای عضو قابل مشاهده است.',
+    ],
+  );
+  const m33 = await one<{ id: string }>(
+    manager,
+    `SELECT person_id AS id FROM membership
+     WHERE group_id=$1 AND role='member' AND valid_to IS NULL
+     ORDER BY person_id LIMIT 1`,
+    [g33],
+  );
+  if (m33) {
+    await rows(
+      manager,
+      `INSERT INTO consultation_member(consultation_id,person_id) VALUES($1,$2)
+       ON CONFLICT DO NOTHING`,
+      [hierarchyDemoId(1320), m33.id],
+    );
+  }
+
+  // Meetings
+  for (const [i, [gid, owner, title]] of [
+    [g20, owner20, 'هماهنگی هفتگی صفا ۲۰'],
+    [g33, owner33, 'برنامهٔ ماهانهٔ صفا ۳۳'],
+  ].entries()) {
+    const mid = hierarchyDemoId(1330 + i);
+    await rows(
+      manager,
+      `INSERT INTO meeting(id,group_id,held_at,kind,title,place,status,created_by,agenda,summary)
+       VALUES($1,$2,$3,'workgroup',$4,'سالن اجتماعات','approved',$5,$6,$7)
+       ON CONFLICT(id) DO UPDATE SET title=EXCLUDED.title, summary=EXCLUDED.summary`,
+      [
+        mid,
+        gid,
+        daysAgo(2 + i),
+        title,
+        owner,
+        '۱) گزارش\n۲) برنامه‌ها',
+        'صورت‌جلسهٔ آزمایشی برای داشبورد ارائه.',
+      ],
+    );
+    await rows(
+      manager,
+      `INSERT INTO meeting_attendee(meeting_id,person_id) VALUES($1,$2) ON CONFLICT DO NOTHING`,
+      [mid, owner],
+    );
+    if (gid === g20) {
+      await rows(
+        manager,
+        `INSERT INTO meeting_attendee(meeting_id,person_id) VALUES($1,$2) ON CONFLICT DO NOTHING`,
+        [mid, seif],
+      );
+    }
+  }
+
+  // Camp for صفا ۲۰ + finance event
+  const camp20 = hierarchyDemoId(1340);
+  await rows(
+    manager,
+    `INSERT INTO camp(
+       id,group_id,organizer_person_id,title,place,purpose,cost_amount,duration_text,
+       starts_on,ends_on,status,price_per_person,created_by
+     ) VALUES(
+       $1,$2,$3,'اردوی یک‌روزهٔ صفا ۲۰','حیاط مسجد','برنامهٔ سبک نمایشی',
+       3500000,'۱ روز',$4,$4,'registration',200000,$3
+     )
+     ON CONFLICT(id) DO UPDATE SET status=EXCLUDED.status, title=EXCLUDED.title`,
+    [camp20, g20, owner20, isoDate(daysFromNow(7))],
+  );
+  await rows(
+    manager,
+    `INSERT INTO camp_participant(camp_id,person_id,group_id,status)
+     VALUES($1,$2,$3,'confirmed') ON CONFLICT DO NOTHING`,
+    [camp20, seif, g20],
+  );
+  await rows(
+    manager,
+    `INSERT INTO camp_notice(camp_id,meeting_time,meeting_place,items_to_bring)
+     VALUES($1,$2,'درب مسجد','کفش مناسب، بطری آب')
+     ON CONFLICT(camp_id) DO UPDATE SET items_to_bring=EXCLUDED.items_to_bring`,
+    [camp20, daysFromNow(7)],
+  );
+  await rows(
+    manager,
+    `INSERT INTO program_event(
+       id,group_id,kind,title,camp_id,held_at,place,notes,created_by,total_amount,member_payment_amount
+     ) VALUES(
+       $1,$2,'camp','هزینهٔ اردوی صفا ۲۰',$3,$4,'حیاط مسجد','نمایشی',$5,3500000,200000
+     )
+     ON CONFLICT(id) DO UPDATE SET total_amount=EXCLUDED.total_amount`,
+    [hierarchyDemoId(1341), g20, camp20, daysFromNow(7), owner20],
+  );
+  await rows(
+    manager,
+    `INSERT INTO cost_item(id,owner_type,owner_id,title,amount,per_person,created_by)
+     VALUES($1,'program_event',$2,'پذیرایی',1500000,false,$3)
+     ON CONFLICT(id) DO UPDATE SET amount=EXCLUDED.amount`,
+    [hierarchyDemoId(1342), hierarchyDemoId(1341), owner20],
+  );
+
+  const camp33 = hierarchyDemoId(1350);
+  await rows(
+    manager,
+    `INSERT INTO camp(
+       id,group_id,organizer_person_id,title,place,purpose,cost_amount,duration_text,
+       starts_on,ends_on,status,price_per_person,created_by
+     ) VALUES(
+       $1,$2,$3,'اردوی مطالعاتی صفا ۳۳','کتابخانه','مرور مسیر مطالعاتی',
+       8000000,'۲ روز',$4,$5,'permit_ok',400000,$3
+     )
+     ON CONFLICT(id) DO UPDATE SET status=EXCLUDED.status`,
+    [
+      camp33,
+      g33,
+      owner33,
+      isoDate(daysFromNow(20)),
+      isoDate(daysFromNow(21)),
+    ],
+  );
+
+  // Chat for صفا ۲۰
+  let thread20 = await one<{ id: string }>(
+    manager,
+    "SELECT id FROM chat_thread WHERE group_id=$1 AND kind='group'",
+    [g20],
+  );
+  if (!thread20) {
+    thread20 = await one<{ id: string }>(
+      manager,
+      `INSERT INTO chat_thread(id,group_id,kind) VALUES($1,$2,'group') RETURNING id`,
+      [hierarchyDemoId(1360), g20],
+    );
+  }
+  if (thread20) {
+    await rows(
+      manager,
+      `INSERT INTO chat_thread_participant(thread_id,person_id)
+       SELECT $1, m.person_id FROM membership m
+       WHERE m.group_id=$2 AND m.valid_to IS NULL
+       ON CONFLICT DO NOTHING`,
+      [thread20.id, g20],
+    );
+    await rows(
+      manager,
+      `INSERT INTO chat_thread_participant(thread_id,person_id)
+       SELECT $1, g.owner_person_id FROM organization_group g WHERE g.id=$2
+       ON CONFLICT DO NOTHING`,
+      [thread20.id, g20],
+    );
+    const msgs = [
+      [owner20, 'سلام به گروه بیست؛ اطلاعیهٔ اردو را ببینید.'],
+      [seif, 'سلام؛ حضور دارم.'],
+      [behbahani, 'لیست پیگیری‌ها به‌روز شد.'],
+    ] as const;
+    for (const [i, [author, body]] of msgs.entries()) {
+      await rows(
+        manager,
+        `INSERT INTO chat_message(id,thread_id,author_id,body,created_at)
+         VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO UPDATE SET body=EXCLUDED.body`,
+        [
+          hierarchyDemoId(1370 + i),
+          thread20.id,
+          author,
+          body,
+          new Date(Date.now() - (3 - i) * 7200000),
+        ],
+      );
+    }
+  }
+
+  // Role-relevant notifications for the five presentation accounts
+  const five = [
+    hierarchyPersonId(1),
+    hierarchyPersonId(37),
+    hierarchyPersonId(12),
+    hierarchyPersonId(3),
+    hierarchyPersonId(16),
+  ];
+  for (const [i, personId] of five.entries()) {
+    for (const [j, type] of [
+      'camp.invitation',
+      'schedule.reminder',
+      'demo.session',
+    ].entries()) {
+      await rows(
+        manager,
+        `INSERT INTO notification(id,recipient_id,type,payload,created_at,read_at,dedupe_key)
+         VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING`,
+        [
+          hierarchyDemoId(1400 + i * 3 + j),
+          personId,
+          type,
+          JSON.stringify({
+            synthetic: true,
+            source: 'demo-session',
+            person: i,
+          }),
+          daysAgo(j),
+          j === 2 ? daysAgo(0) : null,
+          `demo-session:${personId}:${type}`,
+        ],
+      );
+      await rows(
+        manager,
+        `INSERT INTO notification_delivery(notification_id,status,delivered_at)
+         SELECT id,'delivered',created_at FROM notification WHERE id=$1
+         ON CONFLICT DO NOTHING`,
+        [hierarchyDemoId(1400 + i * 3 + j)],
+      );
+    }
+  }
+
+  return {
+    consultations: c20.length + 1,
+    meetings: 2,
+    camps: 2,
+    threads: thread20 ? 1 : 0,
+  };
+}
+
+/**
+ * Fill remaining UI-facing rows that exist in the live schema.
+ * Note: busy_block / rsvp / wallet / ledger / project / task tables are NOT
+ * migrated yet — finance UI uses program_event+cost_item; schedule UI is camps
+ * + camp_schedule_item + meetings only.
+ */
+async function seedUiFacingGaps(manager: EntityManager): Promise<{
+  campDetails: number;
+  avatars: number;
+  photoTags: number;
+  classes20: number;
+  finance33: number;
+  resolutions: number;
+  scenario: number;
+}> {
+  const five = [
+    hierarchyPersonId(1),
+    hierarchyPersonId(37),
+    hierarchyPersonId(12),
+    hierarchyPersonId(3),
+    hierarchyPersonId(16),
+  ];
+  const g20 = hierarchyGroupId(20);
+  const g33 = hierarchyGroupId(33);
+  const owner20 = hierarchyPersonId(1);
+  const owner33 = hierarchyPersonId(12);
+  const seif = hierarchyPersonId(16);
+  const mentor27 = hierarchyPersonId(37);
+
+  let campDetails = 0;
+
+  // --- Camp notices / schedules / permits / participants for thin camps ---
+  const campLocal = hierarchyDemoId(401);
+  await rows(
+    manager,
+    `INSERT INTO camp_notice(camp_id,meeting_time,meeting_place,items_to_bring)
+     VALUES($1,$2,'حیاط مسجد','لباس راحت، بطری آب')
+     ON CONFLICT(camp_id) DO UPDATE SET items_to_bring=EXCLUDED.items_to_bring`,
+    [campLocal, daysAgo(1)],
+  );
+  await rows(
+    manager,
+    `INSERT INTO camp_schedule_item(id,camp_id,day,start_time,end_time,title,sort_order)
+     VALUES
+       ($1,$3,$4,'09:00','10:30','افتتاحیه و معارفه',0),
+       ($2,$3,$4,'11:00','13:00','برنامهٔ گروهی',1)
+     ON CONFLICT(id) DO UPDATE SET title=EXCLUDED.title`,
+    [
+      hierarchyDemoId(1450),
+      hierarchyDemoId(1451),
+      campLocal,
+      isoDate(daysAgo(1)),
+    ],
+  );
+  campDetails += 3;
+
+  const camp20 = hierarchyDemoId(1340);
+  await rows(
+    manager,
+    `INSERT INTO camp_schedule_item(id,camp_id,day,start_time,end_time,title,sort_order)
+     VALUES($1,$2,$3,'08:30','12:00','برنامهٔ صبح صفا ۲۰',0)
+     ON CONFLICT(id) DO UPDATE SET title=EXCLUDED.title`,
+    [hierarchyDemoId(1452), camp20, isoDate(daysFromNow(7))],
+  );
+  // More صفا ۲۰ participants so camp screens aren't a single row
+  const more20 = await rows<{ id: string }>(
+    manager,
+    `SELECT m.person_id AS id FROM membership m
+     JOIN person p ON p.id=m.person_id
+     WHERE m.group_id=$1 AND m.role='member' AND m.valid_to IS NULL
+       AND p.org_level='member'
+     ORDER BY m.person_id LIMIT 6`,
+    [g20],
+  );
+  for (const person of more20) {
+    await rows(
+      manager,
+      `INSERT INTO camp_participant(camp_id,person_id,group_id,status)
+       VALUES($1,$2,$3,'confirmed') ON CONFLICT DO NOTHING`,
+      [camp20, person.id, g20],
+    );
+  }
+  campDetails += 1 + more20.length;
+
+  const camp33 = hierarchyDemoId(1350);
+  await rows(
+    manager,
+    `INSERT INTO camp_notice(camp_id,meeting_time,meeting_place,items_to_bring)
+     VALUES($1,$2,'کتابخانهٔ گروه','دفتر، خودکار، کتاب مسیر مطالعاتی')
+     ON CONFLICT(camp_id) DO UPDATE SET items_to_bring=EXCLUDED.items_to_bring`,
+    [camp33, daysFromNow(20)],
+  );
+  await rows(
+    manager,
+    `INSERT INTO camp_schedule_item(id,camp_id,day,start_time,end_time,title,sort_order)
+     VALUES
+       ($1,$3,$4,'09:00','11:00','جلسهٔ مطالعه',0),
+       ($2,$3,$5,'09:00','12:00','جمع‌بندی و ارائه',1)
+     ON CONFLICT(id) DO UPDATE SET title=EXCLUDED.title`,
+    [
+      hierarchyDemoId(1453),
+      hierarchyDemoId(1454),
+      camp33,
+      isoDate(daysFromNow(20)),
+      isoDate(daysFromNow(21)),
+    ],
+  );
+  const members33 = await rows<{ id: string }>(
+    manager,
+    `SELECT person_id AS id FROM membership
+     WHERE group_id=$1 AND role='member' AND valid_to IS NULL
+     ORDER BY person_id LIMIT 10`,
+    [g33],
+  );
+  for (const person of members33) {
+    await rows(
+      manager,
+      `INSERT INTO camp_participant(camp_id,person_id,group_id,status)
+       VALUES($1,$2,$3,'confirmed') ON CONFLICT DO NOTHING`,
+      [camp33, person.id, g33],
+    );
+  }
+  // Permit image for صفا ۳۳
+  const permit33File = await seedFileFromAlbumAsset(manager, {
+    id: 1460,
+    storageN: 8460,
+    assetName: '06-logo.png',
+    kind: 'camp_permit',
+    createdBy: owner33,
+  });
+  await rows(
+    manager,
+    `INSERT INTO camp_permit(id,camp_id,image_file_id,uploaded_by,status)
+     VALUES($1,$2,$3,$4,'obtained')
+     ON CONFLICT(camp_id) DO UPDATE SET status='obtained', image_file_id=EXCLUDED.image_file_id`,
+    [hierarchyDemoId(1461), camp33, permit33File, owner33],
+  );
+  campDetails += 3 + members33.length;
+
+  // --- Finance for صفا ۳۳ (mentor MJ dashboard /finance) ---
+  await rows(
+    manager,
+    `INSERT INTO program_event(
+       id,group_id,kind,title,camp_id,held_at,place,notes,created_by,total_amount,member_payment_amount
+     ) VALUES(
+       $1,$2,'camp','هزینهٔ اردوی مطالعاتی صفا ۳۳',$3,$4,'کتابخانه','نمایشی',$5,8000000,400000
+     )
+     ON CONFLICT(id) DO UPDATE SET total_amount=EXCLUDED.total_amount`,
+    [hierarchyDemoId(1470), g33, camp33, daysFromNow(20), owner33],
+  );
+  await rows(
+    manager,
+    `INSERT INTO cost_item(id,owner_type,owner_id,title,amount,per_person,created_by)
+     VALUES
+       ($1,'program_event',$3,'فضا و پذیرایی',3000000,false,$4),
+       ($2,'program_event',$3,'جزوه و کتاب',5000000,true,$4)
+     ON CONFLICT(id) DO UPDATE SET amount=EXCLUDED.amount`,
+    [
+      hierarchyDemoId(1471),
+      hierarchyDemoId(1472),
+      hierarchyDemoId(1470),
+      owner33,
+    ],
+  );
+  await rows(
+    manager,
+    `INSERT INTO program_event(
+       id,group_id,kind,title,held_at,place,notes,created_by,total_amount,member_payment_amount
+     ) VALUES(
+       $1,$2,'custom','خرید لوازم جلسه',$3,'سالن','چای و کاغذ',$4,950000,0
+     )
+     ON CONFLICT(id) DO UPDATE SET total_amount=EXCLUDED.total_amount`,
+    [hierarchyDemoId(1473), g33, daysAgo(4), owner33],
+  );
+  await rows(
+    manager,
+    `INSERT INTO cost_item(id,owner_type,owner_id,title,amount,per_person,created_by)
+     VALUES($1,'program_event',$2,'لوازم مصرفی',950000,false,$3)
+     ON CONFLICT(id) DO UPDATE SET amount=EXCLUDED.amount`,
+    [hierarchyDemoId(1474), hierarchyDemoId(1473), owner33],
+  );
+  const finance33 = 2;
+
+  // --- Avatars for the five presentation people ---
+  const avatarAssets = [
+    '01-activity.jpeg',
+    '02-gathering.jpeg',
+    '04-team.jpeg',
+    '07-studio.png',
+    '03-program.jpeg',
+  ];
+  let avatars = 0;
+  for (const [i, personId] of five.entries()) {
+    const fileId = await seedFileFromAlbumAsset(manager, {
+      id: 1480 + i,
+      storageN: 8480 + i,
+      assetName: avatarAssets[i]!,
+      kind: 'avatar',
+      createdBy: personId,
+    });
+    await rows(
+      manager,
+      `UPDATE person SET avatar_file_id=$2, updated_at=now()
+       WHERE id=$1 AND (avatar_file_id IS NULL OR avatar_file_id<>$2)`,
+      [personId, fileId],
+    );
+    avatars += 1;
+  }
+
+  // --- Tag the five (esp. سیف‌الهی) on album photos ---
+  const photos = await rows<{ id: string }>(
+    manager,
+    `SELECT id FROM photo WHERE host_group_id=ANY($1::uuid[])
+     ORDER BY created_at DESC LIMIT 8`,
+    [[hierarchyGroupId(27), g20]],
+  );
+  let photoTags = 0;
+  for (const [i, photo] of photos.entries()) {
+    const personId = five[i % five.length]!;
+    await rows(
+      manager,
+      `INSERT INTO photo_tag(photo_id,person_id,tagged_by) VALUES($1,$2,$3)
+       ON CONFLICT DO NOTHING`,
+      [photo.id, personId, mentor27],
+    );
+    // Prefer seif on first few photos for member «my photos»
+    if (i < 4) {
+      await rows(
+        manager,
+        `INSERT INTO photo_tag(photo_id,person_id,tagged_by) VALUES($1,$2,$3)
+         ON CONFLICT DO NOTHING`,
+        [photo.id, seif, mentor27],
+      );
+      photoTags += 1;
+    }
+    photoTags += 1;
+  }
+
+  // --- LMS / classes for صفا ۲۰ (member + supervisor group) ---
+  const audio = demoSilentWav();
+  const course20 = hierarchyDemoId(1490);
+  await rows(
+    manager,
+    `INSERT INTO course(id,title) VALUES($1,'همراهی هفتگی صفا ۲۰')
+     ON CONFLICT(id) DO UPDATE SET title=EXCLUDED.title`,
+    [course20],
+  );
+  const sessions20 = [
+    {
+      n: 0,
+      title: 'شروع مسیر همراهی',
+      summary: 'جلسهٔ آزمایشی برای نیروهای صفا ۲۰.',
+      asset: '09-course.webp',
+      days: 8,
+    },
+    {
+      n: 1,
+      title: 'برنامهٔ شخصی و حضور',
+      summary: 'مرور حضور در برنامه‌ها و هماهنگی با کمک‌مربی.',
+      asset: '10-course.webp',
+      days: 3,
+    },
+  ];
+  for (const cls of sessions20) {
+    const cover = await seedFileFromAlbumAsset(manager, {
+      id: 1491 + cls.n * 3,
+      storageN: 8491 + cls.n * 3,
+      assetName: cls.asset,
+      kind: 'lms_cover',
+      createdBy: owner20,
+    });
+    const audioFile = await seedFileFromBuffer(manager, {
+      id: 1492 + cls.n * 3,
+      storageN: 8492 + cls.n * 3,
+      kind: 'lms_audio',
+      mime: 'audio/wav',
+      body: audio,
+      createdBy: owner20,
+    });
+    const recordingId = hierarchyDemoId(1500 + cls.n);
+    await rows(
+      manager,
+      `INSERT INTO class_recording(id,group_id,title,speaker,summary,audio_file_id,cover_file_id,held_at,created_by)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       ON CONFLICT(id) DO UPDATE SET title=EXCLUDED.title, summary=EXCLUDED.summary,
+         audio_file_id=EXCLUDED.audio_file_id, cover_file_id=EXCLUDED.cover_file_id`,
+      [
+        recordingId,
+        g20,
+        cls.title,
+        'مهدی رضوانیان',
+        cls.summary,
+        audioFile,
+        cover,
+        daysAgo(cls.days),
+        owner20,
+      ],
+    );
+    await rows(
+      manager,
+      `INSERT INTO lms_item(id,recording_id,course_id,sort_order,published_at,published_by)
+       VALUES($1,$2,$3,$4,$5,$6)
+       ON CONFLICT(id) DO UPDATE SET published_at=EXCLUDED.published_at`,
+      [
+        hierarchyDemoId(1510 + cls.n),
+        recordingId,
+        course20,
+        cls.n,
+        daysAgo(cls.days),
+        owner20,
+      ],
+    );
+  }
+  const classes20 = sessions20.length;
+
+  // --- Resolutions visible to member / assistant ---
+  await rows(
+    manager,
+    `INSERT INTO resolution(id,meeting_id,body,assignee_id,due_date,sort_order)
+     VALUES($1,$2,$3,$4,$5,1)
+     ON CONFLICT(id) DO UPDATE SET body=EXCLUDED.body, assignee_id=EXCLUDED.assignee_id`,
+    [
+      hierarchyDemoId(1520),
+      hierarchyDemoId(1330),
+      'مرور برنامهٔ مطالعه و اعلام آمادگی اردو — نمونه',
+      seif,
+      isoDate(daysFromNow(5)),
+    ],
+  );
+  await rows(
+    manager,
+    `INSERT INTO resolution(id,meeting_id,body,assignee_id,due_date,sort_order)
+     VALUES($1,$2,$3,$4,$5,0)
+     ON CONFLICT(id) DO UPDATE SET body=EXCLUDED.body`,
+    [
+      hierarchyDemoId(1521),
+      hierarchyDemoId(1331),
+      'هماهنگی لیست شرکت‌کنندگان اردوی مطالعاتی',
+      owner33,
+      isoDate(daysFromNow(10)),
+    ],
+  );
+  const resolutions = 2;
+
+  // --- seed_scenario marker (worker RLS; keeps table non-empty for ops/admin) ---
+  const crypto = new CryptoService();
+  await rows(
+    manager,
+    `INSERT INTO seed_scenario(name,metadata,confidential_enc)
+     VALUES($1,$2,$3) ON CONFLICT(name) DO NOTHING`,
+    [
+      'hierarchy-demo-session',
+      JSON.stringify({
+        synthetic: true,
+        source: 'seed-demo-session',
+        people: five,
+        note: 'No busy_block/wallet/project tables in schema yet',
+      }),
+      crypto.encrypt(
+        JSON.stringify({ purpose: 'presentation-fixtures' }),
+        'seed-fixture',
+      ),
+    ],
+  );
+  const scenario = 1;
+
+  // parent_link stays empty: hierarchy roster has no under-18 people.
+  void g33;
+
+  return {
+    campDetails,
+    avatars,
+    photoTags,
+    classes20,
+    finance33,
+    resolutions,
+    scenario,
+  };
+}
+
+export type HierarchyDemoResult = {
   photos: number;
   consultations: number;
   meetings: number;
@@ -1296,9 +2681,27 @@ export async function seedHierarchyDemo(db: DataSource): Promise<{
   followUps: number;
   studyPaths: number;
   classes: number;
-}> {
+  readings: number;
+  grants: number;
+  imports: number;
+  jointParticipants: number;
+  avatars: number;
+  campDetails: number;
+  photoTags: number;
+  finance33: number;
+  s3Objects: number;
+  storageDriver: string;
+  schemaNote: string;
+};
+
+export async function seedHierarchyDemo(
+  db: DataSource,
+): Promise<HierarchyDemoResult> {
   if (process.env.NODE_ENV === 'production')
     throw new Error('Hierarchy demo seed is disabled in production');
+
+  s3ObjectsWritten = 0;
+  demoStorage = null;
 
   const existing = await one<{ count: string }>(
     db,
@@ -1320,22 +2723,40 @@ export async function seedHierarchyDemo(db: DataSource): Promise<{
     const consultations = await seedConsultations(manager);
     const meetings = await seedMeetings(manager);
     const camps = await seedCampsAndFinance(manager);
+    const jointParticipants = await seedJointCampParticipants(manager);
     const studyPaths = await seedStudyPaths(manager);
     const classes = await seedLmsClasses(manager);
+    const readings = await seedStudyReadings(manager);
     const threads = await seedCommunications(manager);
     const photos = await seedAlbum(manager, locations);
     await seedInvitesAndNotifications(manager);
     await seedAuditSamples(manager);
+    const grants = await seedGrants(manager);
+    const imports = await seedImportJobs(manager);
+    const sister = await seedSisterGroups(manager);
+    const gaps = await seedUiFacingGaps(manager);
 
     return {
       photos,
-      consultations,
-      meetings,
-      camps,
-      threads,
+      consultations: consultations + sister.consultations,
+      meetings: meetings + sister.meetings,
+      camps: camps + sister.camps,
+      threads: threads + sister.threads,
       followUps,
       studyPaths,
-      classes,
+      classes: classes + gaps.classes20,
+      readings,
+      grants,
+      imports,
+      jointParticipants,
+      avatars: gaps.avatars,
+      campDetails: gaps.campDetails,
+      photoTags: gaps.photoTags,
+      finance33: gaps.finance33,
+      s3Objects: s3ObjectsWritten,
+      storageDriver: process.env.STORAGE_DRIVER ?? 'local',
+      schemaNote:
+        'No busy_block/rsvp/wallet/ledger/project tables in migrations; finance=program_event+cost_item, schedule=camp_schedule_item+meetings',
     };
   });
 }
@@ -1353,6 +2774,18 @@ async function main(): Promise<void> {
     console.log(`  follow-ups: ${result.followUps}`);
     console.log(`  study paths: ${result.studyPaths}`);
     console.log(`  classes: ${result.classes}`);
+    console.log(`  readings: ${result.readings}`);
+    console.log(`  grants: ${result.grants}`);
+    console.log(`  import jobs: ${result.imports}`);
+    console.log(`  joint camp participants: ${result.jointParticipants}`);
+    console.log(`  avatars: ${result.avatars}`);
+    console.log(`  camp detail rows: ${result.campDetails}`);
+    console.log(`  photo tags added: ${result.photoTags}`);
+    console.log(`  finance destinations (صفا ۳۳): ${result.finance33}`);
+    console.log(`  schema: ${result.schemaNote}`);
+    console.log(
+      `  storage: ${result.storageDriver} (${result.s3Objects} objects written this run)`,
+    );
   } finally {
     await database.destroy();
   }

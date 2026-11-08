@@ -390,6 +390,27 @@ describe('Foundation with PostgreSQL', () => {
     for (const n of [1, 2, 4, 7, 31, 32])
       await call(n, 'get', `/people/${demoId(11)}`).expect(403);
   });
+  it('returns a verified national ID only on the owner self endpoint', async () => {
+    const unverified = await call(11, 'get', '/people/me').expect(200);
+    expect((unverified.body as MeDto).person.nationalId).toBeUndefined();
+    await db.query(
+      'UPDATE person SET verified_at=now(),verified_by=$2 WHERE id=$1',
+      [demoId(11), demoId(3)],
+    );
+    try {
+      const self = await call(11, 'get', '/people/me').expect(200);
+      expect((self.body as MeDto).person.nationalId).toBe(demoNationalId(11));
+      const mentor = await call(3, 'get', `/people/${demoId(11)}`).expect(200);
+      expect(
+        (mentor.body as Record<string, unknown>).nationalId,
+      ).toBeUndefined();
+    } finally {
+      await db.query(
+        'UPDATE person SET verified_at=NULL,verified_by=NULL WHERE id=$1',
+        [demoId(11)],
+      );
+    }
+  });
   it('restricts policy, audit, jobs, settings, groups and imports by capability', async () => {
     for (const path of [
       '/access/policies',
@@ -699,6 +720,24 @@ describe('Foundation with PostgreSQL', () => {
     await call(3, 'patch', `/people/${demoId(16)}`)
       .send({ fatherName: 'حسن آزمایشی' })
       .expect(200);
+    await call(11, 'patch', `/people/${demoId(11)}`)
+      .send({ phone: '۰۹۱۹۹۹۹۹۹۱۱' })
+      .expect(200);
+    expect(
+      await one<{ phone: string; login: string }>(
+        db,
+        `SELECT p.phone,u.login
+         FROM person p
+         JOIN app_user u ON u.person_id=p.id
+         WHERE p.id=$1`,
+        [demoId(11)],
+      ),
+    ).toEqual({ phone: '+989199999911', login: '+989199999911' });
+    await request(server())
+      .post('/api/v1/auth/login')
+      .set('x-client-type', 'native')
+      .send({ login: '09199999911', password: DEMO_PASSWORD })
+      .expect(200);
     expect(
       (
         await one<{ verified: boolean }>(
@@ -732,6 +771,7 @@ describe('Foundation with PostgreSQL', () => {
     expect(JSON.stringify(logs)).not.toContain('حسن');
   });
   it('creates people with Persian digits, provisions passwords and links parents by phone', async () => {
+    const provisionedPassword = 'SafanoorTest#1405';
     const id = demoNationalId(901).replace(
       /\d/g,
       (digit) => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)],
@@ -750,19 +790,19 @@ describe('Foundation with PostgreSQL', () => {
       .expect(200);
     const person = (created.body as { id: string }).id;
     await call(40, 'post', '/admin/accounts')
-      .send({ personId: person, password: DEMO_PASSWORD })
+      .send({ personId: person, password: provisionedPassword })
       .expect(200);
     await request(server())
       .post('/api/v1/auth/login')
       .set('x-client-type', 'native')
-      .send({ login: '+989129999991', password: DEMO_PASSWORD })
+      .send({ login: '+989129999991', password: provisionedPassword })
       .expect(200);
     await call(40, 'post', '/admin/parents')
       .send({
         firstName: 'والد',
         lastName: 'آزمایشی',
         phone: '+989129999992',
-        password: DEMO_PASSWORD,
+        password: provisionedPassword,
       })
       .expect(200);
     await call(4, 'post', '/admin/parent-links')
@@ -774,7 +814,7 @@ describe('Foundation with PostgreSQL', () => {
     const parent = await request(server())
       .post('/api/v1/auth/login')
       .set('x-client-type', 'native')
-      .send({ login: '+989129999992', password: DEMO_PASSWORD })
+      .send({ login: '+989129999992', password: provisionedPassword })
       .expect(200);
     const consent = await request(server())
       .get(`/api/v1/consent?personId=${person}`)

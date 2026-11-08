@@ -116,6 +116,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/people/me/active-role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["People_setActiveRole"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/people/me/avatar": {
         parameters: {
             query?: never;
@@ -478,6 +494,22 @@ export interface paths {
         get: operations["Library_list"];
         put?: never;
         post: operations["Library_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/study-paths": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["Library_listAll"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1172,6 +1204,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/ops-dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["Admin_opsDashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/audit": {
         parameters: {
             query?: never;
@@ -1300,6 +1348,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/storage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["Admin_storage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["Admin_updateStorage"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1349,6 +1413,8 @@ export interface components {
             age: number;
             availability: string;
             nationalIdMasked: string;
+            /** @description Returned only to the verified person viewing their own profile */
+            nationalId?: string;
             fatherName?: string;
             /** Format: date */
             birthDate?: string;
@@ -1372,6 +1438,14 @@ export interface components {
             id: string;
             name: string;
         };
+        ActiveRoleDto: {
+            id: string;
+            /** @enum {string} */
+            kind: "technical_manager" | "supervisor" | "head_mentor" | "mentor" | "assistant" | "member";
+            groupId?: string;
+            groupName?: string;
+            label: string;
+        };
         MeDto: {
             avatarUrl?: string;
             canUploadAvatar?: boolean;
@@ -1381,6 +1455,11 @@ export interface components {
             capabilities: components["schemas"]["MeCapabilitiesDto"];
             children: components["schemas"]["ParentChildDto"][];
             moneyUnit: string;
+            activeRole: components["schemas"]["ActiveRoleDto"];
+            availableRoles: components["schemas"]["ActiveRoleDto"][];
+        };
+        SetActiveRoleDto: {
+            roleId: string;
         };
         AvatarStateDto: {
             avatarUrl?: string;
@@ -1728,6 +1807,7 @@ export interface components {
         StudyPathSummaryDto: {
             id: string;
             groupId: string;
+            groupName?: string;
             title: string;
             description?: string | null;
             itemCount: number;
@@ -1771,6 +1851,7 @@ export interface components {
         StudyPathDetailDto: {
             id: string;
             groupId: string;
+            groupName?: string;
             title: string;
             description?: string | null;
             itemCount: number;
@@ -2323,9 +2404,53 @@ export interface components {
             supervisorCount: number;
             organizationReady: boolean;
         };
+        OpsHealthDto: {
+            api: string;
+            database: string;
+            /** @enum {string} */
+            storageMode: "local" | "remote";
+            /** @enum {string} */
+            storageDriver: "s3" | "local";
+            storageHealthy: boolean;
+            storageError?: string;
+            storageEndpoint: string;
+            storageBucket: string;
+        };
+        OpsCampStatusCountDto: {
+            status: string;
+            count: number;
+        };
+        OpsQueueCountDto: {
+            name: string;
+            state: string;
+            count: number;
+        };
+        OpsEventDto: {
+            id: string;
+            action: string;
+            resourceType: string;
+            actorName?: string | null;
+            at: string;
+        };
+        OpsDashboardDto: {
+            health: components["schemas"]["OpsHealthDto"];
+            peopleCount: number;
+            groupCount: number;
+            unreadNotifications: number;
+            auditLast24h: number;
+            openImports: number;
+            lmsItemCount: number;
+            fileCount: number;
+            fileBytes: number;
+            campsByStatus: components["schemas"]["OpsCampStatusCountDto"][];
+            jobQueues: components["schemas"]["OpsQueueCountDto"][];
+            recentEvents: components["schemas"]["OpsEventDto"][];
+        };
         AuditDto: {
             id: string;
             actorId: string | null;
+            /** @description Display name of the actor (safe metadata; not sensitive content) */
+            actorName: string | null;
             action: string;
             resourceType: string;
             resourceId: string | null;
@@ -2393,6 +2518,30 @@ export interface components {
             personId: string;
             /** @enum {string} */
             orgLevel: "member" | "assistant" | "mentor" | "head_mentor";
+        };
+        StorageSettingsDto: {
+            /** @enum {string} */
+            mode: "local" | "remote";
+            /** @enum {string} */
+            driver: "s3" | "local";
+            endpoint: string;
+            publicEndpoint: string;
+            bucket: string;
+            region: string;
+            accessKey: string;
+            hasSecret: boolean;
+            healthy: boolean;
+            healthError?: string;
+        };
+        UpdateStorageSettingsDto: {
+            /** @enum {string} */
+            mode: "local" | "remote";
+            endpoint?: string;
+            publicEndpoint?: string;
+            bucket?: string;
+            region?: string;
+            accessKey?: string;
+            secretKey?: string;
         };
         ErrorDto: {
             code: string;
@@ -2925,6 +3074,92 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeDto"];
+                };
+            };
+            /** @description Standard API error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    People_setActiveRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetActiveRoleDto"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -5780,6 +6015,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StudyPathDetailDto"];
+                };
+            };
+            /** @description Standard API error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    Library_listAll: {
+        parameters: {
+            query?: {
+                page?: number;
+                limit?: number;
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudyPathsPageDto"];
                 };
             };
             /** @description Standard API error */
@@ -10927,6 +11248,88 @@ export interface operations {
             };
         };
     };
+    Admin_opsDashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpsDashboardDto"];
+                };
+            };
+            /** @description Standard API error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
     Admin_audit: {
         parameters: {
             query?: {
@@ -11546,6 +11949,174 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SuccessDto"];
+                };
+            };
+            /** @description Standard API error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    Admin_storage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageSettingsDto"];
+                };
+            };
+            /** @description Standard API error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    Admin_updateStorage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateStorageSettingsDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageSettingsDto"];
                 };
             };
             /** @description Standard API error */

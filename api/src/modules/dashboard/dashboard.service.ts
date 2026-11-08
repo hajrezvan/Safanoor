@@ -27,9 +27,17 @@ export class DashboardService {
       this.db,
       `SELECT id,name FROM organization_group
        WHERE owner_person_id=$1
+         AND ($2::uuid IS NULL OR id=$2::uuid)
        ORDER BY name,id`,
-      [actor.personId],
+      [
+        actor.personId,
+        actor.activeRoleKind === 'mentor' ? (actor.activeGroupId ?? null) : null,
+      ],
     );
+    // Hard isolation: mentor dashboard only when acting as mentor of a group.
+    if (actor.activeRoleKind && actor.activeRoleKind !== 'mentor') {
+      return emptyDashboard(null);
+    }
     const groupIds = owned.map((g) => g.id);
     const primary = owned[0] ?? null;
 

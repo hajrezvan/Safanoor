@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 
 const baseURL = process.env.SAFANOOR_URL ?? 'http://localhost:8080';
-const password = process.env.SAFANOOR_DEMO_PASSWORD ?? 'SafanoorDemo#1405';
+const password = process.env.SAFANOOR_DEMO_PASSWORD ?? '12345678';
 const root = process.cwd();
 const outputDir = path.join(root, 'docs', 'videos');
 const rawDir = path.join(outputDir, '.raw');
