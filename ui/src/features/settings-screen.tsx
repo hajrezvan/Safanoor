@@ -1,19 +1,18 @@
 'use client';
 
-import type { TextKey } from 'src/locales/fa';
-
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
+import { formatNumber } from '@safanoor/shared';
 import { useQuery } from '@tanstack/react-query';
-import { consentItems, formatNumber, requiredConsentItems } from '@safanoor/shared';
 
 import { codeText } from 'src/locales/fa';
 import { client, unwrap } from 'src/api/client';
 import { useFa } from 'src/locales/fa-provider';
 
 import {
-  Card,
   Row,
+  Card,
   Text,
+  Chip,
   Input,
   Stack,
   Button,
@@ -37,13 +36,27 @@ type StorageForm = {
   secretKey: string;
 };
 
+function toRemoteStorageForm(data: {
+  endpoint: string;
+  publicEndpoint: string;
+  bucket: string;
+  region?: string | null;
+  accessKey: string;
+}): StorageForm {
+  return {
+    endpoint: data.endpoint,
+    publicEndpoint: data.publicEndpoint,
+    bucket: data.bucket,
+    region: data.region || 'us-east-1',
+    accessKey: data.accessKey,
+    secretKey: '',
+  };
+}
+
 export function SettingsScreen() {
   const me = useSession();
   const t = useFa();
   const [editing, setEditing] = useState<{ dataType: string; keepDays: number; action: string }>();
-  const [publishing, setPublishing] = useState(false);
-  const [title, setTitle] = useState('');
-  const [texts, setTexts] = useState<Record<string, string>>({});
   const [storageForm, setStorageForm] = useState<StorageForm>({
     endpoint: '',
     publicEndpoint: '',
@@ -65,18 +78,6 @@ export function SettingsScreen() {
     enabled: me.capabilities.manageSettings,
     queryFn: async () => unwrap(await client.GET('/api/v1/admin/storage')),
   });
-  const applyStorageForm = (data: NonNullable<typeof storage.data>) => {
-    if (data.mode === 'remote') {
-      setStorageForm({
-        endpoint: data.endpoint,
-        publicEndpoint: data.publicEndpoint,
-        bucket: data.bucket,
-        region: data.region || 'us-east-1',
-        accessKey: data.accessKey,
-        secretKey: '',
-      });
-    }
-  };
   const save = useWrite(
     async (values: Record<string, string>) =>
       unwrap(
@@ -89,22 +90,6 @@ export function SettingsScreen() {
         })
       ),
     () => setEditing(undefined)
-  );
-  const publish = useWrite(
-    async () =>
-      unwrap(
-        await client.POST('/api/v1/consent/versions', {
-          body: {
-            title,
-            items: consentItems.map((key) => ({
-              key,
-              text: texts[key] ?? '',
-              required: requiredConsentItems.includes(key),
-            })),
-          },
-        })
-      ),
-    () => setPublishing(false)
   );
   const saveRemoteStorage = useWrite(
     async () =>
@@ -121,7 +106,13 @@ export function SettingsScreen() {
           },
         })
       ),
-    () => void storage.refetch().then((result) => result.data && applyStorageForm(result.data))
+    () =>
+      void storage
+        .refetch()
+        .then(
+          (result) =>
+            result.data?.mode === 'remote' && setStorageForm(toRemoteStorageForm(result.data))
+        )
   );
   const useLocalStorage = useWrite(
     async () =>
@@ -133,14 +124,28 @@ export function SettingsScreen() {
     () => void storage.refetch()
   );
   useEffect(() => {
-    if (storage.data?.mode === 'remote') applyStorageForm(storage.data);
+    if (storage.data?.mode === 'remote') setStorageForm(toRemoteStorageForm(storage.data));
   }, [storage.data]);
   return (
     <Permission allowed={me.capabilities.manageSettings}>
       <PageHeader title={t('settings')} />
       <Card>
         <Stack sx={{ gap: 1.5 }}>
-          <PageHeader title={t('storageSettings')} hint={t('storageSettingsHint')} />
+          <Stack sx={{ gap: 0.5 }}>
+            <Row sx={{ gap: 1 }}>
+              <Text variant="subtitle">{t('storageSettings')}</Text>
+              {storage.data && (
+                <Chip tone={storage.data.healthy ? 'success' : 'warning'}>
+                  {storage.data.mode === 'local' ? t('storageModeLocal') : t('storageModeRemote')}
+                  {' · '}
+                  {storage.data.healthy ? t('storageHealthy') : t('storageUnhealthy')}
+                </Chip>
+              )}
+            </Row>
+            <Text muted variant="caption">
+              {t('storageSettingsHint')}
+            </Text>
+          </Stack>
           <QueryState
             loading={storage.isLoading}
             error={storage.error}
@@ -148,22 +153,18 @@ export function SettingsScreen() {
           >
             {storage.data && (
               <Stack sx={{ gap: 1.5 }}>
-                <Notice tone={storage.data.healthy ? 'success' : 'warning'}>
-                  <Text variant="caption">
-                    {storage.data.mode === 'local'
-                      ? t('storageModeLocal')
-                      : t('storageModeRemote')}
-                    {' · '}
-                    {storage.data.healthy ? t('storageHealthy') : t('storageUnhealthy')}
-                    {storage.data.healthError ? ` — ${storage.data.healthError}` : ''}
-                  </Text>
-                </Notice>
+                {storage.data.healthError && (
+                  <Notice tone="warning">
+                    <Text variant="caption">{storage.data.healthError}</Text>
+                  </Notice>
+                )}
                 <Text muted variant="caption">
                   {t('storageDriver')}: {codeText(storage.data.driver)} ·{' '}
                   {storage.data.endpoint || '—'} · {storage.data.bucket || '—'}
                 </Text>
                 <FormGrid sx={{ gap: 1.5 }}>
                   <Input
+                    size="small"
                     label={t('storageEndpoint')}
                     value={storageForm.endpoint}
                     onChange={(event) =>
@@ -171,6 +172,7 @@ export function SettingsScreen() {
                     }
                   />
                   <Input
+                    size="small"
                     label={t('storagePublicEndpoint')}
                     value={storageForm.publicEndpoint}
                     onChange={(event) =>
@@ -181,6 +183,7 @@ export function SettingsScreen() {
                     }
                   />
                   <Input
+                    size="small"
                     label={t('storageBucket')}
                     value={storageForm.bucket}
                     onChange={(event) =>
@@ -188,6 +191,7 @@ export function SettingsScreen() {
                     }
                   />
                   <Input
+                    size="small"
                     label={t('storageRegion')}
                     value={storageForm.region}
                     onChange={(event) =>
@@ -195,6 +199,7 @@ export function SettingsScreen() {
                     }
                   />
                   <Input
+                    size="small"
                     label={t('storageAccessKey')}
                     value={storageForm.accessKey}
                     onChange={(event) =>
@@ -202,6 +207,7 @@ export function SettingsScreen() {
                     }
                   />
                   <Input
+                    size="small"
                     label={t('storageSecretKey')}
                     type="password"
                     value={storageForm.secretKey}
@@ -238,13 +244,6 @@ export function SettingsScreen() {
           </QueryState>
         </Stack>
       </Card>
-      <Card>
-        <PageHeader
-          title={t('consent')}
-          hint={t('publishHint')}
-          action={<Button onClick={() => setPublishing(true)}>{t('publishConsent')}</Button>}
-        />
-      </Card>
       <PageHeader title={t('retention')} />
       <QueryState
         loading={retention.isLoading}
@@ -253,6 +252,7 @@ export function SettingsScreen() {
         retry={() => void retention.refetch()}
       >
         <DataTable
+          density="compact"
           rows={retention.data?.items ?? []}
           rowKey={(row) => row.dataType}
           columns={[
@@ -261,7 +261,7 @@ export function SettingsScreen() {
             {
               label: t('actions'),
               render: (row) => (
-                <Button variant="text" onClick={() => setEditing(row)}>
+                <Button size="small" variant="text" onClick={() => setEditing(row)}>
                   {t('edit')}
                 </Button>
               ),
@@ -281,34 +281,6 @@ export function SettingsScreen() {
           />
         )}
         {save.feedback}
-      </Dialog>
-      <Dialog open={publishing} title={t('publishConsent')} onClose={() => setPublishing(false)}>
-        <Notice tone="warning">{t('publishHint')}</Notice>
-        <Input
-          label={t('title')}
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-        />
-        {consentItems.map((key) => (
-          <Input
-            key={key}
-            label={t((key === 'retention' ? 'retentionItem' : key) as TextKey)}
-            value={texts[key] ?? ''}
-            multiline
-            onChange={(event) => setTexts({ ...texts, [key]: event.target.value })}
-          />
-        ))}
-        {publish.feedback}
-        <Button
-          disabled={
-            publish.isPending ||
-            title.length < 3 ||
-            consentItems.some((key) => (texts[key]?.length ?? 0) < 3)
-          }
-          onClick={() => publish.mutate(undefined)}
-        >
-          {t('publish')}
-        </Button>
       </Dialog>
     </Permission>
   );

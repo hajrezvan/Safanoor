@@ -1737,14 +1737,27 @@ export function DataTable<T>({
   columns,
   rows,
   rowKey,
+  density = 'default',
 }: {
   columns: { label: string; render: (row: T) => ReactNode }[];
   rows: T[];
   rowKey: (row: T) => string;
+  density?: 'default' | 'compact';
 }) {
   return (
     <TableContainer component={Paper} sx={{ maxHeight: tokens.layout.tableHeight }}>
-      <Table stickyHeader size="small" sx={{ minWidth: tokens.layout.tableMin }}>
+      <Table
+        stickyHeader
+        size="small"
+        sx={{
+          minWidth: tokens.layout.tableMin,
+          ...(density === 'compact' && {
+            '& .MuiTableCell-root': {
+              paddingBlock: tokens.space.xs,
+            },
+          }),
+        }}
+      >
         <TableHead>
           <TableRow>
             {columns.map((column, i) => (
