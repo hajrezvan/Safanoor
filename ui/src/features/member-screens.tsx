@@ -14,8 +14,8 @@ import {
   loginSchema,
   latinDigits,
   calendarDate,
-  persianDigits,
   personSchema,
+  persianDigits,
   type PersonInput,
 } from '@safanoor/shared';
 
@@ -44,6 +44,7 @@ import {
   PageHeader,
   Pagination,
   QueryState,
+  QuickAccess,
   CompactCard,
   CompactForm,
   JalaliInput,
@@ -59,6 +60,7 @@ import { MentorHomeDashboard } from './mentor-dashboard';
 
 export function LoginScreen() {
   const t = useFa();
+  const [phoneIncomplete, setPhoneIncomplete] = useState(false);
   const router = useRouter();
   const cache = useQueryClient();
   const form = useForm({
@@ -71,7 +73,17 @@ export function LoginScreen() {
   });
   return (
     <AuthShell>
-      <Form onSubmit={form.handleSubmit((value) => mutation.mutate(value))}>
+      <Form
+        onSubmit={form.handleSubmit(
+          (value) => mutation.mutate(value),
+          () => {
+            if (form.getValues('login').length < 11) {
+              form.setError('login', { message: t('phoneIncomplete') });
+              setPhoneIncomplete(true);
+            }
+          }
+        )}
+      >
         <PageHeader title={t('login')} hint={t('loginHint')} />
         <Controller
           name="login"
@@ -79,10 +91,15 @@ export function LoginScreen() {
           render={({ field, fieldState }) => (
             <Input
               name={field.name}
+              inputRef={field.ref}
               value={persianDigits(field.value ?? '')}
-              onChange={(event) => field.onChange(latinDigits(event.target.value))}
+              onChange={(event) =>
+                field.onChange(latinDigits(event.target.value).replace(/\D/g, '').slice(0, 11))
+              }
               label={t('phone')}
               type="tel"
+              inputMode="numeric"
+              maxLength={11}
               autoComplete="username"
               error={fieldState.error?.message}
             />
@@ -108,6 +125,23 @@ export function LoginScreen() {
           </Button>
         </Row>
       </Form>
+      <Dialog
+        open={phoneIncomplete}
+        title={t('phoneIncompleteTitle')}
+        onClose={() => setPhoneIncomplete(false)}
+      >
+        <Stack>
+          <Text>{t('phoneIncomplete')}</Text>
+          <Button
+            onClick={() => {
+              setPhoneIncomplete(false);
+              form.setFocus('login');
+            }}
+          >
+            {t('phoneEdit')}
+          </Button>
+        </Stack>
+      </Dialog>
     </AuthShell>
   );
 }
@@ -134,6 +168,7 @@ export function HomeScreen() {
   return (
     <>
       <Hero name={me.person.firstName} />
+      {!me.isParent && <QuickAccess />}
       {me.children.length > 0 && (
         <Card>
           <Stack>
@@ -486,11 +521,7 @@ export function PersonForm({
           render={({ field, fieldState }) => (
             <Input
               {...field}
-              value={
-                person?.verified
-                  ? persianDigits(field.value ?? '')
-                  : (field.value ?? '')
-              }
+              value={person?.verified ? persianDigits(field.value ?? '') : (field.value ?? '')}
               label={t('nationalId')}
               error={fieldState.error?.message}
               readOnly={person?.verified}

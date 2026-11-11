@@ -10,19 +10,47 @@ export const tokens = {
     caption: 12,
     line: 1.7,
   },
-  motion: { duration: 180 },
+  motion: { duration: 200 },
+  artwork: { hero: 260, compact: 120, auth: 320, logo: 72, program: 176, programMobile: 120 },
+  joy: {
+    light: {
+      mint: { ink: '#126452', surface: '#E4F6EF', edge: '#C4E8DA' },
+      lavender: { ink: '#67439F', surface: '#F0EAFE', edge: '#DFD1F5' },
+      peach: { ink: '#9B482A', surface: '#FFF0E8', edge: '#F4D8C8' },
+      sky: { ink: '#225B91', surface: '#E9F3FF', edge: '#CFE2F8' },
+      honey: { ink: '#795710', surface: '#FFF6DA', edge: '#EDDEAD' },
+    },
+    dark: {
+      mint: { ink: '#9FE9CB', surface: '#203D34', edge: '#35594B' },
+      lavender: { ink: '#D3BDFF', surface: '#332B47', edge: '#504165' },
+      peach: { ink: '#FFC5A9', surface: '#44302A', edge: '#67483B' },
+      sky: { ink: '#ACD4FF', surface: '#24384B', edge: '#3A536E' },
+      honey: { ink: '#F6D98E', surface: '#3E3725', edge: '#5C5133' },
+    },
+  },
   shadow: { light: '0 8px 32px rgba(23,58,45,0.05)', dark: '0 8px 32px rgba(0,0,0,0.12)' },
-  layout: { profileAside: 280, profileFieldMin: 180, profileAvatar: 80, bookWidth: 200, max: 1280, sidebar: 248, tableMin: 760, tableHeight: 640, touch: 48, mobile: 700 },
+  layout: {
+    profileAside: 280,
+    profileFieldMin: 180,
+    profileAvatar: 80,
+    bookWidth: 200,
+    max: 1280,
+    sidebar: 248,
+    tableMin: 760,
+    tableHeight: 640,
+    touch: 48,
+    mobile: 700,
+  },
   palette: {
     light: {
       brand: '#126452',
-      accent: '#8C5B0B',
-      bg: '#F4F7F5',
+      accent: '#7953B8',
+      bg: '#F7F9FC',
       surface: '#FFFFFF',
       elevated: '#E8F1EC',
       text: '#18372D',
       secondary: '#536A60',
-      border: '#D9E5DD',
+      border: '#E4E9F0',
       success: '#247146',
       warning: '#8C5B0B',
       error: '#B93441',
@@ -30,7 +58,7 @@ export const tokens = {
     },
     dark: {
       brand: '#80DCB7',
-      accent: '#F0C275',
+      accent: '#C5ACFF',
       bg: '#101B17',
       surface: '#182A22',
       elevated: '#223C30',
@@ -45,3 +73,5 @@ export const tokens = {
   },
 } as const;
 export type Mode = keyof typeof tokens.palette;
+
+export type JoyTone = keyof typeof tokens.joy.light;

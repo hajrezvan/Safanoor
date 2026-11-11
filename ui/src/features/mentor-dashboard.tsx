@@ -5,30 +5,32 @@ import type { components } from 'src/api/generated/schema';
 
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { formatCompactStamp, formatDate, formatNumber } from '@safanoor/shared';
+import { formatDate, formatNumber, formatCompactStamp } from '@safanoor/shared';
 
 import { api } from 'src/api/client';
 import { useFa } from 'src/locales/fa-provider';
 
 import {
+  Row,
   Card,
+  Hero,
   Chip,
   Grid,
-  Row,
   Text,
   Stack,
   Button,
+  Spread,
   Section,
+  CardNav,
   StatCard,
-  StatsGrid,
-  ThreadsFeedGrid,
   FeedItem,
+  StatsGrid,
   EmptyState,
   QueryState,
-  Spread,
-  CardNav,
-  BarSeriesChart,
   DonutChart,
+  QuickAccess,
+  BarSeriesChart,
+  ThreadsFeedGrid,
 } from 'src/components/ui';
 
 type MentorDashboard = components['schemas']['MentorDashboardDto'];
@@ -101,9 +103,7 @@ function MentorDashboardBody({ data }: { data: MentorDashboard }) {
         />
       </StatsGrid>
 
-      {(data.pendingInvitesCount > 0 ||
-        data.photoCount > 0 ||
-        data.assistantCount > 0) && (
+      {(data.pendingInvitesCount > 0 || data.photoCount > 0 || data.assistantCount > 0) && (
         <Row>
           {data.assistantCount > 0 && (
             <Chip href="/admin/people?tab=coaching">
@@ -167,10 +167,7 @@ function MentorDashboardBody({ data }: { data: MentorDashboard }) {
                 </Button>
               </Spread>
               {data.upcomingCamps.length === 0 ? (
-                <EmptyState
-                  title={t('dashboardNoCamps')}
-                  hint={t('dashboardNoCampsHint')}
-                />
+                <EmptyState title={t('dashboardNoCamps')} hint={t('dashboardNoCampsHint')} />
               ) : (
                 data.upcomingCamps.map((camp) => (
                   <CardNav key={camp.id} href="/camp-attendance" label={camp.title}>
@@ -198,17 +195,10 @@ function MentorDashboardBody({ data }: { data: MentorDashboard }) {
                 </Button>
               </Spread>
               {data.recentMeetings.length === 0 ? (
-                <EmptyState
-                  title={t('dashboardNoMeetings')}
-                  hint={t('dashboardNoMeetingsHint')}
-                />
+                <EmptyState title={t('dashboardNoMeetings')} hint={t('dashboardNoMeetingsHint')} />
               ) : (
                 data.recentMeetings.map((meeting) => (
-                  <CardNav
-                    key={meeting.id}
-                    href={`/meetings/${meeting.id}`}
-                    label={meeting.title}
-                  >
+                  <CardNav key={meeting.id} href={`/meetings/${meeting.id}`} label={meeting.title}>
                     <Stack>
                       <Text variant="subtitle">{meeting.title}</Text>
                       <Text muted variant="caption">
@@ -230,8 +220,8 @@ function MentorDashboardBody({ data }: { data: MentorDashboard }) {
                 </Button>
               </Spread>
               {(() => {
-                const threadsWithMessages = data.recentThreads.filter(
-                  (thread) => Boolean(thread.lastMessageAt),
+                const threadsWithMessages = data.recentThreads.filter((thread) =>
+                  Boolean(thread.lastMessageAt)
                 );
                 if (threadsWithMessages.length === 0) {
                   return (
@@ -286,19 +276,19 @@ function MentorDashboardBody({ data }: { data: MentorDashboard }) {
   );
 }
 
-export function MentorHomeDashboard(_props: { name: string }) {
+export function MentorHomeDashboard({ name }: { name: string }) {
   const query = useQuery({
     queryKey: ['dashboard', 'mentor'],
     queryFn: api.mentorDashboard,
   });
 
   return (
-    <QueryState
-      loading={query.isLoading}
-      error={query.error}
-      retry={() => void query.refetch()}
-    >
-      {query.data && <MentorDashboardBody data={query.data} />}
-    </QueryState>
+    <Section>
+      <Hero name={name} />
+      <QuickAccess />
+      <QueryState loading={query.isLoading} error={query.error} retry={() => void query.refetch()}>
+        {query.data && <MentorDashboardBody data={query.data} />}
+      </QueryState>
+    </Section>
   );
 }

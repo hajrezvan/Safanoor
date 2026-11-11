@@ -8,6 +8,7 @@ import { useFa } from 'src/locales/fa-provider';
 
 import {
   Row,
+  Hero,
   Card,
   Chip,
   Grid,
@@ -28,9 +29,11 @@ import {
   DataTable,
   EmptyState,
   PageHeader,
+  QuickAccess,
   BottomSheet,
   JalaliInput,
   ThemeSwitch,
+  ProgramTiles,
   DesignLayout,
   PreviewTheme,
   TokenSwatches,
@@ -51,6 +54,9 @@ export function DesignScreen() {
           {(['light', 'dark'] as const).map((mode) => (
             <PreviewTheme key={mode} mode={mode}>
               <Text variant="subtitle">{t(mode)}</Text>
+              <Hero name={t('example')} />
+              <QuickAccess />
+              <ProgramTiles />
               <EmptyState title={t('campsEmpty')} hint={null} />
             </PreviewTheme>
           ))}
@@ -99,7 +105,12 @@ export function DesignScreen() {
                       rowKey={(row) => row.id}
                       columns={[{ label: t('name'), render: (row) => row.name }]}
                     />
-                    <ProfileAvatarEditor name={t('example')} disabled busy={false} onSelect={() => {}} />
+                    <ProfileAvatarEditor
+                      name={t('example')}
+                      disabled
+                      busy={false}
+                      onSelect={() => {}}
+                    />
                     <EmptyState />
                     <Skeleton />
                   </Stack>

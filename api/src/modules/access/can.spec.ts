@@ -42,7 +42,7 @@ const relationMap: Record<(typeof columns)[number], Partial<Relations>> = {
 const matrix: Record<string, { action: Action; expected: string }> = {
   file: { action: 'read', expected: 'D N N N N N N N N N' },
   avatar: { action: 'read', expected: 'D N N N N N N N N N' },
-  person: { action: 'read', expected: 'D S N D N S S N N S' },
+  person: { action: 'read', expected: 'D S N D N N N N N S' },
   group: { action: 'read', expected: 'D D D D N D D N N D' },
   membership: { action: 'assign', expected: 'N N N D N N N N N D' },
   assignment: { action: 'assign', expected: 'N N N D N N N N N D' },

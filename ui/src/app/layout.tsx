@@ -13,7 +13,14 @@ export const metadata: Metadata = {
   title: { default: fa.brand, template: `%s | ${fa.brand}` },
   description: fa.tagline,
   manifest: '/manifest.webmanifest',
-  icons: { icon: '/icon.svg', apple: '/icon-192.png' },
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: '32x32' },
+      { url: '/icon-32.png', type: 'image/png', sizes: '32x32' },
+      { url: '/icon-192.png', type: 'image/png', sizes: '192x192' },
+    ],
+    apple: '/icon-192.png',
+  },
   appleWebApp: { capable: true, statusBarStyle: 'default', title: fa.brand },
 };
 export const viewport: Viewport = {

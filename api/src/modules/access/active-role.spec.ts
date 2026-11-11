@@ -27,11 +27,11 @@ describe('active role helpers', () => {
       label: 'صفا ۲۷ - کمک‌مربی',
     },
     {
-      id: roleId('member', 'g27'),
+      id: roleId('member', 'g20'),
       kind: 'member' as const,
-      groupId: 'g27',
-      groupName: 'صفا ۲۷',
-      label: 'صفا ۲۷ - نیرو',
+      groupId: 'g20',
+      groupName: 'صفا ۲۰',
+      label: 'صفا ۲۰ - نیرو',
     },
   ];
 
@@ -41,9 +41,9 @@ describe('active role helpers', () => {
   });
 
   it('resolves stored role and falls back when stale', () => {
-    expect(resolveActiveRole(roles, roleId('assistant', 'g27'), 'mentor').kind).toBe(
-      'assistant',
-    );
+    expect(
+      resolveActiveRole(roles, roleId('assistant', 'g27'), 'mentor').kind,
+    ).toBe('assistant');
     expect(resolveActiveRole(roles, 'mentor:missing', 'mentor').kind).toBe(
       'mentor',
     );

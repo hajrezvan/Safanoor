@@ -5,7 +5,7 @@ async function login(page: import("@playwright/test").Page, number: number) {
   await page.goto("/auth/jwt/sign-in");
   await page
     .getByLabel("شماره همراه", { exact: true })
-    .fill(`+98910${String(number).padStart(7, "0")}`);
+    .fill(`0910${String(number).padStart(7, "0")}`);
   await page.getByLabel("رمز عبور", { exact: true }).fill(password);
   await page
     .getByRole("button", { name: "ورود به صفانور", exact: true })

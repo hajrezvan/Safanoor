@@ -35,6 +35,8 @@ import { ActiveRole1792195200026 } from './migrations/1792195200026-ActiveRole';
 import { TechManagerReadPolicies1792195200027 } from './migrations/1792195200027-TechManagerReadPolicies';
 import { RestrictSuperiorProfiles1792195200028 } from './migrations/1792195200028-RestrictSuperiorProfiles';
 
+import { IndependentAssistantGroup1792195200029 } from './migrations/1792195200029-IndependentAssistantGroup';
+
 config();
 export const databaseOptions = {
   type: 'postgres' as const,
@@ -72,6 +74,7 @@ export const databaseOptions = {
     ActiveRole1792195200026,
     TechManagerReadPolicies1792195200027,
     RestrictSuperiorProfiles1792195200028,
+    IndependentAssistantGroup1792195200029,
   ],
   logging: false,
   ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: true } : false,

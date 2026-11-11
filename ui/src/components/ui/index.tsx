@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode, MouseEvent, KeyboardEvent, ChangeEventHandler } from 'react';
+import type { Ref, ReactNode, MouseEvent, KeyboardEvent, ChangeEventHandler } from 'react';
 import type { TextKey } from 'src/locales/fa';
 
 import Link from 'next/link';
@@ -30,11 +30,13 @@ import SettingsRounded from '@mui/icons-material/SettingsRounded';
 import DarkModeRounded from '@mui/icons-material/DarkModeRounded';
 import LightModeRounded from '@mui/icons-material/LightModeRounded';
 import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
+import VisibilityRounded from '@mui/icons-material/VisibilityRounded';
 import PsychologyRounded from '@mui/icons-material/PsychologyRounded';
 import FileUploadRounded from '@mui/icons-material/FileUploadRounded';
 import { styled, useTheme, ThemeProvider } from '@mui/material/styles';
 import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
 import PhotoLibraryRounded from '@mui/icons-material/PhotoLibraryRounded';
+import VisibilityOffRounded from '@mui/icons-material/VisibilityOffRounded';
 import NotificationsRounded from '@mui/icons-material/NotificationsRounded';
 import EventAvailableRounded from '@mui/icons-material/EventAvailableRounded';
 import KeyboardArrowDownRounded from '@mui/icons-material/KeyboardArrowDownRounded';
@@ -81,14 +83,17 @@ import {
 } from '@mui/material';
 
 import { api } from 'src/api/client';
-import { tokens } from 'src/theme/tokens';
 import { useFa } from 'src/locales/fa-provider';
 import { useMode } from 'src/theme/mode-context';
 import { makeTheme } from 'src/theme/safanoor-theme';
+import { tokens, type JoyTone } from 'src/theme/tokens';
 
 import { Iconify } from 'src/components/iconify';
 
+import { JoyIllustration } from './joy';
 import { AvatarCropPanel } from './avatar-crop';
+
+export { ProgramTiles } from './programs';
 
 const DEFAULT_AVATAR_ICON = 'solar:user-rounded-bold';
 function AvatarFallbackIcon({ size }: { size: number }) {
@@ -132,21 +137,14 @@ export function Icon({ name }: { name: IconName }) {
   const Component = icons[name];
   return <Component />;
 }
-const BrandMark = styled('img')(({ theme }) => ({
-  height: 44,
-  width: 44,
+const BrandMark = styled('img')({
+  height: tokens.artwork.logo,
+  width: tokens.artwork.logo,
   objectFit: 'contain',
   display: 'block',
   flexShrink: 0,
   borderRadius: tokens.radius.button,
-  ...(theme.palette.mode === 'dark'
-    ? {
-        backgroundColor: 'rgba(255,255,255,0.94)',
-        padding: tokens.space.xs,
-        boxShadow: `0 0 0 1px ${theme.palette.divider}`,
-      }
-    : {}),
-}));
+});
 function BrandLogo({ alt }: { alt: string }) {
   return <BrandMark src="/logo.png" alt={alt} />;
 }
@@ -181,11 +179,11 @@ export const Grid = styled('div')(({ theme }) => ({
   gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,260px),1fr))',
   [theme.breakpoints.down('sm')]: { gap: tokens.space.lg },
 }));
-/** Compact dashboard stats: 3 per row on phone, 5 on desktop. */
+/** Readable dashboard stats: 2 per row on phone, 5 on desktop. */
 export const StatsGrid = styled('div')(({ theme }) => ({
   display: 'grid',
   gap: tokens.space.sm,
-  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
   [theme.breakpoints.up('md')]: {
     gap: tokens.space.md,
     gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
@@ -775,6 +773,9 @@ export function Input({
   size = 'medium',
   helperText,
   multiline = false,
+  maxLength,
+  inputMode,
+  inputRef,
 }: {
   label: string;
   value?: string | number;
@@ -789,16 +790,23 @@ export function Input({
   size?: 'small' | 'medium';
   helperText?: string;
   multiline?: boolean;
+  maxLength?: number;
+  inputRef?: Ref<HTMLInputElement>;
+  inputMode?: 'text' | 'tel' | 'numeric' | 'decimal' | 'email' | 'url' | 'search' | 'none';
 }) {
+  const t = useFa();
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const isPassword = type === 'password';
   return (
     <TextField
       fullWidth
+      inputRef={inputRef}
       label={label}
       value={value ?? ''}
       onChange={onChange}
       error={!!error}
       helperText={error || helperText}
-      type={type}
+      type={isPassword && passwordVisible ? 'text' : type}
       name={name}
       placeholder={placeholder}
       autoComplete={autoComplete}
@@ -815,9 +823,29 @@ export function Input({
           : undefined
       }
       slotProps={{
+        input: isPassword
+          ? {
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    type="button"
+                    aria-label={t(passwordVisible ? 'hidePassword' : 'showPassword')}
+                    aria-pressed={passwordVisible}
+                    disabled={disabled}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => setPasswordVisible((visible) => !visible)}
+                  >
+                    {passwordVisible ? <VisibilityOffRounded /> : <VisibilityRounded />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }
+          : undefined,
         htmlInput: {
           dir: type === 'tel' || type === 'password' ? 'ltr' : undefined,
           readOnly,
+          maxLength,
+          inputMode,
         },
       }}
     />
@@ -1450,6 +1478,18 @@ const Empty = styled(Stack)(({ theme }) => ({
   padding: tokens.space.xxl,
   color: theme.palette.text.secondary,
 }));
+const EmptyIcon = styled('span')(({ theme }) => ({
+  display: 'grid',
+  placeItems: 'center',
+  width: tokens.layout.touch + tokens.space.xl,
+  height: tokens.layout.touch + tokens.space.xl,
+  borderRadius: tokens.radius.card,
+  color: tokens.joy[theme.palette.mode].lavender.ink,
+  background: tokens.joy[theme.palette.mode].lavender.surface,
+  boxShadow: `inset 0 -${tokens.space.xs}px ${tokens.space.sm}px ${tokens.joy[theme.palette.mode].lavender.edge}`,
+  transform: 'rotate(-6deg)',
+  '& .MuiSvgIcon-root': { fontSize: tokens.type.display, transform: 'rotate(6deg)' },
+}));
 export function EmptyState({
   title,
   hint,
@@ -1464,8 +1504,9 @@ export function EmptyState({
   const t = useFa();
   return (
     <Empty>
-      <Avatar name="✦" />
-      <Icon name={icon} />
+      <EmptyIcon>
+        <Icon name={icon} />
+      </EmptyIcon>
       <Text variant="subtitle">{title || t('empty')}</Text>
       {hint !== null && <Text muted>{hint || t('emptyHint')}</Text>}
       {action}
@@ -1559,12 +1600,11 @@ const StatCardShell = {
   display: 'block',
   minWidth: 0,
   borderRadius: tokens.radius.card,
-  padding: `${tokens.space.sm}px ${tokens.space.md}px`,
+  padding: tokens.space.lg,
   overflow: 'hidden',
 } as const;
 const StatCardButton = styled(Card)(({ theme }) => ({
   ...StatCardShell,
-  padding: `${tokens.space.sm}px ${tokens.space.md}px`,
   ...statCardInteractive(theme),
 }));
 const StatCardLink = styled(Link)(({ theme }) => ({
@@ -1589,26 +1629,40 @@ const StatCardTitle = styled(Text)({
     flex: 1,
     minWidth: 0,
     overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-    lineHeight: 1.2,
-    fontSize: 11,
+    whiteSpace: 'normal',
+    lineHeight: tokens.type.line,
+    fontSize: tokens.type.caption,
   },
 });
 const StatCardValue = styled(Text)({
   '&&': {
-    fontSize: 18,
-    lineHeight: 1.15,
+    fontSize: tokens.type.title,
+    lineHeight: 1.4,
     fontWeight: 700,
     fontVariantNumeric: 'tabular-nums',
   },
 });
-const StatCardIcon = styled('span')({
+function iconTone(icon: IconName): JoyTone {
+  if (['finance', 'imports'].includes(icon)) return 'honey';
+  if (['consultations', 'library', 'access'].includes(icon)) return 'lavender';
+  if (['campAttendance', 'profile', 'groupAlbum'].includes(icon)) return 'peach';
+  if (['classes', 'meetings', 'communications'].includes(icon)) return 'sky';
+  return 'mint';
+}
+const StatCardIcon = styled('span', {
+  shouldForwardProp: (prop) => prop !== '$tone',
+})<{ $tone: JoyTone }>(({ theme, $tone }) => ({
   display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: tokens.layout.touch,
+  height: tokens.layout.touch,
+  borderRadius: tokens.radius.input,
+  background: tokens.joy[theme.palette.mode][$tone].surface,
+  color: tokens.joy[theme.palette.mode][$tone].ink,
   flexShrink: 0,
-  lineHeight: 0,
-  '& .MuiSvgIcon-root': { fontSize: 16 },
-});
+  '& .MuiSvgIcon-root': { fontSize: tokens.type.subtitle },
+}));
 export function StatCard({
   title,
   value,
@@ -1628,7 +1682,7 @@ export function StatCard({
         <StatCardTitle muted variant="caption">
           {title}
         </StatCardTitle>
-        <StatCardIcon>
+        <StatCardIcon $tone={iconTone(icon)}>
           <Icon name={icon} />
         </StatCardIcon>
       </StatCardHeader>
@@ -1956,17 +2010,18 @@ const Main = styled('main', {
 }));
 const Sidebar = styled('nav')(({ theme }) => ({
   position: 'sticky',
-  top: 72,
+  top: tokens.artwork.logo + tokens.space.lg,
   alignSelf: 'start',
   display: 'flex',
   flexDirection: 'column',
   gap: tokens.space.sm,
   padding: tokens.space.page,
-  minHeight: 'calc(100dvh - 72px)',
-  background:
-    theme.palette.mode === 'light' ? tokens.palette.light.elevated : tokens.palette.dark.elevated,
+  minHeight: `calc(100dvh - ${tokens.artwork.logo + tokens.space.lg + tokens.space.lg}px)`,
+  marginBlock: tokens.space.lg,
+  borderRadius: tokens.radius.card,
+  background: theme.palette.background.paper,
   boxShadow: tokens.shadow[theme.palette.mode],
-  borderInlineEnd: `1px solid ${theme.palette.divider}`,
+  border: `1px solid ${theme.palette.divider}`,
   [theme.breakpoints.down('md')]: { display: 'none' },
 }));
 const SidebarUser = styled(Stack)(({ theme }) => ({
@@ -2030,6 +2085,24 @@ const NavLink = styled(Link, {
   background: active ? theme.palette.action.selected : 'transparent',
   whiteSpace: 'nowrap',
   transition: `background ${tokens.motion.duration}ms`,
+  '&:hover': { background: theme.palette.action.hover },
+  '&:focus-visible': {
+    outline: `2px solid ${theme.palette.primary.main}`,
+    outlineOffset: tokens.space.xs,
+  },
+  ...Object.fromEntries(
+    Object.entries(tokens.joy[theme.palette.mode]).map(([tone, color]) => [
+      `&[data-tone="${tone}"] > .MuiSvgIcon-root`,
+      {
+        color: color.ink,
+        background: color.surface,
+        padding: tokens.space.xs,
+        borderRadius: tokens.radius.button,
+        width: tokens.space.xxl,
+        height: tokens.space.xxl,
+      },
+    ])
+  ),
 }));
 const Bottom = styled(Paper)(({ theme }) => ({
   position: 'fixed',
@@ -2045,7 +2118,7 @@ const Bottom = styled(Paper)(({ theme }) => ({
   [theme.breakpoints.up('md')]: { display: 'none' },
   '& .MuiBottomNavigation-root': {
     width: 'fit-content',
-    height: tokens.layout.touch,
+    height: tokens.layout.touch + tokens.space.xl,
     minHeight: tokens.layout.touch,
     justifyContent: 'center',
     gap: tokens.space.xs,
@@ -2054,14 +2127,18 @@ const Bottom = styled(Paper)(({ theme }) => ({
   '& .MuiBottomNavigationAction-root': {
     flex: '0 0 auto',
     minWidth: tokens.layout.touch,
-    maxWidth: tokens.layout.touch,
+    maxWidth: tokens.layout.touch + tokens.space.xl,
     minHeight: tokens.layout.touch,
     paddingInline: tokens.space.xs,
     paddingBlock: tokens.space.xs,
     color: theme.palette.text.secondary,
     '&.Mui-selected': { color: theme.palette.primary.main },
   },
-  '& .MuiBottomNavigationAction-label': { display: 'none' },
+  '& .MuiBottomNavigationAction-label': {
+    fontSize: tokens.type.caption,
+    marginTop: tokens.space.xs,
+    '&.Mui-selected': { fontSize: tokens.type.caption, fontWeight: 700 },
+  },
   '& .MuiSvgIcon-root': { fontSize: 22 },
 }));
 export type NavItem = { key: TextKey; href: string; icon: IconName; visible?: boolean };
@@ -2210,7 +2287,13 @@ export function Shell({
           )}
           <SidebarLinks>
             {items.map((item) => (
-              <NavLink key={item.href} href={item.href} active={navActive(path, item.href)}>
+              <NavLink
+                key={item.href}
+                href={item.href}
+                active={navActive(path, item.href)}
+                data-tone={iconTone(item.icon)}
+                aria-current={navActive(path, item.href) ? 'page' : undefined}
+              >
                 <Icon name={item.icon} />
                 {t(item.key)}
               </NavLink>
@@ -2227,7 +2310,7 @@ export function Shell({
       </Layout>
       {showBottom && (
         <Bottom>
-          <BottomNavigation showLabels={false} value={bottomValue}>
+          <BottomNavigation showLabels value={bottomValue}>
             {bottomNav.map((item) => (
               <BottomNavigationAction
                 component={Link}
@@ -2235,6 +2318,7 @@ export function Shell({
                 key={item.href}
                 value={item.href}
                 aria-label={t(item.key)}
+                label={t(item.key)}
                 icon={bottomNavIcon(item, user)}
               />
             ))}
@@ -2269,7 +2353,11 @@ const AuthRoot = styled('main')(({ theme }) => ({
   padding: tokens.space.huge,
   maxWidth: tokens.layout.max,
   marginInline: 'auto',
-  [theme.breakpoints.down('md')]: { gridTemplateColumns: '1fr', padding: tokens.space.xl },
+  [theme.breakpoints.down('md')]: {
+    gridTemplateColumns: '1fr',
+    padding: tokens.space.xl,
+    gap: tokens.space.xl,
+  },
 }));
 const AuthArtwork = styled(Stack)(({ theme }) => ({
   minHeight: 440,
@@ -2278,9 +2366,15 @@ const AuthArtwork = styled(Stack)(({ theme }) => ({
   justifyContent: 'center',
   alignItems: 'center',
   textAlign: 'center',
-  background: theme.palette.background.paper,
+  background: `linear-gradient(145deg, ${tokens.joy[theme.palette.mode].mint.surface}, ${tokens.joy[theme.palette.mode].lavender.surface})`,
   border: `1px solid ${theme.palette.divider}`,
-  [theme.breakpoints.down('md')]: { minHeight: 'auto', padding: tokens.space.xl },
+  '& > img': { width: tokens.artwork.auth },
+  [theme.breakpoints.down('md')]: {
+    minHeight: 'auto',
+    order: 2,
+    padding: tokens.space.xl,
+    '& > img': { width: tokens.artwork.compact },
+  },
 }));
 export function AuthShell({ children }: { children: ReactNode }) {
   const t = useFa();
@@ -2291,8 +2385,15 @@ export function AuthShell({ children }: { children: ReactNode }) {
           <BrandLogo alt={t('brand')} />
           <Text variant="title">{t('brand')}</Text>
         </Brand>
-        <Text variant="display">{t('tagline')}</Text>
-        <Text muted>{t('dashboardHint')}</Text>
+        <JoyIllustration
+          src="/assets/illustrations/safanoor-3d.webp"
+          alt=""
+          width={512}
+          height={512}
+          fetchPriority="high"
+        />
+        <Text variant="title">{t('loginArtworkTitle')}</Text>
+        <Text muted>{t('loginArtworkHint')}</Text>
         <Rule />
         <Row justifyContent="center">
           <Icon name="lock" />
@@ -2311,12 +2412,17 @@ export function AuthShell({ children }: { children: ReactNode }) {
   );
 }
 const HeroCard = styled(Card)(({ theme }) => ({
-  background: theme.palette.background.paper,
+  background: `linear-gradient(120deg, ${tokens.joy[theme.palette.mode].mint.surface}, ${theme.palette.background.paper}, ${tokens.joy[theme.palette.mode].lavender.surface})`,
   padding: tokens.space.xxl,
   display: 'flex',
   alignItems: 'center',
   gap: tokens.space.xl,
   justifyContent: 'space-between',
+  [theme.breakpoints.down('sm')]: {
+    padding: tokens.space.xl,
+    gap: tokens.space.sm,
+    flexWrap: 'wrap',
+  },
 }));
 export function Hero({ name }: { name: string }) {
   const t = useFa();
@@ -2325,9 +2431,15 @@ export function Hero({ name }: { name: string }) {
       <Stack>
         <Chip>{t('hello', { name })}</Chip>
         <Text variant="title">{t('dashboardTitle')}</Text>
-        <Text muted>{t('dashboardHint')}</Text>
+        <Text muted>{t('homeIntro')}</Text>
       </Stack>
-      <BrandLogo alt={t('brand')} />
+      <JoyIllustration
+        src="/assets/illustrations/together.webp"
+        alt=""
+        width={512}
+        height={512}
+        fetchPriority="high"
+      />
     </HeroCard>
   );
 }
@@ -2445,7 +2557,7 @@ export const ChatPane = styled('div')<{ hidden?: boolean }>(({ theme, hidden }) 
   overflow: 'hidden',
   background: theme.palette.background.paper,
   '&[data-pane="list"]': {
-    borderInlineEnd: `1px solid ${theme.palette.divider}`,
+    border: `1px solid ${theme.palette.divider}`,
   },
   [theme.breakpoints.down('md')]: {
     '&[data-pane="list"]': { borderInlineEnd: 0 },
@@ -2830,6 +2942,23 @@ export function TokenSwatches() {
           <Text muted>{value}</Text>
         </Card>
       ))}
+      {Object.entries(tokens.joy[mode]).map(([name, tone]) => (
+        <Card key={name}>
+          <Box
+            sx={{
+              background: tone.surface,
+              color: tone.ink,
+              padding: tokens.space.lg,
+              borderRadius: tokens.radius.input,
+            }}
+          >
+            <Text>{name}</Text>
+          </Box>
+          <Text muted>
+            {tone.ink} · {tone.surface}
+          </Text>
+        </Card>
+      ))}
     </Grid>
   );
 }
@@ -2840,5 +2969,7 @@ export const DesignLayout = styled('main')({
   padding: tokens.space.page,
 });
 
+export { QuickAccess, JoyIllustration } from './joy';
 export { DonutChart, BarSeriesChart } from './charts';
-export { AvatarCropPanel, cropAvatarFile } from './avatar-crop';
+
+export { cropAvatarFile, AvatarCropPanel } from './avatar-crop';
