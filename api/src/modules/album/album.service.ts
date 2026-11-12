@@ -41,9 +41,8 @@ export class AlbumService {
     actor: Actor,
     query: ListAlbumsQueryDto,
   ): Promise<AlbumsPageDto> {
-    const accessible = await this.accessibleGroupIds(actor.personId);
-    if (accessible.length === 0)
-      return pageOf([], query.page, query.limit, 0);
+    const accessible = await this.accessibleGroupIds(actor);
+    if (accessible.length === 0) return pageOf([], query.page, query.limit, 0);
 
     const count = await one<{ count: string }>(
       this.db,
@@ -51,10 +50,10 @@ export class AlbumService {
          SELECT COALESCE(NULLIF(BTRIM(p.album_title), ''), $2) AS album_key
          FROM photo p
          JOIN photo_group pg ON pg.photo_id=p.id AND pg.hidden_by_group=false
-         WHERE pg.group_id=ANY($1::uuid[])
+         WHERE pg.group_id=ANY($1::uuid[]) AND (NOT $4::boolean OR EXISTS(SELECT 1 FROM photo_tag t WHERE t.photo_id=p.id AND t.person_id=$3))
          GROUP BY 1
        ) albums`,
-      [accessible, OTHER_ALBUM_KEY],
+      [accessible, OTHER_ALBUM_KEY, actor.personId, query.myOnly],
     );
 
     const items = await rows<{
@@ -81,12 +80,19 @@ export class AlbumService {
            max(p.created_at) AS latest_at
          FROM photo p
          JOIN photo_group pg ON pg.photo_id=p.id AND pg.hidden_by_group=false
-         WHERE pg.group_id=ANY($1::uuid[])
+         WHERE pg.group_id=ANY($1::uuid[]) AND (NOT $4::boolean OR EXISTS(SELECT 1 FROM photo_tag t WHERE t.photo_id=p.id AND t.person_id=$3))
          GROUP BY 1
        ) grouped
-       ORDER BY latest_at DESC, key
-       LIMIT $3 OFFSET $4`,
-      [accessible, OTHER_ALBUM_KEY, query.limit, (query.page - 1) * query.limit],
+       ORDER BY ${query.sort === 'most_photos' ? 'photo_count DESC, latest_at DESC, key' : query.sort === 'oldest' ? 'latest_at ASC, key' : 'latest_at DESC, key'}
+       LIMIT $5 OFFSET $6`,
+      [
+        accessible,
+        OTHER_ALBUM_KEY,
+        actor.personId,
+        query.myOnly,
+        query.limit,
+        (query.page - 1) * query.limit,
+      ],
     );
 
     return pageOf(
@@ -101,29 +107,32 @@ export class AlbumService {
   }
 
   async list(actor: Actor, query: ListPhotosQueryDto): Promise<PhotosPageDto> {
-    const accessible = await this.accessibleGroupIds(actor.personId);
-    if (accessible.length === 0)
-      return pageOf([], query.page, query.limit, 0);
+    const accessible = await this.accessibleGroupIds(actor);
+    if (accessible.length === 0) return pageOf([], query.page, query.limit, 0);
 
-    const albumClause =
-      !query.albumKey
-        ? 'TRUE'
-        : query.albumKey === OTHER_ALBUM_KEY
-          ? `(p.album_title IS NULL OR BTRIM(p.album_title) = '')`
-          : `NULLIF(BTRIM(p.album_title), '') = $2`;
+    const albumClause = !query.albumKey
+      ? 'TRUE'
+      : query.albumKey === OTHER_ALBUM_KEY
+        ? `(p.album_title IS NULL OR BTRIM(p.album_title) = '')`
+        : `NULLIF(BTRIM(p.album_title), '') = $2`;
 
     const countParams: unknown[] =
       query.albumKey && query.albumKey !== OTHER_ALBUM_KEY
         ? [accessible, query.albumKey.trim()]
         : [accessible];
 
+    let countMineClause = 'TRUE';
+    if (query.myOnly) {
+      countParams.push(actor.personId);
+      countMineClause = `EXISTS(SELECT 1 FROM photo_tag t WHERE t.photo_id=p.id AND t.person_id=$${countParams.length})`;
+    }
     const count = await one<{ count: string }>(
       this.db,
       `SELECT count(DISTINCT p.id)::text AS count
        FROM photo p
        JOIN photo_group pg ON pg.photo_id=p.id AND pg.hidden_by_group=false
        WHERE pg.group_id=ANY($1::uuid[])
-         AND (${albumClause})`,
+         AND (${albumClause}) AND (${countMineClause})`,
       countParams,
     );
 
@@ -160,8 +169,8 @@ export class AlbumService {
        JOIN person up ON up.id=p.uploaded_by
        LEFT JOIN location_option loc ON loc.id=p.location_option_id
        WHERE pg.group_id=ANY($1::uuid[])
-         AND (${listAlbumClause})
-       ORDER BY p.created_at DESC,p.id
+         AND (${listAlbumClause}) AND (${query.myOnly ? 'EXISTS(SELECT 1 FROM photo_tag t WHERE t.photo_id=p.id AND t.person_id=$2)' : 'TRUE'})
+       ORDER BY p.created_at ${query.sort === 'oldest' ? 'ASC' : 'DESC'},p.id
        LIMIT ${limitPh} OFFSET ${offsetPh}`,
       listParams,
     );
@@ -309,11 +318,9 @@ export class AlbumService {
           `INSERT INTO photo_tag(photo_id,person_id,tagged_by) VALUES($1,$2,$3)`,
           [id, personId, actor.personId],
         );
-      await rows(
-        manager,
-        'UPDATE photo SET updated_at=now() WHERE id=$1',
-        [id],
-      );
+      await rows(manager, 'UPDATE photo SET updated_at=now() WHERE id=$1', [
+        id,
+      ]);
       await this.audit.record(
         actor.personId,
         'photo.tags_updated',
@@ -394,10 +401,7 @@ export class AlbumService {
     return { ...photo, groupIds: groups.map((row) => row.groupId) };
   }
 
-  private async isHostMentor(
-    actor: Actor,
-    groupId: string,
-  ): Promise<boolean> {
+  private async isHostMentor(actor: Actor, groupId: string): Promise<boolean> {
     return !!(await one(
       this.db,
       'SELECT 1 FROM organization_group WHERE id=$1 AND owner_person_id=$2',
@@ -405,19 +409,31 @@ export class AlbumService {
     ));
   }
 
-  private async accessibleGroupIds(personId: string): Promise<string[]> {
-    const groups = await rows<{ id: string }>(
+  private async accessibleGroupIds(actor: Actor): Promise<string[]> {
+    const groups = await rows<{ id: string; ownerId: string }>(
       this.db,
-      `SELECT group_id AS id FROM membership WHERE person_id=$1 AND valid_to IS NULL
+      `SELECT scope.id,g.owner_person_id AS "ownerId" FROM (SELECT group_id AS id FROM membership WHERE person_id=$1 AND valid_to IS NULL
        UNION
        SELECT id FROM organization_group WHERE owner_person_id=$1
        UNION
        SELECT g.id FROM organization_group g
        JOIN person_ancestors a ON a.person_id=g.owner_person_id
-       WHERE a.ancestor_id=$1`,
-      [personId],
+       WHERE a.ancestor_id=$1) scope JOIN organization_group g ON g.id=scope.id`,
+      [actor.personId],
     );
-    return groups.map((row) => row.id);
+    const permitted = await Promise.all(
+      groups.map(async (group) => ({
+        id: group.id,
+        level: await this.access.level(actor, 'read', {
+          type: 'photo',
+          groupIds: [group.id],
+          ownerId: group.ownerId,
+        }),
+      })),
+    );
+    return permitted
+      .filter((group) => group.level !== 'none')
+      .map((group) => group.id);
   }
 
   private async requireHostMentor(

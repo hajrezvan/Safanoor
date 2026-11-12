@@ -162,24 +162,26 @@ function ProgramArt({ name, title }: { name: string; title: string }) {
     />
   );
 }
-export function ProgramTiles() {
+export function ProgramTiles({ showCamps = false }: { showCamps?: boolean }) {
   const t = useFa();
   return (
     <Tiles>
-      {destinations.map((item) => (
-        <Tile key={item.href} href={item.href} $tone={item.tone} aria-label={t(item.key)}>
-          <ArtSurface $tone={item.tone}>
-            <ProgramArt name={item.image} title={t(item.key)} />
-          </ArtSurface>
-          <Copy>
-            <div>
-              <Title>{t(item.key)}</Title>
-              <Hint color="text.secondary">{t(item.hint)}</Hint>
-            </div>
-            <ArrowBackRounded aria-hidden="true" />
-          </Copy>
-        </Tile>
-      ))}
+      {destinations
+        .filter((item) => item.href !== '/camp-attendance' || showCamps)
+        .map((item) => (
+          <Tile key={item.href} href={item.href} $tone={item.tone} aria-label={t(item.key)}>
+            <ArtSurface $tone={item.tone}>
+              <ProgramArt name={item.image} title={t(item.key)} />
+            </ArtSurface>
+            <Copy>
+              <div>
+                <Title>{t(item.key)}</Title>
+                <Hint color="text.secondary">{t(item.hint)}</Hint>
+              </div>
+              <ArrowBackRounded aria-hidden="true" />
+            </Copy>
+          </Tile>
+        ))}
     </Tiles>
   );
 }

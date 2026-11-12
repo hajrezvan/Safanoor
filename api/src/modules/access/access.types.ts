@@ -38,6 +38,7 @@ export const RESOURCE_TYPES = [
   'member_finance',
   'camp',
   'dashboard',
+  'organization_report',
 ] as const;
 export type ResourceType = (typeof RESOURCE_TYPES)[number];
 export type Action =
@@ -53,6 +54,7 @@ export type Action =
   | 'print';
 export type ActiveRoleKind =
   | 'technical_manager'
+  | 'director'
   | 'supervisor'
   | 'head_mentor'
   | 'mentor'

@@ -357,6 +357,8 @@ export class PeopleService {
       this.access.level(actor, 'read', { type: 'policy' }),
       this.access.level(actor, 'read', { type: 'audit' }),
       this.access.level(actor, 'manage', { type: 'admin' }),
+      this.access.level(actor, 'read', { type: 'organization_report' }),
+      this.access.level(actor, 'read', { type: 'camp' }),
     ]);
     const children = actor.isParent
       ? await rows<{ id: string; name: string }>(
@@ -401,6 +403,8 @@ export class PeopleService {
       isParent: actor.isParent,
       consentRequired: actor.consentRequired,
       capabilities: {
+        viewOrganizationReports: checks[7] !== 'none',
+        viewCamps: checks[8] !== 'none',
         createGroups: checks[2] !== 'none',
         admin: checks[0] !== 'none',
         managePeople: checks[1] !== 'none',

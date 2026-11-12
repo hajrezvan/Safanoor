@@ -137,3 +137,37 @@ seed سلسله‌مراتب برای همین فرد primaryGroup=20 دارد؛
 ## تصویرسازی مقصدهای برنامه‌ها
 
 مسیر /programs هفت کارت با تصویر سه‌بعدی مستقل و زمینهٔ شفاف دارد: کتابخانه، جلسات، مشاوره، کلاس، آلبوم، مالی و اردو. سبک تصاویر اشیای واقعی با بافت پارچه، چرم، فلز و شیشه است؛ عناصر کارتونی اضافه نشده‌اند. فایل‌های WebP عمومی در public/assets/illustrations/programs قرار دارند. ProgramTiles در کتابخانهٔ UI، صفحهٔ ProgramsScreen در features و route صرفاً ترکیب Session/Screen است؛ سبک ad hoc از route حذف شد. ابعاد تصویر و رنگ‌های روشن/تیره از tokens، متن‌ها از fa تأمین می‌شوند. کارت‌ها دو ستون در موبایل، سه در تبلت و چهار در دسکتاپ دارند، با فوکوس کیبورد مشخص و رعایت کاهش حرکت؛ در خرابی تصویر عنوان مقصد و جایگزین متنی حفظ می‌شوند. نمونهٔ مؤلفه در /dev/design نیز افزوده شد. مقصدها و دسترسی API همان مقصدهای قبلی‌اند.
+
+سربرگ موبایل (عرض کمتر از ۶۰۰ پیکسل) لوگوی ۴۸ پیکسلی و ارتفاع کل ۶۵ پیکسل دارد؛ نوشتهٔ تکراری کنار لوگو در BrandWords مخفی است. اندازهٔ لوگو از artwork.logoMobile خوانده می‌شود و اندازهٔ دسکتاپ و لوگوی صفحهٔ ورود تغییر نکرده‌اند. TypeScript و lint فایل‌های تغییرکرده موفق‌اند. به‌علت خاموش بودن Docker، بررسی بصری سربرگ با پاسخ آزمایشی Session انجام می‌شود و آزمون کامل API اجرا نشده است.
+
+پروفایل از ProfilePanel با رنگ‌های mint/lavender/sky در توکن‌ها استفاده می‌کند: اطلاعات پایه، عکس و امنیت حساب در کارت‌های جدا. عنوان راهنما و نمادهای Rounded اضافه شده‌اند؛ ورودی‌ها روی سطح خوانا و خنثی باقی می‌مانند. آواتار پیش‌فرض به PersonRounded محلی تبدیل شد تا در نبود سرویس Iconify مربع خالی نمایش داده نشود. فرم‌ها و سیاست دسترسی تغییر نکرده‌اند. بررسی بصری با دادهٔ آزمایشی رابط (بدون Docker/API واقعی) در عرض‌های ۳۹۰/۴۸۷/۱۴۴۰ و دو پوسته انجام می‌شود.
+
+پروفایل زیر عرض ۹۰۰ پیکسل به‌جای ردیف نقش/تأیید/کد ملی پوشانده‌شده، انتخاب نقش فعال را از availableRoles واقعی API نشان می‌دهد. SessionContext همان switchRole مشترک سایدبار را در اختیار پروفایل می‌گذارد؛ تعویض نقش cache را پاک و پاسخ تازهٔ /people/me را جایگزین می‌کند. دسکتاپ ردیف قبلی و سایدبار را حفظ می‌کند. TypeScript و lint فایل‌های تغییرکرده موفق‌اند؛ بازبینی UI با پاسخ آزمایشی شامل چهار نقش انجام می‌شود.
+
+## صفحهٔ جاری و سابقهٔ مطالعه
+
+migration شمارهٔ ۳۰ تعداد صفحات اختیاری کتاب‌های قدیمی، current_page و جدول study_reading_event را اضافه می‌کند. ساخت کتاب جدید در DTO و فرم نیازمند تعداد صفحات صحیح ۱ تا ۱۰۰۰۰۰ است؛ حدسی برای کتاب‌های قبلی وارد نمی‌شود. مربی از عملیات همان کتاب تعداد صفحات را تکمیل می‌کند؛ کاهش تعداد به زیر پیشرفت ثبت‌شده رد می‌شود. رویدادها صفحهٔ قبل/بعد، delta، زمان UTC و روز تقویمی تهران را نگه می‌دارند. get سیر فقط برای فرد جاری و پس از can(study_path/read) و can(study_reading/read/self)، صفحه و جمع تغییرات روزانهٔ ۹۰ روز اخیر را می‌دهد؛ رویدادهای قدیمی در DB باقی‌اند. تغییر صفحه تحت قفل کتاب سری می‌شود؛ ارسال تکراری همان صفحه رویداد اضافه ندارد و عقب‌گرد delta منفی دارد تا رفت‌وبرگشت، مطالعهٔ کاذب نسازد.
+
+پایان کتاب در API فقط با currentPage=totalPages و confirmCompleted=true پذیرفته می‌شود. در UI، رسیدن به آخر ابتدا تیک متحرک و Dialog تأیید نشان می‌دهد و هنوز درخواست پایان ارسال نمی‌کند. رد/بستن Dialog، ثبت reading در max-1 را انجام می‌دهد؛ سپس فرد می‌تواند صفحه را ویرایش کند. تأیید، chip سبز روی جلد را جایگزین کنترل‌ها می‌کند. تکمیل‌های قدیمی حفظ می‌شوند و برایشان تاریخچهٔ صفحهٔ ساختگی ساخته نمی‌شود. دکمهٔ PDF برچسب دانلود، آیکن PDF محلی و عمق قرمز دارد؛ فایل همان URL احراز‌شدهٔ قبلی است. بلوک عملیات در پایین کارت و با عرض ثابت قرار دارد.
+
+اعتبارسنجی: migration از صفر و seed دوبار در دیتابیس آزمون، ۲۵ تست HTTP PostgreSQL، TypeScript و lint فایل‌های تغییرکرده؛ تست Playwright شروع، ثبت ۶۰، رسیدن به آخر بدون ذخیره، انصراف و برگشت به ۹۹، تأیید نهایی، لینک PDF و هم‌ترازی کنترل‌ها موفق. تصاویر ۳۹۰/۱۴۴۰ در روشن/تیره در docs/screens/reading-pages-* بازبینی شدند. migration روی دیتابیس توسعه نیز اعمال شد. بررسی UI با پاسخ آزمایشی API و بررسی سیاست/تاریخچه با PostgreSQL واقعی انجام شد.
+
+## فیلتر و ترتیب آلبوم
+
+GET /album/albums و /album/photos پارامتر myOnly (boolean واقعی با parse صریح true/false) و sort با مقادیر محدود newest/oldest/most_photos می‌پذیرند. «عکس‌های من» فقط photo_tag.person_id شخص جاری را بررسی می‌کند و با گروه‌های قابل مشاهده و can(photo/read) اشتراک دارد؛ بارگذاری‌کننده بودن به‌تنهایی معیار نیست. فیلتر پیش از گروه‌بندی، انتخاب جلد، شمارش و صفحه‌بندی اعمال می‌شود. ترتیب آلبوم بر اساس تاریخ آخرین عکس یا تعداد عکس‌های قابل مشاهده است، با کلید پایدار برای مقادیر برابر. most_photos داخل یک آلبوم به جدیدترین عکس‌ها تبدیل می‌شود. فیلتر هنگام ورود به آلبوم حفظ و در query key نیز لحاظ می‌شود. Select داخلی شناسهٔ پایدار useId دارد تا برچسب آن به کنترل متصل باشد. قرارداد OpenAPI و کلاینت بازتولید شده‌اند؛ migration لازم نیست.
+
+### Development member finance preview
+
+A server-gated fictional preview helps review the member finance UI before actual individual charge/payment accounting exists. `/finance/me` advertises availability in development; `/finance/demo` returns synthetic settled/partial/unpaid examples, server-computed totals and dated sample payments. No database writes or real debts are created. Production retains existing status-only behavior. See `phases/FINANCE_PREVIEW.md`.
+
+### Role selector ordering
+
+The API returns the technical manager first, then group roles sorted by Persian group name with numeric collation (for example Safa 20, 27, 33). Both the sidebar and mobile profile selector consume the same ordered list. Active-role identifiers and permissions are unchanged.
+
+### Unassigned director reporting role
+
+Owner confirmed no assignment yet and no confidential individual content. Migration 31 introduces `app_user.is_director=false` and a separate active `director` role; no seed grants it. `organization_report` policy authorizes two read-only dashboard routes: implemented-module aggregates and paginated name/role/group roster with explicit safe SQL projection. A central director ceiling in can() prevents inherited writes, private reads or grant/admin escalation. Server capability `viewOrganizationReports` selects the report home and read-only profile. See `phases/DIRECTOR_ROLE.md` for coverage and remaining reporting scope.
+
+### Recovery of deferred chat refinements
+
+Dashboard charts now share a token palette, Persian formatters for every displayed axis/category/tooltip, dedicated axis dimensions, and immediately completed rendering (including offscreen charts and reduced-motion). Recent conversation cards render the API-authorized title/preview/time instead of avatars-only. Member home uses colored internal panels. Capability `viewCamps` controls all camp entry points; migration32 replaces generic same-group reading with staff policy, and central can() denies selected member-role camp access. Camp list queries respect active role group. Full request audit: phases/CHAT_RECOVERY.md.

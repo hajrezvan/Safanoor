@@ -103,9 +103,7 @@ function CampFormFields({
               label={t('campStartsOn')}
               value={field.value ? new Date(`${field.value}T12:00:00`) : null}
               onChange={(date) =>
-                field.onChange(
-                  date && !Number.isNaN(date.valueOf()) ? calendarDate(date) : ''
-                )
+                field.onChange(date && !Number.isNaN(date.valueOf()) ? calendarDate(date) : '')
               }
               error={fieldState.error?.message}
             />
@@ -119,9 +117,7 @@ function CampFormFields({
               label={t('campEndsOn')}
               value={field.value ? new Date(`${field.value}T12:00:00`) : null}
               onChange={(date) =>
-                field.onChange(
-                  date && !Number.isNaN(date.valueOf()) ? calendarDate(date) : ''
-                )
+                field.onChange(date && !Number.isNaN(date.valueOf()) ? calendarDate(date) : '')
               }
               error={fieldState.error?.message}
             />
@@ -243,17 +239,18 @@ function CreateCampDialog({
     },
   });
   useEffect(() => {
-    if (open) form.reset({
-      title: '',
-      startsOn: '',
-      endsOn: '',
-      place: undefined,
-      purpose: undefined,
-      costAmount: undefined,
-      durationText: undefined,
-      scheduleText: undefined,
-      participantIds: [],
-    });
+    if (open)
+      form.reset({
+        title: '',
+        startsOn: '',
+        endsOn: '',
+        place: undefined,
+        purpose: undefined,
+        costAmount: undefined,
+        durationText: undefined,
+        scheduleText: undefined,
+        participantIds: [],
+      });
   }, [open, form]);
   return (
     <Dialog
@@ -366,29 +363,28 @@ function CampDetailView({
       })
     );
   }, onBack);
-  const uploadPermit = useWrite(async (file: File) => {
-    const data = new FormData();
-    data.append('file', file);
-    return unwrap(
-      await client.POST('/api/v1/camps/{id}/permit', {
-        params: { path: { id: campId } },
-        body: data as unknown as { file: string },
-        bodySerializer: (body) => body as unknown as FormData,
-      })
-    );
-  }, () => {
-    setPermitFile(null);
-    invalidate();
-  });
+  const uploadPermit = useWrite(
+    async (file: File) => {
+      const data = new FormData();
+      data.append('file', file);
+      return unwrap(
+        await client.POST('/api/v1/camps/{id}/permit', {
+          params: { path: { id: campId } },
+          body: data as unknown as { file: string },
+          bodySerializer: (body) => body as unknown as FormData,
+        })
+      );
+    },
+    () => {
+      setPermitFile(null);
+      invalidate();
+    }
+  );
   return (
     <Stack>
       <PageHeader
         title={camp?.title ?? t('campAttendance')}
-        hint={
-          camp
-            ? `${formatDate(camp.startsOn)} — ${formatDate(camp.endsOn)}`
-            : undefined
-        }
+        hint={camp ? `${formatDate(camp.startsOn)} — ${formatDate(camp.endsOn)}` : undefined}
         action={
           <Button variant="outlined" onClick={onBack} icon="back">
             {t('backToCamps')}
@@ -509,11 +505,7 @@ function CampDetailView({
             <Button variant="text" onClick={() => setConfirmDelete(false)}>
               {t('cancel')}
             </Button>
-            <Button
-              color="error"
-              disabled={remove.isPending}
-              onClick={() => remove.mutate(null)}
-            >
+            <Button color="error" disabled={remove.isPending} onClick={() => remove.mutate(null)}>
               {t(remove.isPending ? 'busy' : 'confirm')}
             </Button>
           </>
@@ -603,11 +595,7 @@ function CampList({
         ) : (
           <Stack>
             {list.data?.items.map((camp: CampSummary) => (
-              <CompactClickableCard
-                key={camp.id}
-                type="button"
-                onClick={() => onOpen(camp.id)}
-              >
+              <CompactClickableCard key={camp.id} type="button" onClick={() => onOpen(camp.id)}>
                 <Spread>
                   <PersonCardMeta>
                     <Text variant="subtitle">{camp.title}</Text>
@@ -694,10 +682,19 @@ function CampAttendanceScreen() {
   );
 }
 
+function CampAccess() {
+  const me = useSession();
+  const t = useFa();
+  return me.capabilities.viewCamps ? (
+    <CampAttendanceScreen />
+  ) : (
+    <EmptyState title={t('campAccessRestricted')} />
+  );
+}
 export default function Page() {
   return (
     <Session>
-      <CampAttendanceScreen />
+      <CampAccess />
     </Session>
   );
 }

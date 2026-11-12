@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { formatNumber } from '@safanoor/shared';
 import { useQuery } from '@tanstack/react-query';
-import { useRef, useState, useEffect } from 'react';
+import { useId, useRef, useState, useEffect } from 'react';
 
 import AddRounded from '@mui/icons-material/AddRounded';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -35,6 +35,7 @@ import PsychologyRounded from '@mui/icons-material/PsychologyRounded';
 import FileUploadRounded from '@mui/icons-material/FileUploadRounded';
 import { styled, useTheme, ThemeProvider } from '@mui/material/styles';
 import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
+import PictureAsPdfRounded from '@mui/icons-material/PictureAsPdfRounded';
 import PhotoLibraryRounded from '@mui/icons-material/PhotoLibraryRounded';
 import VisibilityOffRounded from '@mui/icons-material/VisibilityOffRounded';
 import NotificationsRounded from '@mui/icons-material/NotificationsRounded';
@@ -49,6 +50,7 @@ import {
   Alert,
   Table,
   Badge,
+  Slider,
   Drawer,
   Divider,
   Tooltip,
@@ -95,11 +97,9 @@ import { AvatarCropPanel } from './avatar-crop';
 
 export { ProgramTiles } from './programs';
 
-const DEFAULT_AVATAR_ICON = 'solar:user-rounded-bold';
 function AvatarFallbackIcon({ size }: { size: number }) {
   const width = Math.round(size * 0.55);
-  // Iconify is a JS component; optional props are inferred as required.
-  return <Iconify icon={DEFAULT_AVATAR_ICON} width={width} height={width} className="" sx={{}} />;
+  return <PersonRounded sx={{ fontSize: width }} />;
 }
 
 const icons = {
@@ -113,6 +113,7 @@ const icons = {
   campAttendance: EventAvailableRounded,
   notifications: NotificationsRounded,
   profile: PersonRounded,
+  pdf: PictureAsPdfRounded,
   programs: GridViewRounded,
   communications: ChatRounded,
   people: GroupsRounded,
@@ -404,6 +405,7 @@ export const BookCardBody = styled('div')({
   minWidth: 0,
 });
 export const BookCardActions = styled('div')({
+  '& > .MuiStack-root': { width: '100%' },
   marginTop: 'auto',
   display: 'flex',
   flexWrap: 'wrap',
@@ -411,6 +413,88 @@ export const BookCardActions = styled('div')({
   justifyContent: 'space-between',
   gap: tokens.space.sm,
 });
+export function PageSlider({
+  label,
+  max,
+  value,
+  disabled,
+  onChange,
+  onCommit,
+}: {
+  label: string;
+  max: number;
+  value: number;
+  disabled: boolean;
+  onChange: (v: number) => void;
+  onCommit: (v: number) => void;
+}) {
+  return (
+    <Box sx={{ paddingInline: tokens.space.sm }}>
+      <Slider
+        aria-label={label}
+        min={0}
+        max={max}
+        step={1}
+        value={value}
+        disabled={disabled}
+        valueLabelDisplay="auto"
+        valueLabelFormat={formatNumber}
+        getAriaValueText={formatNumber}
+        onChange={(_, v) => onChange(v as number)}
+        onChangeCommitted={(_, v) => onCommit(v as number)}
+      />
+    </Box>
+  );
+}
+const FinishedIcon = styled(CheckCircleRounded)(({ theme }) => ({
+  color: theme.palette.success.main,
+  fontSize: tokens.type.display,
+  animation: `reading-complete ${tokens.motion.duration}ms ease-out`,
+  '@keyframes reading-complete': {
+    from: { transform: 'scale(0.5)', opacity: 0 },
+    to: { transform: 'scale(1)', opacity: 1 },
+  },
+  '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+}));
+export function CompletionMark() {
+  return <FinishedIcon aria-hidden="true" />;
+}
+export const BookCompletedBadge = styled('div')({
+  position: 'absolute',
+  bottom: tokens.space.sm,
+  insetInline: tokens.space.sm,
+  zIndex: 2,
+  pointerEvents: 'none',
+});
+const PdfControl = styled(MuiButton)(({ theme }) => ({
+  color:
+    theme.palette.mode === 'light' ? tokens.palette.light.onBrand : tokens.palette.dark.onBrand,
+  background: theme.palette.error.main,
+  minHeight: tokens.layout.touch,
+  borderRadius: tokens.radius.button,
+  paddingInline: tokens.space.md,
+  boxShadow: `inset 0 -${tokens.space.xs}px 0 ${theme.palette.mode === 'light' ? tokens.joy.light.peach.ink : tokens.joy.dark.peach.edge}`,
+  '&:hover': { background: theme.palette.error.dark },
+  '&.Mui-disabled': {
+    background: theme.palette.action.disabledBackground,
+    color: theme.palette.text.secondary,
+    boxShadow: 'none',
+  },
+}));
+export function BookPdfButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
+  const t = useFa();
+  return (
+    <PdfControl
+      type="button"
+      fullWidth
+      disabled={disabled}
+      onClick={onClick}
+      startIcon={<PictureAsPdfRounded />}
+    >
+      {t('downloadBook')}
+    </PdfControl>
+  );
+}
 export const ClassAudioPlayer = styled('audio')({
   width: '100%',
   display: 'block',
@@ -585,6 +669,56 @@ export const Card = styled(Paper)(({ theme }) => ({
   minWidth: 0,
   overflow: 'hidden',
 }));
+export const ProfileDesktopMeta = styled(Row)(({ theme }) => ({
+  [theme.breakpoints.down('md')]: { display: 'none' },
+}));
+export const ProfileMobileRoles = styled(Stack)(({ theme }) => ({
+  [theme.breakpoints.up('md')]: { display: 'none' },
+}));
+export const ProfilePanel = styled(Card, {
+  shouldForwardProp: (prop) => prop !== 'tone',
+})<{ tone: JoyTone }>(({ theme, tone }) => ({
+  padding: tokens.space.xl,
+  borderColor: tokens.joy[theme.palette.mode][tone].edge,
+  background: `linear-gradient(155deg, ${tokens.joy[theme.palette.mode][tone].surface}, ${theme.palette.background.paper} 65%)`,
+  '& .MuiOutlinedInput-root': { background: theme.palette.background.paper },
+}));
+const ProfileHeadingIcon = styled('span')(({ theme }) => ({
+  display: 'grid',
+  placeItems: 'center',
+  flexShrink: 0,
+  width: tokens.layout.touch,
+  height: tokens.layout.touch,
+  borderRadius: tokens.radius.input,
+  color: tokens.joy[theme.palette.mode].mint.ink,
+  background: theme.palette.background.paper,
+  border: `1px solid ${tokens.joy[theme.palette.mode].mint.edge}`,
+}));
+export function ProfileSectionHeading({
+  title,
+  hint,
+  icon,
+}: {
+  title: string;
+  hint?: string;
+  icon: IconName;
+}) {
+  return (
+    <Row>
+      <ProfileHeadingIcon>
+        <Icon name={icon} />
+      </ProfileHeadingIcon>
+      <Stack>
+        <Text variant="subtitle">{title}</Text>
+        {hint && (
+          <Text muted variant="caption">
+            {hint}
+          </Text>
+        )}
+      </Stack>
+    </Row>
+  );
+}
 /** Shorter dashboard hero / dense panels. */
 export const CompactCard = styled(Card)({
   padding: `${tokens.space.md}px ${tokens.space.lg}px`,
@@ -897,8 +1031,10 @@ export function Select({
   disabled?: boolean;
   error?: string;
 }) {
+  const id = useId();
   return (
     <TextField
+      id={id}
       select
       fullWidth
       label={label}
@@ -1976,12 +2112,16 @@ const HeaderBody = styled(Spread)(({ theme }) => ({
   flexWrap: 'nowrap',
   [theme.breakpoints.down('sm')]: {
     paddingInline: tokens.space.sm,
+    '& img[src="/logo.png"]': {
+      width: tokens.artwork.logoMobile,
+      height: tokens.artwork.logoMobile,
+    },
   },
 }));
 const HeaderActions = styled(Row)({ flexWrap: 'nowrap', gap: tokens.space.xs });
 const BrandWords = styled(Stack)(({ theme }) => ({
   gap: 0,
-  [theme.breakpoints.down('sm')]: { '& .MuiTypography-caption': { display: 'none' } },
+  [theme.breakpoints.down('sm')]: { display: 'none' },
 }));
 const Brand = styled(Row)(({ theme }) => ({
   color: theme.palette.primary.main,
@@ -2190,6 +2330,8 @@ export function Shell({
   onLogout,
   onRoleChange,
   roleSwitchBusy = false,
+  reportOnly = false,
+  showCamps = false,
 }: {
   children: ReactNode;
   admin?: boolean;
@@ -2198,12 +2340,22 @@ export function Shell({
   onLogout: () => void;
   onRoleChange?: (roleId: string) => void;
   roleSwitchBusy?: boolean;
+  reportOnly?: boolean;
+  showCamps?: boolean;
 }) {
   const t = useFa();
   const path = usePathname();
   const [roleMenu, setRoleMenu] = useState<null | HTMLElement>(null);
   const adminItems = nav.filter((item) => item.visible !== false);
-  const items = [...memberNav, ...adminItems];
+  const visibleMemberNav = memberNav.filter(
+    (item) => item.href !== '/camp-attendance' || showCamps
+  );
+  const items = reportOnly
+    ? visibleMemberNav.filter((item) => item.href === '/')
+    : [...visibleMemberNav, ...adminItems];
+  const visibleBottomNav = reportOnly
+    ? bottomNav.filter((item) => ['/', '/profile'].includes(item.href))
+    : bottomNav;
   const showBottom =
     !admin || bottomNav.some((item) => item.href !== '/' && navActive(path, item.href));
   const bottomValue = bottomNav.find((item) => navActive(path, item.href))?.href ?? false;
@@ -2311,7 +2463,7 @@ export function Shell({
       {showBottom && (
         <Bottom>
           <BottomNavigation showLabels value={bottomValue}>
-            {bottomNav.map((item) => (
+            {visibleBottomNav.map((item) => (
               <BottomNavigationAction
                 component={Link}
                 href={item.href}
@@ -2473,7 +2625,13 @@ const FeedAvatarsOnly = styled(FeedButton)(({ theme }) => ({
     borderColor: theme.palette.primary.main,
   },
 }));
-const FeedCopy = styled(Stack)({ flex: 1, overflow: 'hidden', gap: tokens.space.xs });
+const FeedCopy = styled(Stack)({
+  flex: 1,
+  minWidth: 0,
+  overflow: 'hidden',
+  gap: tokens.space.xs,
+  '& .MuiTypography-root': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+});
 export function FeedItem({
   title,
   time,
@@ -2481,6 +2639,7 @@ export function FeedItem({
   onRead,
   names,
   avatarsOnly = false,
+  preview,
 }: {
   title: string;
   time: string;
@@ -2489,6 +2648,7 @@ export function FeedItem({
   names?: string[];
   /** Thread-style preview: overlapping avatars + last message time. */
   avatarsOnly?: boolean;
+  preview?: string;
 }) {
   const t = useFa();
   const avatarNames =
@@ -2516,6 +2676,11 @@ export function FeedItem({
       </Badge>
       <FeedCopy>
         <Text variant="subtitle">{title}</Text>
+        {preview && (
+          <Text muted variant="caption">
+            {preview}
+          </Text>
+        )}
         <Text muted variant="caption">
           {time}
         </Text>

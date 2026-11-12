@@ -13,8 +13,10 @@ import {
   Row,
   Chip,
   Text,
+  Check,
   Input,
   Stack,
+  Select,
   Button,
   Dialog,
   Notice,
@@ -39,6 +41,8 @@ const OTHER_ALBUM_KEY = '__other__';
 export function AlbumScreen() {
   const t = useFa();
   const cache = useQueryClient();
+  const [myOnly, setMyOnly] = useState(false);
+  const [sort, setSort] = useState<'newest' | 'oldest' | 'most_photos'>('newest');
   const [openAlbum, setOpenAlbum] = useState<{
     key: string;
     title: string;
@@ -73,23 +77,29 @@ export function AlbumScreen() {
   const canUpload = !!managedGroup;
 
   const albums = useQuery({
-    queryKey: ['album-albums'],
+    queryKey: ['album-albums', myOnly, sort],
     queryFn: async () =>
       unwrap(
         await client.GET('/api/v1/album/albums', {
-          params: { query: { page: 1, limit: 100 } },
+          params: { query: { page: 1, limit: 100, myOnly, sort } },
         })
       ),
   });
 
   const photos = useQuery({
-    queryKey: ['album-photos', openAlbum?.key],
+    queryKey: ['album-photos', openAlbum?.key, myOnly, sort],
     enabled: !!openAlbum,
     queryFn: async () =>
       unwrap(
         await client.GET('/api/v1/album/photos', {
           params: {
-            query: { page: 1, limit: 100, albumKey: openAlbum!.key },
+            query: {
+              page: 1,
+              limit: 100,
+              myOnly,
+              sort: sort === 'most_photos' ? 'newest' : sort,
+              albumKey: openAlbum!.key,
+            },
           },
         })
       ),
@@ -182,9 +192,7 @@ export function AlbumScreen() {
   function addTag(personId: string) {
     if (!personId || tagIds.includes(personId)) return;
     const person = people.data?.items.find((item) => item.id === personId);
-    const label = person
-      ? `${person.firstName} ${person.lastName}`
-      : personId;
+    const label = person ? `${person.firstName} ${person.lastName}` : personId;
     setTagIds((current) => [...current, personId]);
     setTagLabels((current) => ({ ...current, [personId]: label }));
     setTagDraft('');
@@ -202,6 +210,21 @@ export function AlbumScreen() {
     return album.title;
   }
 
+  const filters = (
+    <Row>
+      <Check label={t('albumMyOnly')} checked={myOnly} onChange={setMyOnly} />
+      <Select
+        label={t('albumSort')}
+        value={openAlbum && sort === 'most_photos' ? 'newest' : sort}
+        onChange={(value) => setSort(value as typeof sort)}
+        options={[
+          { value: 'newest', label: t('albumNewest') },
+          { value: 'oldest', label: t('albumOldest') },
+          ...(!openAlbum ? [{ value: 'most_photos', label: t('albumMostPhotos') }] : []),
+        ]}
+      />
+    </Row>
+  );
   if (openAlbum) {
     return (
       <Stack>
@@ -227,12 +250,8 @@ export function AlbumScreen() {
                 <Button
                   icon="add"
                   onClick={() => {
-                    setAlbumTitle(
-                      openAlbum.key === OTHER_ALBUM_KEY ? '' : openAlbum.title
-                    );
-                    setAlbumDraft(
-                      openAlbum.key === OTHER_ALBUM_KEY ? '' : openAlbum.title
-                    );
+                    setAlbumTitle(openAlbum.key === OTHER_ALBUM_KEY ? '' : openAlbum.title);
+                    setAlbumDraft(openAlbum.key === OTHER_ALBUM_KEY ? '' : openAlbum.title);
                     setUploading(true);
                   }}
                 >
@@ -242,6 +261,7 @@ export function AlbumScreen() {
             </Row>
           }
         />
+        {filters}
         <QueryState
           loading={photos.isLoading}
           error={photos.error}
@@ -293,9 +313,7 @@ export function AlbumScreen() {
           onPlaceSearchChange={setPlaceSearch}
           onFileChange={setFile}
           onAddTag={addTag}
-          onRemoveTag={(id) =>
-            setTagIds((current) => current.filter((item) => item !== id))
-          }
+          onRemoveTag={(id) => setTagIds((current) => current.filter((item) => item !== id))}
         />
         <PhotoDetailDialog
           selectedId={selectedId}
@@ -327,14 +345,13 @@ export function AlbumScreen() {
           ) : undefined
         }
       />
+      {filters}
       <QueryState
         loading={albums.isLoading || groups.isLoading}
         error={albums.error || groups.error}
         empty={(albums.data?.items.length ?? 0) === 0}
         emptyTitle={t('groupAlbumEmpty')}
-        emptyHint={
-          canUpload ? t('groupAlbumEmptyMentorHint') : t('groupAlbumEmptyHint')
-        }
+        emptyHint={canUpload ? t('groupAlbumEmptyMentorHint') : t('groupAlbumEmptyHint')}
         retry={() => {
           void albums.refetch();
           void groups.refetch();
@@ -391,9 +408,7 @@ export function AlbumScreen() {
         onPlaceSearchChange={setPlaceSearch}
         onFileChange={setFile}
         onAddTag={addTag}
-        onRemoveTag={(id) =>
-          setTagIds((current) => current.filter((item) => item !== id))
-        }
+        onRemoveTag={(id) => setTagIds((current) => current.filter((item) => item !== id))}
       />
 
       <PhotoDetailDialog
@@ -428,17 +443,8 @@ function PhotoDetailDialog({
 }) {
   const t = useFa();
   return (
-    <Dialog
-      open={!!selectedId}
-      title={detail?.title || t('photoDetail')}
-      onClose={onClose}
-    >
-      <QueryState
-        loading={loading}
-        error={error}
-        empty={!detail}
-        retry={onRetry}
-      >
+    <Dialog open={!!selectedId} title={detail?.title || t('photoDetail')} onClose={onClose}>
+      <QueryState loading={loading} error={error} empty={!detail} retry={onRetry}>
         {detail && <PhotoDetailBody photo={detail} />}
       </QueryState>
     </Dialog>
@@ -478,9 +484,7 @@ function PhotoDetailBody({ photo }: { photo: PhotoDetail }) {
           </Row>
         )}
       </Stack>
-      {photo.canManage && (
-        <Text muted>{t('photoManageHint')}</Text>
-      )}
+      {photo.canManage && <Text muted>{t('photoManageHint')}</Text>}
     </Stack>
   );
 }
@@ -563,10 +567,7 @@ function UploadDialog({
           <Button variant="text" onClick={onClose}>
             {t('cancel')}
           </Button>
-          <Button
-            disabled={!file || !canUpload || uploadPending}
-            onClick={onSubmit}
-          >
+          <Button disabled={!file || !canUpload || uploadPending} onClick={onSubmit}>
             {t('uploadPhoto')}
           </Button>
         </>
@@ -577,7 +578,10 @@ function UploadDialog({
           ? t('uploadPhotoGroup', { name: managedGroupName })
           : t('noGroupForAlbum')}
       </Text>
-      <FileInput accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" onChange={onFileChange} />
+      <FileInput
+        accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+        onChange={onFileChange}
+      />
       <AutocompleteSelect
         label={t('photoAlbumTitle')}
         value={albumTitle}
@@ -594,8 +598,7 @@ function UploadDialog({
           onAlbumDraftChange(next);
           if (albumTitle) {
             const selectedLabel =
-              albumDraft ||
-              albumOptions.find((item) => item.value === albumTitle)?.label;
+              albumDraft || albumOptions.find((item) => item.value === albumTitle)?.label;
             if (selectedLabel && selectedLabel === next) return;
             onAlbumTitleChange('');
           }
@@ -607,15 +610,12 @@ function UploadDialog({
             return;
           }
           if (option?.inputValue || next.startsWith('__create__:')) {
-            const label =
-              option?.inputValue || option?.label || next.replace(/^__create__:/, '');
+            const label = option?.inputValue || option?.label || next.replace(/^__create__:/, '');
             onAlbumTitleChange('');
             onAlbumDraftChange(label);
             return;
           }
-          const known = albumOptions.find(
-            (item) => item.value === next || item.label === next,
-          );
+          const known = albumOptions.find((item) => item.value === next || item.label === next);
           if (known) {
             onAlbumTitleChange(known.value);
             onAlbumDraftChange(known.label);
@@ -646,9 +646,7 @@ function UploadDialog({
         limit={8}
         createLabel={(label) => t('photoPlaceCreate', { label })}
         options={[
-          ...(placeId && placeDraft
-            ? [{ value: placeId, label: placeDraft }]
-            : []),
+          ...(placeId && placeDraft ? [{ value: placeId, label: placeDraft }] : []),
           ...locations
             .filter((item) => item.id !== placeId)
             .map((item) => ({
@@ -661,8 +659,7 @@ function UploadDialog({
           onPlaceSearchChange(next);
           if (placeId) {
             const selectedLabel =
-              placeDraft ||
-              locations.find((item) => item.id === placeId)?.label;
+              placeDraft || locations.find((item) => item.id === placeId)?.label;
             if (selectedLabel && selectedLabel === next) return;
             onPlaceIdChange('');
           }
@@ -675,15 +672,12 @@ function UploadDialog({
             return;
           }
           if (option?.inputValue || next.startsWith('__create__:')) {
-            const label =
-              option?.inputValue || option?.label || next.replace(/^__create__:/, '');
+            const label = option?.inputValue || option?.label || next.replace(/^__create__:/, '');
             onPlaceIdChange('');
             onPlaceDraftChange(label);
             return;
           }
-          const known = locations.find(
-            (item) => item.id === next || item.label === next,
-          );
+          const known = locations.find((item) => item.id === next || item.label === next);
           if (known) {
             onPlaceIdChange(known.id);
             onPlaceDraftChange(known.label);
@@ -708,11 +702,7 @@ function UploadDialog({
         />
         <Row>
           {tagIds.map((id) => (
-            <Button
-              key={id}
-              variant="outlined"
-              onClick={() => onRemoveTag(id)}
-            >
+            <Button key={id} variant="outlined" onClick={() => onRemoveTag(id)}>
               {`${tagLabels[id] ?? id} · ${t('removeTag')}`}
             </Button>
           ))}

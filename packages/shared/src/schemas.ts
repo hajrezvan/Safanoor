@@ -60,6 +60,7 @@ export const studyPathSchema = z.object({
 });
 export type StudyPathInput = z.infer<typeof studyPathSchema>;
 export const studyPathItemSchema = z.object({
+  totalPages: z.coerce.number().int().min(1).max(100000),
   bookTitle: z.string().trim().min(1, 'عنوان کتاب را وارد کنید.').max(300),
   bookAuthor: optionalText(z.string().trim().max(200)),
   notes: optionalText(z.string().trim().max(2000)),

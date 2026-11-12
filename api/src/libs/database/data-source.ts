@@ -37,6 +37,9 @@ import { RestrictSuperiorProfiles1792195200028 } from './migrations/179219520002
 
 import { IndependentAssistantGroup1792195200029 } from './migrations/1792195200029-IndependentAssistantGroup';
 
+import { ReadingPages1792195200030 } from './migrations/1792195200030-ReadingPages';
+import { DirectorReports1792195200031 } from './migrations/1792195200031-DirectorReports';
+import { CampStaffOnly1792195200032 } from './migrations/1792195200032-CampStaffOnly';
 config();
 export const databaseOptions = {
   type: 'postgres' as const,
@@ -75,6 +78,9 @@ export const databaseOptions = {
     TechManagerReadPolicies1792195200027,
     RestrictSuperiorProfiles1792195200028,
     IndependentAssistantGroup1792195200029,
+    ReadingPages1792195200030,
+    DirectorReports1792195200031,
+    CampStaffOnly1792195200032,
   ],
   logging: false,
   ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: true } : false,

@@ -14,6 +14,7 @@ import { PaginationDto } from '../../libs/http/http.dto';
 import { Actor } from '../access/access.types';
 import { CurrentActor, Policy } from '../access/policy.decorator';
 import {
+  FinanceDemoDto,
   CreateCostItemDto,
   MemberFinanceDto,
   CreateProgramEventDto,
@@ -33,6 +34,13 @@ export class FinanceController {
   @ApiOkResponse({ type: MemberFinanceDto })
   mine(@CurrentActor() actor: Actor): Promise<MemberFinanceDto> {
     return this.finance.mine(actor);
+  }
+
+  @Get('finance/demo')
+  @Policy('member_finance', 'read')
+  @ApiOkResponse({ type: FinanceDemoDto })
+  demo(@CurrentActor() actor: Actor): Promise<FinanceDemoDto> {
+    return this.finance.demo(actor);
   }
 
   @Get('groups/:id/finance/destinations')

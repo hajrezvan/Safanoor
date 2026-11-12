@@ -88,3 +88,21 @@ avatar/read و avatar/update فقط self هستند. آواتار دیگران،
 گروه نقش «نیرو» صفا ۲۰ است؛ کمک‌مربی صفا ۲۷ و مربی صفا ۳۳ نقش‌های مستقل باقی‌اند. در نقش فعال نیرو، عضویت کمک‌مربیِ صفا ۲۷ مجوز مطالعهٔ منابع همان گروه را ایجاد نمی‌کند؛ نقش فعال کمک‌مربی نیز قدرت مربی صفا ۳۳ را ندارد. آزمون can() با دادهٔ واقعی PostgreSQL این جداسازی را بررسی می‌کند. مسیرهای API تغییری ندارند و هیچ ردیف allow تازه‌ای به access_policy اضافه نشده است.
 
 تصویرهای سه‌بعدی کارت‌های /programs فقط اشیای عمومی و بدون محتوای اشخاص هستند. عنوان‌ها و لینک‌های هفت مقصد حفظ شده‌اند؛ تغییر ظاهر هیچ دسترسی تازه‌ای نمی‌دهد و هر مقصد همچنان توسط Session و سیاست backend کنترل می‌شود.
+
+پیشرفت صفحه‌ای و history روزانه همان منبع study_reading با رابطهٔ self هستند؛ can() پیش از خواندن تاریخچه و ثبت رویداد اجرا می‌شود و personId از actor گرفته می‌شود. payload نمی‌تواند شخص دیگری را مشخص کند. مربی فقط تعداد صفحات کتاب گروه خودش را مدیریت می‌کند؛ تاریخچهٔ مطالعهٔ اعضا به پاسخ مربی اضافه نشده است. آزمون HTTP جداسازی پیشرفت میان کاربر، مربی و کمک‌مربی، منع فرد نامرتبط/والد/مدیر فنی و نبود تاریخچهٔ دیگران را پوشش می‌دهد. سیاست تازهٔ allow و endpoint گزارش اشخاص دیگر ایجاد نشده است.
+
+فیلتر myOnly صرفاً محدودکنندهٔ نتایج مجاز است: وجود تگ فرد در عکس گروه نامرتبط، مجوز مشاهده ایجاد نمی‌کند. شمارنده و جلد آلبوم فیلترشده نیز از همان عکس‌های مجاز و تگ‌شده محاسبه می‌شوند. شناسهٔ فرد از actor می‌آید و قابل انتخاب در query نیست. آزمون PostgreSQL حالت تگ‌شدن در گروه نامرتبط، منع نتایج آن، شمارش و ترتیب و boolean نامعتبر را پوشش می‌دهد.
+
+### Development finance samples
+
+The synthetic `/finance/demo` endpoint requires authentication, PolicyGuard and central `member_finance/read` self access. It is development-only and rejects parent, external and technical-manager actors. Sample payloads contain no actual person/group financial records and create no obligations. The optional availability flag is absent outside development; existing group cost permissions are unchanged.
+
+Role selector ordering is presentational only: technical manager first, then group names in numeric ascending order. No role assignments or policy grants change.
+
+### مدیر کل (director) — unassigned
+
+Confirmed scope: organization-wide reporting without confidential individual content; assign to nobody until owner names an account. Entitlement is independent `app_user.is_director`, default false, never seeded. Only the selected director session gets `organization_report/read` through a dedicated policy row. Member/mentor/admin sessions cannot use reporting endpoints implicitly. Central can() denies all director organizational writes and other-resource reads except personal person/avatar/consent/notification reads; grants and admin flags cannot bypass that ceiling. The report roster selects only id/name/orgLevel/groupName, active internal people only. Consultation/meeting contents, private notes/blocks, messages, medical/address/identity/contact fields, receipts, donors and individual debts are excluded. Counts and stored destination cost totals only are exposed for operational modules. No assignment endpoint has been added; future entitlement assignment must be explicit and audited.
+
+### Camps hidden from members (owner instruction)
+
+The selected member role cannot access the camp management resource, including by grant or direct URL. Migration32 removes camp/read/sameGroup and adds camp/read/campStaff for an assistant within the selected group; groupMentor/admin policies remain. `viewCamps` is server-computed through can() and gates sidebar, home shortcuts, program tile and direct page. GET camps/list-by-group/detail and POST are denied for members in API tests; mentor and assistant access remains. Camp list defaults to the active group and authorizes that scope. This does not grant access to medical/address data or change the separate parent_camp policy.

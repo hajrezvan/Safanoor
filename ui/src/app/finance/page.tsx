@@ -18,6 +18,7 @@ import {
 import { useWrite } from 'src/features/shared';
 import { useFa } from 'src/locales/fa-provider';
 import { api, client, unwrap } from 'src/api/client';
+import { FinanceDemo } from 'src/features/finance-demo';
 import { Session, useSession } from 'src/features/session';
 
 import {
@@ -393,9 +394,7 @@ function DestinationDetail({
               <Stack>
                 <Spread>
                   <Text variant="subtitle">{t('totalCost')}</Text>
-                  <Chip>
-                    {t('tomanAmount', { amount: formatNumber(destination.totalAmount) })}
-                  </Chip>
+                  <Chip>{t('tomanAmount', { amount: formatNumber(destination.totalAmount) })}</Chip>
                 </Spread>
                 <Spread>
                   <Text variant="subtitle">{t('memberPaymentCost')}</Text>
@@ -611,14 +610,29 @@ function MemberFinance({ onOpen }: { onOpen: (id: string) => void }) {
   if (data?.canViewGroupFinance && data.groupId) {
     return <DestinationList groupId={data.groupId} canManage={false} onOpen={onOpen} />;
   }
+  if (data?.demoAvailable) return <FinanceDemo />;
   return (
     <Stack>
       <PageHeader title={t('finance')} />
-      <QueryState loading={status.isLoading} error={status.error} retry={() => void status.refetch()}>
+      <QueryState
+        loading={status.isLoading}
+        error={status.error}
+        retry={() => void status.refetch()}
+      >
         {data && (
           <EmptyState
-            title={t(data.status === 'no_costs' ? 'financeNoDebt' : data.status === 'no_group' ? 'noGroupForFinance' : 'financeCostsDefined')}
-            hint={data.status === 'no_group' ? undefined : t(data.status === 'no_costs' ? 'financeNoDebtHint' : 'financeCostsDefinedHint')}
+            title={t(
+              data.status === 'no_costs'
+                ? 'financeNoDebt'
+                : data.status === 'no_group'
+                  ? 'noGroupForFinance'
+                  : 'financeCostsDefined'
+            )}
+            hint={
+              data.status === 'no_group'
+                ? undefined
+                : t(data.status === 'no_costs' ? 'financeNoDebtHint' : 'financeCostsDefinedHint')
+            }
           />
         )}
       </QueryState>

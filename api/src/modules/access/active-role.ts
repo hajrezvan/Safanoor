@@ -5,6 +5,7 @@ import { Actor } from './access.types';
 
 export const ACTIVE_ROLE_KINDS = [
   'technical_manager',
+  'director',
   'supervisor',
   'head_mentor',
   'mentor',
@@ -35,6 +36,7 @@ export interface ActorIdentity {
 
 const kindLabel: Record<ActiveRoleKind, string> = {
   technical_manager: 'مدیر فنی',
+  director: 'مدیر کل',
   supervisor: 'ناظر',
   head_mentor: 'سرمربی',
   mentor: 'مربی',
@@ -109,6 +111,12 @@ export async function listAvailableRoles(
   };
 
   if (identity.isAdmin) push(withLabel('technical_manager'));
+  const directors = await rows<{ id: string }>(
+    db,
+    'SELECT id FROM app_user WHERE id=$1 AND person_id=$2 AND is_director AND NOT is_parent',
+    [identity.userId, identity.personId],
+  );
+  if (directors.length) push(withLabel('director'));
 
   if (identity.orgLevel === 'supervisor') push(withLabel('supervisor'));
   if (identity.orgLevel === 'head_mentor') push(withLabel('head_mentor'));
@@ -122,7 +130,16 @@ export async function listAvailableRoles(
       push(withLabel('member', row.groupId, row.groupName));
   }
 
-  return roles;
+  const groupNames = new Intl.Collator('fa', { numeric: true });
+  return roles.sort((a, b) => {
+    if (a.kind === 'technical_manager')
+      return b.kind === 'technical_manager' ? 0 : -1;
+    if (b.kind === 'technical_manager') return 1;
+    if (!a.groupName || !b.groupName) {
+      return Number(Boolean(a.groupName)) - Number(Boolean(b.groupName));
+    }
+    return groupNames.compare(a.groupName, b.groupName);
+  });
 }
 
 export function pickDefaultRole(
@@ -163,15 +180,17 @@ export function actorFromRole(
 ): Actor {
   const scopedAdmin = role.kind === 'technical_manager' && identity.isAdmin;
   const orgLevel =
-    role.kind === 'technical_manager'
-      ? identity.orgLevel
-      : role.kind === 'supervisor' ||
-          role.kind === 'head_mentor' ||
-          role.kind === 'mentor' ||
-          role.kind === 'assistant' ||
-          role.kind === 'member'
-        ? role.kind
-        : identity.orgLevel;
+    role.kind === 'director'
+      ? 'director'
+      : role.kind === 'technical_manager'
+        ? identity.orgLevel
+        : role.kind === 'supervisor' ||
+            role.kind === 'head_mentor' ||
+            role.kind === 'mentor' ||
+            role.kind === 'assistant' ||
+            role.kind === 'member'
+          ? role.kind
+          : identity.orgLevel;
   return {
     userId: identity.userId,
     personId: identity.personId,
@@ -191,7 +210,11 @@ export async function loadActorWithRole(
   db: DataSource | EntityManager,
   identity: ActorIdentity,
   storedRoleId: string | null | undefined,
-): Promise<{ actor: Actor; activeRole: ActiveRole; availableRoles: ActiveRole[] }> {
+): Promise<{
+  actor: Actor;
+  activeRole: ActiveRole;
+  availableRoles: ActiveRole[];
+}> {
   const availableRoles = await listAvailableRoles(db, identity);
   const activeRole = resolveActiveRole(
     availableRoles,

@@ -21,6 +21,7 @@ import {
 
 import { useFa } from 'src/locales/fa-provider';
 import { api, client, unwrap } from 'src/api/client';
+import { DirectorReport } from 'src/features/director-report';
 
 import {
   Row,
@@ -45,17 +46,20 @@ import {
   Pagination,
   QueryState,
   QuickAccess,
-  CompactCard,
   CompactForm,
   JalaliInput,
+  ProfilePanel,
   ProfileColumns,
   ProfileFormGrid,
+  ProfileDesktopMeta,
+  ProfileMobileRoles,
   ProfileAvatarEditor,
+  ProfileSectionHeading,
 } from 'src/components/ui';
 
-import { useSession } from './session';
 import { useWrite, BasicForm } from './shared';
 import { OpsHomeDashboard } from './ops-dashboard';
+import { useSession, useRoleSwitch } from './session';
 import { MentorHomeDashboard } from './mentor-dashboard';
 
 export function LoginScreen() {
@@ -148,6 +152,7 @@ export function LoginScreen() {
 export function HomeScreen() {
   const me = useSession();
   const t = useFa();
+  if (me.capabilities.viewOrganizationReports) return <DirectorReport />;
   if (me.activeRole?.kind === 'technical_manager') {
     return <OpsHomeDashboard />;
   }
@@ -168,7 +173,7 @@ export function HomeScreen() {
   return (
     <>
       <Hero name={me.person.firstName} />
-      {!me.isParent && <QuickAccess />}
+      {!me.isParent && <QuickAccess showCamps={me.capabilities.viewCamps} />}
       {me.children.length > 0 && (
         <Card>
           <Stack>
@@ -190,28 +195,28 @@ export function HomeScreen() {
         </Notice>
       )}
       <Grid>
-        <Card>
+        <ProfilePanel tone="mint">
           <Stack>
             <Row>
               <Chip tone="success">{t(me.person.orgLevel as TextKey)}</Chip>
               <Chip>{t(me.person.verified ? 'verified' : 'unverified')}</Chip>
             </Row>
-            <Text variant="subtitle">{t('myGroup')}</Text>
+            <ProfileSectionHeading title={t('myGroup')} icon="groups" />
             <Text>{me.person.groupName || t('empty')}</Text>
             <Button href="/profile" variant="outlined">
               {t('identity')}
             </Button>
           </Stack>
-        </Card>
-        <Card>
+        </ProfilePanel>
+        <ProfilePanel tone="lavender">
           <Stack>
-            <Text variant="subtitle">{t('private')}</Text>
+            <ProfileSectionHeading title={t('private')} icon="access" />
             <Text muted>{t('privacyHint')}</Text>
             <Button href="/consent" variant="text">
               {t('consent')}
             </Button>
           </Stack>
-        </Card>
+        </ProfilePanel>
       </Grid>
     </>
   );
@@ -328,6 +333,8 @@ export function NotificationsScreen() {
 export function ProfileScreen() {
   const me = useSession();
   const t = useFa();
+  const { switchRole, roleBusy } = useRoleSwitch();
+  const [roleError, setRoleError] = useState('');
   const router = useRouter();
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [avatarError, setAvatarError] = useState('');
@@ -362,13 +369,46 @@ export function ProfileScreen() {
       ),
     () => router.replace('/auth/jwt/sign-in')
   );
+  if (me.capabilities.viewOrganizationReports)
+    return (
+      <Stack>
+        <PageHeader title={t('profile')} />
+        <ProfilePanel tone="mint">
+          <Stack>
+            <Text variant="subtitle">
+              {me.person.firstName} {me.person.lastName}
+            </Text>
+            <Notice>{t('directorReportHint')}</Notice>
+            <Select
+              label={t('switchRole')}
+              value={me.activeRole?.id ?? ''}
+              disabled={roleBusy}
+              options={(me.availableRoles ?? []).map((role) => ({
+                value: role.id,
+                label: role.label,
+              }))}
+              onChange={(roleId) => {
+                setRoleError('');
+                void switchRole(roleId).catch(() => setRoleError(t('error')));
+              }}
+            />
+            {roleError && <Notice tone="error">{roleError}</Notice>}
+          </Stack>
+        </ProfilePanel>
+      </Stack>
+    );
   return (
     <>
-      <PageHeader title={t('profile')} />
+      <PageHeader title={t('profile')} hint={t('profilePersonalHint')} />
       <ProfileColumns>
-        <CompactCard>
+        <ProfilePanel tone="mint">
           <Stack>
-            <Row>
+            <ProfileSectionHeading
+              title={t('identity')}
+              hint={t('profileIdentityHint')}
+              icon="profile"
+            />
+            <ProfileDesktopMeta>
               <Chip>{t(me.person.orgLevel as TextKey)}</Chip>
               <Chip tone={me.person.verified ? 'success' : 'warning'}>
                 {t(me.person.verified ? 'verified' : 'unverified')}
@@ -378,28 +418,55 @@ export function ProfileScreen() {
                   {t('nationalIdMasked')}: {me.person.nationalIdMasked}
                 </Text>
               )}
-            </Row>
+            </ProfileDesktopMeta>
+            <ProfileMobileRoles>
+              <Select
+                label={t('switchRole')}
+                value={me.activeRole?.id ?? ''}
+                disabled={roleBusy || (me.availableRoles?.length ?? 0) < 2}
+                options={(me.availableRoles ?? []).map((role) => ({
+                  value: role.id,
+                  label: role.label,
+                }))}
+                onChange={(roleId) => {
+                  setRoleError('');
+                  void switchRole(roleId).catch(() => setRoleError(t('error')));
+                }}
+              />
+              {roleError && <Notice tone="error">{roleError}</Notice>}
+            </ProfileMobileRoles>
             <PersonForm person={me.person} compact />
           </Stack>
-        </CompactCard>
-        <CompactCard>
-          <Stack>
-            <ProfileAvatarEditor
-              name={`${me.person.firstName} ${me.person.lastName}`}
-              photoUrl={me.avatarUrl}
-              disabled={!me.canUploadAvatar}
-              busy={avatar.isPending}
-              onSelect={uploadAvatar}
-            />
-            {avatarError && <Notice tone="error">{avatarError}</Notice>}
-            {avatar.feedback}
-            <Row>
-              <Button variant="text" icon="lock" onClick={() => setPasswordOpen(true)}>
-                {t('changePassword')}
-              </Button>
-            </Row>
-          </Stack>
-        </CompactCard>
+        </ProfilePanel>
+        <Stack>
+          <ProfilePanel tone="lavender">
+            <Stack>
+              <ProfileAvatarEditor
+                name={`${me.person.firstName} ${me.person.lastName}`}
+                photoUrl={me.avatarUrl}
+                disabled={!me.canUploadAvatar}
+                busy={avatar.isPending}
+                onSelect={uploadAvatar}
+              />
+              {avatarError && <Notice tone="error">{avatarError}</Notice>}
+              {avatar.feedback}
+            </Stack>
+          </ProfilePanel>
+          <ProfilePanel tone="sky">
+            <Stack>
+              <ProfileSectionHeading
+                title={t('profileSecurity')}
+                hint={t('profileSecurityHint')}
+                icon="lock"
+              />
+              <Row>
+                <Button variant="outlined" icon="lock" onClick={() => setPasswordOpen(true)}>
+                  {t('changePassword')}
+                </Button>
+              </Row>
+            </Stack>
+          </ProfilePanel>
+        </Stack>
       </ProfileColumns>
       <Dialog
         open={passwordOpen}

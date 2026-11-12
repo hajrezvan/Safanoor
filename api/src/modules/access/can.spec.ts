@@ -40,6 +40,7 @@ const relationMap: Record<(typeof columns)[number], Partial<Relations>> = {
   admin: {},
 };
 const matrix: Record<string, { action: Action; expected: string }> = {
+  organization_report: { action: 'read', expected: 'N N N N N N N N N N' },
   file: { action: 'read', expected: 'D N N N N N N N N N' },
   avatar: { action: 'read', expected: 'D N N N N N N N N N' },
   person: { action: 'read', expected: 'D S N D N N N N N S' },
@@ -79,7 +80,7 @@ const matrix: Record<string, { action: Action; expected: string }> = {
   lms_item: { action: 'read', expected: 'D D D D N N N N N D' },
   member_finance: { action: 'read', expected: 'D N N N N N N N N N' },
   program_event: { action: 'read', expected: 'N N N D N N N N N D' },
-  camp: { action: 'read', expected: 'D D D D N N N N N D' },
+  camp: { action: 'read', expected: 'N D D D N N N N N D' },
   dashboard: { action: 'read', expected: 'N N N D N N N N N D' },
 };
 const actor: Actor = {
@@ -618,5 +619,98 @@ describe('explicit organization policy matrix', () => {
         { policies, relations: { ...emptyRelations, self: true } },
       ),
     ).toBe('none');
+  });
+});
+
+describe('director reporting isolation', () => {
+  const actor: Actor = {
+    userId: 'u',
+    personId: 'p',
+    isAdmin: true,
+    isParent: false,
+    external: false,
+    orgLevel: 'director',
+    status: 'active',
+    consentRequired: false,
+    activeRoleKind: 'director',
+  };
+  it('denies every organizational write and confidential read even with grants or admin flags', () => {
+    for (const type of RESOURCE_TYPES) {
+      for (const action of [
+        'create',
+        'update',
+        'deactivate',
+        'assign',
+        'grant',
+        'revoke',
+        'manage',
+        'emergency',
+        'print',
+      ] as Action[]) {
+        expect(
+          can(
+            actor,
+            action,
+            { type, id: 'r', ownerId: 'p' },
+            {
+              policies: [
+                {
+                  resourceType: type,
+                  action,
+                  ownerRole: '*',
+                  viewerRelation: 'admin',
+                  level: 'detail',
+                },
+              ],
+              relations: { ...emptyRelations, self: true },
+              grants: [
+                {
+                  resourceType: type,
+                  resourceId: 'r',
+                  granteePersonId: 'p',
+                  revokedAt: null,
+                },
+              ],
+            },
+          ),
+        ).toBe('none');
+      }
+      if (
+        ![
+          'organization_report',
+          'person',
+          'avatar',
+          'consent',
+          'notification',
+        ].includes(type)
+      )
+        expect(
+          can(
+            actor,
+            'read',
+            { type, id: 'r', ownerId: 'p' },
+            {
+              policies: [
+                {
+                  resourceType: type,
+                  action: 'read',
+                  ownerRole: '*',
+                  viewerRelation: 'self',
+                  level: 'detail',
+                },
+              ],
+              relations: { ...emptyRelations, self: true },
+              grants: [
+                {
+                  resourceType: type,
+                  resourceId: 'r',
+                  granteePersonId: 'p',
+                  revokedAt: null,
+                },
+              ],
+            },
+          ),
+        ).toBe('none');
+    }
   });
 });

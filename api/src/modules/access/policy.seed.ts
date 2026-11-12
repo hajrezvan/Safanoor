@@ -127,7 +127,7 @@ export function foundationPolicies(): PolicyRow[] {
   allow('program_event', 'create', ['groupMentor']);
   allow('program_event', 'update', ['groupMentor']);
   allow('program_event', 'manage', ['groupMentor']);
-  allow('camp', 'read', ['sameGroup', 'groupMentor', 'admin']);
+  allow('camp', 'read', ['campStaff', 'groupMentor', 'admin']);
   allow('camp', 'create', ['groupMentor']);
   allow('camp', 'update', ['groupMentor']);
   allow('camp', 'manage', ['groupMentor']);

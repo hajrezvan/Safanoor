@@ -1,3 +1,8 @@
+import {
+  DirectorSummaryDto,
+  DirectorPeoplePageDto,
+} from '../src/modules/dashboard/director.dto';
+import { AlbumsPageDto, PhotosPageDto } from '../src/modules/album/album.dto';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
@@ -22,7 +27,10 @@ import {
 } from '../src/seed';
 import { ImportsService } from '../src/modules/imports/imports.service';
 import { AgeTransitionService } from '../src/modules/jobs/age-transition.service';
-import { MemberFinanceDto } from '../src/modules/finance/finance.dto';
+import {
+  FinanceDemoDto,
+  MemberFinanceDto,
+} from '../src/modules/finance/finance.dto';
 import { StudyPathDetailDto } from '../src/modules/library/library.dto';
 import { requiredConsentItems } from '@safanoor/shared';
 
@@ -208,6 +216,71 @@ describe('Foundation with PostgreSQL', () => {
       .attach('file', image, 'sample.png')
       .expect(200);
     const photo = uploaded.body as { id: string };
+    await db.query(
+      "UPDATE photo SET album_title='آلبوم من',created_at='2025-01-01' WHERE id=$1",
+      [photo.id],
+    );
+    const others: string[] = [];
+    for (let index = 0; index < 2; index++) {
+      const response = await upload(3, `?groupId=${group}`)
+        .field('groupId', group)
+        .field('albumTitle', 'آلبوم پرعکس')
+        .attach('file', image, 'other.png')
+        .expect(200);
+      others.push((response.body as { id: string }).id);
+    }
+    await db.query(
+      "UPDATE photo SET created_at='2020-01-01' WHERE id=ANY($1::uuid[])",
+      [others],
+    );
+    const many = await call(11, 'get', '/album/albums?sort=most_photos').expect(
+      200,
+    );
+    expect((many.body as AlbumsPageDto).items[0]).toMatchObject({
+      title: 'آلبوم پرعکس',
+      photoCount: 2,
+    });
+    const privatePhoto = await upload(4, `?groupId=${demoGroupId(4)}`)
+      .field('groupId', demoGroupId(4))
+      .field('albumTitle', 'آلبوم نامرتبط')
+      .attach('file', image, 'private.png')
+      .expect(200);
+    await db.query(
+      'INSERT INTO photo_tag(photo_id,person_id,tagged_by) VALUES($1,$2,$3)',
+      [(privatePhoto.body as { id: string }).id, demoId(11), demoId(4)],
+    );
+    const mine = await call(11, 'get', '/album/albums?myOnly=true').expect(200);
+    expect((mine.body as AlbumsPageDto).items).toHaveLength(1);
+    expect((mine.body as AlbumsPageDto).items[0]).toMatchObject({
+      title: 'آلبوم من',
+      photoCount: 1,
+      coverPhotoId: photo.id,
+    });
+    const oldest = await call(11, 'get', '/album/albums?sort=oldest').expect(
+      200,
+    );
+    expect((oldest.body as AlbumsPageDto).items[0].title).toBe('آلبوم پرعکس');
+    const newest = await call(
+      11,
+      'get',
+      '/album/albums?myOnly=false&sort=newest',
+    ).expect(200);
+    expect((newest.body as AlbumsPageDto).items[0].title).toBe('آلبوم من');
+    const ownPhotos = await call(11, 'get', '/album/photos?myOnly=true').expect(
+      200,
+    );
+    expect(
+      (ownPhotos.body as PhotosPageDto).items.map(
+        (item: { id: string }) => item.id,
+      ),
+    ).toEqual([photo.id]);
+    const unrelated = await call(4, 'get', '/album/albums?myOnly=true').expect(
+      200,
+    );
+    expect((unrelated.body as AlbumsPageDto).items).toHaveLength(0);
+    await call(11, 'get', '/album/albums?sort=invalid').expect(400);
+    await call(11, 'get', '/album/photos?myOnly=invalid').expect(400);
+
     await call(11, 'get', `/album/photos/${photo.id}/content`)
       .expect(200)
       .expect('Content-Type', /image\/png/);
@@ -216,6 +289,141 @@ describe('Foundation with PostgreSQL', () => {
       .get(`/api/v1/album/photos/${photo.id}/content`)
       .expect(401);
   });
+  it('hides and denies camps in member role while retaining mentor and assistant access', async () => {
+    const groupId = demoGroupId(3);
+    const camp = await one<{ id: string }>(
+      db,
+      `INSERT INTO camp(group_id,organizer_person_id,title,starts_on,ends_on,created_by) VALUES($1,$2,'اردوی آزمون دسترسی','2026-11-15','2026-11-16',$2) RETURNING id`,
+      [groupId, demoId(3)],
+    );
+    try {
+      const member = (await call(11, 'get', '/people/me').expect(200))
+        .body as MeDto;
+      expect(member.capabilities.viewCamps).toBe(false);
+      await call(11, 'get', '/camps').expect(403);
+      await call(11, 'get', `/camps?groupId=${groupId}`).expect(403);
+      await call(11, 'get', `/camps/${camp!.id}`).expect(403);
+      await call(11, 'post', '/camps').send({}).expect(403);
+      for (const n of [3, 5]) {
+        const staff = (await call(n, 'get', '/people/me').expect(200))
+          .body as MeDto;
+        expect(staff.capabilities.viewCamps).toBe(true);
+        await call(n, 'get', `/camps?groupId=${groupId}`).expect(200);
+        await call(n, 'get', `/camps/${camp!.id}`).expect(200);
+      }
+    } finally {
+      await db.query('DELETE FROM camp WHERE id=$1', [camp!.id]);
+    }
+  });
+
+  it('isolates the unassigned read-only director role and returns only safe organization reports', async () => {
+    await call(11, 'get', '/dashboard/organization').expect(403);
+    await call(40, 'get', '/dashboard/organization').expect(403);
+    await call(11, 'post', '/people/me/active-role')
+      .send({ roleId: 'director' })
+      .expect(400);
+    expect(
+      (
+        await one<{ count: string }>(
+          db,
+          'SELECT count(*) FROM app_user WHERE is_director',
+        )
+      )?.count,
+    ).toBe('0');
+    await db.query('UPDATE app_user SET is_director=true WHERE person_id=$1', [
+      demoId(11),
+    ]);
+    try {
+      const me = (
+        await call(11, 'post', '/people/me/active-role')
+          .send({ roleId: 'director' })
+          .expect(200)
+      ).body as MeDto;
+      expect(me.activeRole?.kind).toBe('director');
+      expect(me.capabilities.viewOrganizationReports).toBe(true);
+      expect(me.capabilities.managePeople).toBe(false);
+      expect(me.capabilities.importPeople).toBe(false);
+      const summary = (
+        await call(11, 'get', '/dashboard/organization').expect(200)
+      ).body as DirectorSummaryDto;
+      expect(
+        summary.metrics.find((metric) => metric.key === 'people')?.count,
+      ).toBeGreaterThan(0);
+      const people = (
+        await call(11, 'get', '/dashboard/organization/people?limit=2').expect(
+          200,
+        )
+      ).body as DirectorPeoplePageDto;
+      expect(people.items).toHaveLength(2);
+      for (const person of people.items)
+        expect(Object.keys(person).sort()).toEqual([
+          'groupName',
+          'id',
+          'name',
+          'orgLevel',
+        ]);
+      await call(11, 'get', '/dashboard/organization/people?limit=101').expect(
+        400,
+      );
+      await call(11, 'get', `/people/${demoId(7)}`).expect(403);
+      await call(
+        11,
+        'get',
+        `/groups/${demoGroupId(3)}/finance/destinations`,
+      ).expect(403);
+      await call(11, 'post', '/people').send({}).expect(403);
+      await call(11, 'post', '/groups').send({}).expect(403);
+      await call(11, 'patch', `/people/${demoId(11)}`)
+        .send({ firstName: 'ممنوع' })
+        .expect(403);
+      // Membership role remains usable after switching back; powers do not merge.
+      await call(11, 'post', '/people/me/active-role')
+        .send({ roleId: `member:${demoGroupId(3)}` })
+        .expect(200);
+      await call(11, 'get', '/dashboard/organization').expect(403);
+    } finally {
+      await db.query(
+        'UPDATE app_user SET is_director=false WHERE person_id=$1',
+        [demoId(11)],
+      );
+    }
+  });
+
+  it('serves fictional finance samples only in development and denies privileged or parent scopes', async () => {
+    const original = process.env.NODE_ENV;
+    try {
+      await call(11, 'get', '/finance/demo').expect(404);
+      process.env.NODE_ENV = 'development';
+      const response = await call(11, 'get', '/finance/demo').expect(200);
+      const data = response.body as FinanceDemoDto;
+      expect(data.isDemo).toBe(true);
+      expect(data.items.map((item) => item.status)).toEqual([
+        'settled',
+        'partial',
+        'unpaid',
+      ]);
+      expect(data.remaining).toBe(780000);
+      for (const item of data.items) {
+        expect(item.amount).toBe(
+          item.lines.reduce((sum, line) => sum + line.amount, 0),
+        );
+        expect(item.paid).toBe(
+          item.payments.reduce((sum, payment) => sum + payment.amount, 0),
+        );
+        expect(item.remaining).toBe(item.amount - item.paid);
+      }
+      await call(31, 'get', '/finance/demo').expect(404);
+      await call(40, 'get', '/finance/demo').expect(404);
+      process.env.NODE_ENV = 'production';
+      await call(11, 'get', '/finance/demo').expect(404);
+      const status = (await call(11, 'get', '/finance/me').expect(200))
+        .body as MemberFinanceDto;
+      expect(status.demoAvailable).toBeUndefined();
+    } finally {
+      process.env.NODE_ENV = original;
+    }
+  });
+
   it('returns personal finance status without exposing internal group costs or treating errors as no debt', async () => {
     const group3 = demoGroupId(3);
     const memberStatus = async () => {
@@ -286,10 +494,13 @@ describe('Foundation with PostgreSQL', () => {
       .expect(200);
     const pathId = (created.body as { id: string }).id;
     await call(3, 'post', `/study-paths/${pathId}/items`)
-      .send({ bookTitle: 'کتاب اول' })
+      .send({ bookTitle: 'بدون تعداد صفحات' })
+      .expect(400);
+    await call(3, 'post', `/study-paths/${pathId}/items`)
+      .send({ bookTitle: 'کتاب اول', totalPages: 100 })
       .expect(200);
     const added = await call(3, 'post', `/study-paths/${pathId}/items`)
-      .send({ bookTitle: 'کتاب دوم' })
+      .send({ bookTitle: 'کتاب دوم', totalPages: 100 })
       .expect(200);
     const itemId = (added.body as StudyPathDetailDto).items[0].id;
     const url = `/study-paths/${pathId}/items/${itemId}/reading`;
@@ -305,8 +516,48 @@ describe('Foundation with PostgreSQL', () => {
       started: true,
       percent: 0,
     });
-    await call(11, 'patch', url).send({ status: 'completed' }).expect(200);
-    await call(11, 'patch', url).send({ status: 'completed' }).expect(200);
+    await call(11, 'patch', url)
+      .send({ status: 'reading', currentPage: 20 })
+      .expect(200);
+    await db.query(
+      "UPDATE study_reading_event SET reading_day=((now() AT TIME ZONE 'Asia/Tehran')::date-1),recorded_at=now()-interval '1 day' WHERE item_id=$1",
+      [itemId],
+    );
+    const progressed = await call(11, 'patch', url)
+      .send({ status: 'reading', currentPage: 60 })
+      .expect(200);
+    const book = (progressed.body as StudyPathDetailDto).items.find(
+      (i) => i.id === itemId,
+    )!;
+    expect(book.currentPage).toBe(60);
+    expect(book.readingHistory.map((day) => day.pages)).toEqual([40, 20]);
+    await call(11, 'patch', url)
+      .send({ status: 'reading', currentPage: 60 })
+      .expect(200);
+    expect(
+      await rows(db, 'SELECT id FROM study_reading_event WHERE item_id=$1', [
+        itemId,
+      ]),
+    ).toHaveLength(2);
+    for (const currentPage of [-1, 101, 2.5])
+      await call(11, 'patch', url)
+        .send({ status: 'reading', currentPage })
+        .expect(400);
+    await call(11, 'patch', url)
+      .send({ status: 'reading', currentPage: 100 })
+      .expect(400);
+    await call(11, 'patch', url)
+      .send({ status: 'completed', currentPage: 100 })
+      .expect(400);
+    await call(3, 'patch', `/study-paths/${pathId}/items/${itemId}`)
+      .send({ totalPages: 50 })
+      .expect(400);
+    await call(11, 'patch', url)
+      .send({ status: 'completed', currentPage: 100, confirmCompleted: true })
+      .expect(200);
+    await call(11, 'patch', url)
+      .send({ status: 'completed', currentPage: 100, confirmCompleted: true })
+      .expect(200);
     const saved = await call(11, 'get', `/study-paths/${pathId}`).expect(200);
     expect((saved.body as StudyPathDetailDto).readingProgress).toEqual({
       started: true,
@@ -316,6 +567,11 @@ describe('Foundation with PostgreSQL', () => {
     });
     for (const n of [3, 5]) {
       const other = await call(n, 'get', `/study-paths/${pathId}`).expect(200);
+      expect(
+        (other.body as StudyPathDetailDto).items.every(
+          (item) => item.readingHistory.length === 0,
+        ),
+      ).toBe(true);
       expect((other.body as StudyPathDetailDto).readingProgress).toMatchObject({
         started: false,
         percent: 0,

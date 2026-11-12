@@ -145,8 +145,40 @@ export class ProgramEventsPageDto extends PageMetaDto {
 
 /** Personal status only; no internal amounts or payment inference. */
 export class MemberFinanceDto {
+  @ApiPropertyOptional() demoAvailable?: boolean;
   @ApiProperty({ nullable: true, type: String }) groupId!: string | null;
   @ApiProperty() canViewGroupFinance!: boolean;
   @ApiProperty({ enum: ['no_group', 'no_costs', 'costs_defined'] })
   status!: 'no_group' | 'no_costs' | 'costs_defined';
+}
+
+export class FinanceDemoLineDto {
+  @ApiProperty() title!: string;
+  @ApiProperty() amount!: number;
+}
+export class FinanceDemoPaymentDto {
+  @ApiProperty() date!: string;
+  @ApiProperty() amount!: number;
+}
+export class FinanceDemoItemDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() title!: string;
+  @ApiProperty() date!: string;
+  @ApiProperty() amount!: number;
+  @ApiProperty() paid!: number;
+  @ApiProperty() remaining!: number;
+  @ApiProperty({ enum: ['settled', 'partial', 'unpaid'] }) status!:
+    | 'settled'
+    | 'partial'
+    | 'unpaid';
+  @ApiProperty({ type: [FinanceDemoLineDto] }) lines!: FinanceDemoLineDto[];
+  @ApiProperty({ type: [FinanceDemoPaymentDto] })
+  payments!: FinanceDemoPaymentDto[];
+}
+export class FinanceDemoDto {
+  @ApiProperty() isDemo!: boolean;
+  @ApiProperty() total!: number;
+  @ApiProperty() paid!: number;
+  @ApiProperty() remaining!: number;
+  @ApiProperty({ type: [FinanceDemoItemDto] }) items!: FinanceDemoItemDto[];
 }

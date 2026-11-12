@@ -150,7 +150,7 @@ export class LibraryService {
     const items = await rows<StudyPathItemDto>(
       this.db,
       `SELECT id,path_id AS "pathId",position,book_title AS "bookTitle",
-        book_author AS "bookAuthor",notes,
+        book_author AS "bookAuthor",notes,total_pages AS "totalPages",
         cover_file_id AS "coverFileId",
         CASE WHEN cover_file_id IS NULL THEN NULL
              ELSE '/api/v1/study-paths/'||path_id::text||'/items/'||id::text||'/cover'
@@ -169,10 +169,23 @@ export class LibraryService {
         ownerId: actor.personId,
       })) === 'detail';
     const reading = canTrackReading
-      ? await rows<{ itemId: string; status: 'reading' | 'completed' }>(
+      ? await rows<{
+          itemId: string;
+          status: 'reading' | 'completed';
+          currentPage: number;
+        }>(
           this.db,
-          `SELECT r.item_id AS "itemId",r.status FROM study_path_reading r
+          `SELECT r.item_id AS "itemId",r.status,r.current_page AS "currentPage" FROM study_path_reading r
        JOIN study_path_item i ON i.id=r.item_id WHERE i.path_id=$1 AND r.person_id=$2`,
+          [id, actor.personId],
+        )
+      : [];
+    const history = canTrackReading
+      ? await rows<{ itemId: string; day: string; pages: number }>(
+          this.db,
+          `SELECT e.item_id AS "itemId",e.reading_day::text AS day,sum(e.delta)::int AS pages
+       FROM study_reading_event e JOIN study_path_item i ON i.id=e.item_id
+       WHERE i.path_id=$1 AND e.person_id=$2 AND e.reading_day >= (now() AT TIME ZONE 'Asia/Tehran')::date-89 GROUP BY e.item_id,e.reading_day ORDER BY e.reading_day DESC`,
           [id, actor.personId],
         )
       : [];
@@ -188,6 +201,11 @@ export class LibraryService {
       items: items.map((item) => ({
         ...item,
         readingStatus: statuses.get(item.id) ?? 'not_started',
+        currentPage:
+          reading.find((r) => r.itemId === item.id)?.currentPage ?? 0,
+        readingHistory: history
+          .filter((r) => r.itemId === item.id)
+          .map(({ day, pages }) => ({ day, pages })),
       })),
       readingProgress: canTrackReading
         ? {
@@ -224,28 +242,59 @@ export class LibraryService {
       'detail',
     );
     await this.db.transaction(async (manager) => {
+      const item = await one<{ totalPages: number | null }>(
+        manager,
+        'SELECT total_pages AS "totalPages" FROM study_path_item WHERE id=$1 AND path_id=$2 FOR UPDATE',
+        [itemId, pathId],
+      );
+      if (!item) throw new NotFoundException();
+      const previous = await one<{ currentPage: number }>(
+        manager,
+        'SELECT current_page AS "currentPage" FROM study_path_reading WHERE item_id=$1 AND person_id=$2',
+        [itemId, actor.personId],
+      );
+      const page =
+        input.status === 'not_started'
+          ? 0
+          : (input.currentPage ?? previous?.currentPage ?? 0);
+      if (page > 0 && (!item.totalPages || page > item.totalPages))
+        throw new BadRequestException('صفحه خارج از محدودهٔ کتاب است.');
       if (
-        !(await one(
-          manager,
-          'SELECT id FROM study_path_item WHERE id=$1 AND path_id=$2 FOR KEY SHARE',
-          [itemId, pathId],
-        ))
+        input.status === 'completed' &&
+        (!input.confirmCompleted ||
+          !item.totalPages ||
+          page !== item.totalPages)
       )
-        throw new NotFoundException();
-      if (input.status === 'not_started') {
+        throw new BadRequestException(
+          'پایان کتاب باید در صفحهٔ آخر تأیید شود.',
+        );
+      if (
+        input.status === 'reading' &&
+        item.totalPages &&
+        page === item.totalPages
+      )
+        throw new BadRequestException(
+          'پایان کتاب را تأیید کنید یا صفحه را اصلاح کنید.',
+        );
+      if (page !== (previous?.currentPage ?? 0))
+        await rows(
+          manager,
+          'INSERT INTO study_reading_event(person_id,item_id,from_page,to_page) VALUES($1,$2,$3,$4)',
+          [actor.personId, itemId, previous?.currentPage ?? 0, page],
+        );
+      if (input.status === 'not_started')
         await rows(
           manager,
           'DELETE FROM study_path_reading WHERE item_id=$1 AND person_id=$2',
           [itemId, actor.personId],
         );
-      } else {
+      else
         await rows(
           manager,
-          `INSERT INTO study_path_reading(item_id,person_id,status) VALUES($1,$2,$3)
-          ON CONFLICT(person_id,item_id) DO UPDATE SET status=EXCLUDED.status,updated_at=now()`,
-          [itemId, actor.personId, input.status],
+          `INSERT INTO study_path_reading(item_id,person_id,status,current_page) VALUES($1,$2,$3,$4)
+        ON CONFLICT(person_id,item_id) DO UPDATE SET status=EXCLUDED.status,current_page=EXCLUDED.current_page,updated_at=now()`,
+          [itemId, actor.personId, input.status, page],
         );
-      }
     });
     return this.get(actor, pathId);
   }
@@ -360,9 +409,16 @@ export class LibraryService {
       );
       await rows(
         manager,
-        `INSERT INTO study_path_item(path_id,position,book_title,book_author,notes)
-         VALUES($1,$2,$3,$4,$5)`,
-        [pathId, next?.position ?? 0, bookTitle, bookAuthor, notes],
+        `INSERT INTO study_path_item(path_id,position,book_title,book_author,notes,total_pages)
+         VALUES($1,$2,$3,$4,$5,$6)`,
+        [
+          pathId,
+          next?.position ?? 0,
+          bookTitle,
+          bookAuthor,
+          notes,
+          input.totalPages ?? null,
+        ],
       );
       await rows(
         manager,
@@ -398,7 +454,7 @@ export class LibraryService {
     const item = await one<StudyPathItemDto>(
       this.db,
       `SELECT id,path_id AS "pathId",position,book_title AS "bookTitle",
-        book_author AS "bookAuthor",notes
+        book_author AS "bookAuthor",notes,total_pages AS "totalPages"
        FROM study_path_item WHERE id=$1 AND path_id=$2`,
       [itemId, pathId],
     );
@@ -406,7 +462,8 @@ export class LibraryService {
     if (
       input.bookTitle === undefined &&
       input.bookAuthor === undefined &&
-      input.notes === undefined
+      input.notes === undefined &&
+      input.totalPages === undefined
     )
       throw new BadRequestException('چیزی برای ویرایش ارسال نشده است.');
     const bookTitle =
@@ -427,10 +484,33 @@ export class LibraryService {
     await this.db.transaction(async (manager) => {
       await rows(
         manager,
+        'SELECT id FROM study_path_item WHERE id=$1 FOR UPDATE',
+        [itemId],
+      );
+      if (
+        input.totalPages !== undefined &&
+        (await one(
+          manager,
+          'SELECT 1 FROM study_path_reading WHERE item_id=$1 AND current_page>$2 LIMIT 1',
+          [itemId, input.totalPages],
+        ))
+      )
+        throw new BadRequestException(
+          'تعداد صفحات از پیشرفت ثبت‌شده کمتر است.',
+        );
+      await rows(
+        manager,
         `UPDATE study_path_item
-         SET book_title=$3,book_author=$4,notes=$5,updated_at=now()
+         SET book_title=$3,book_author=$4,notes=$5,total_pages=COALESCE($6,total_pages),updated_at=now()
          WHERE id=$1 AND path_id=$2`,
-        [itemId, pathId, bookTitle, bookAuthor, notes],
+        [
+          itemId,
+          pathId,
+          bookTitle,
+          bookAuthor,
+          notes,
+          input.totalPages ?? null,
+        ],
       );
       await rows(
         manager,

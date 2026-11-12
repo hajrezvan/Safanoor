@@ -3,6 +3,8 @@ import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -93,7 +95,21 @@ export class UpdatePhotoTagsDto {
   taggedPersonIds!: string[];
 }
 
-export class ListPhotosQueryDto {
+export class AlbumFiltersDto {
+  @ApiPropertyOptional({ default: false })
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  myOnly: boolean = false;
+  @ApiPropertyOptional({
+    enum: ['newest', 'oldest', 'most_photos'],
+    default: 'newest',
+  })
+  @IsIn(['newest', 'oldest', 'most_photos'])
+  sort: 'newest' | 'oldest' | 'most_photos' = 'newest';
+}
+export class ListPhotosQueryDto extends AlbumFiltersDto {
   @ApiPropertyOptional({ default: 1, minimum: 1 })
   @Type(() => Number)
   @IsInt()
@@ -117,7 +133,7 @@ export class ListPhotosQueryDto {
   albumKey?: string;
 }
 
-export class ListAlbumsQueryDto {
+export class ListAlbumsQueryDto extends AlbumFiltersDto {
   @ApiPropertyOptional({ default: 1, minimum: 1 })
   @Type(() => Number)
   @IsInt()

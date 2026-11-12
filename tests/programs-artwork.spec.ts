@@ -8,19 +8,29 @@ test('all program destinations have loaded artwork and accessible responsive car
   await page.getByLabel('رمز عبور', { exact: true }).fill('12345678');
   await page.getByRole('button', { name: 'ورود به صفانور', exact: true }).click();
   await expect(page).toHaveURL('/');
+  const me = await (await page.request.get('/api/v1/people/me')).json();
+  const expected = ['/library', '/meetings', '/consultations', '/classes', '/group-album', '/finance', ...(me.capabilities.viewCamps ? ['/camp-attendance'] : [])];
   for (const mode of ['light', 'dark']) {
     await context.addCookies([{ name: 'sf_theme', value: mode, domain: 'localhost', path: '/' }]);
     for (const width of [390, 1440]) {
       await page.setViewportSize({ width, height: 978 });
       await page.goto('/programs');
       await expect(page.getByRole('heading', { name: 'برنامه‌ها', exact: true })).toBeVisible();
+      const header = page.getByRole('banner');
+      const headerSize = await header.boundingBox();
+      const brandTitle = header.getByRole('heading', { name: 'صفانور', exact: true, includeHidden: true });
+      if (width === 390) {
+        expect(headerSize!.height).toBeLessThanOrEqual(65);
+        await expect(brandTitle).toBeHidden();
+        await expect(header.getByRole('img', { name: 'صفانور', exact: true })).toBeVisible();
+      } else {
+        await expect(brandTitle).toBeVisible();
+      }
       const cards = page.locator('main a');
-      await expect(cards).toHaveCount(7);
-      expect(await cards.evaluateAll(nodes => nodes.map(node => node.getAttribute('href')))).toEqual([
-        '/library', '/meetings', '/consultations', '/classes', '/group-album', '/finance', '/camp-attendance',
-      ]);
+      await expect(cards).toHaveCount(expected.length);
+      expect(await cards.evaluateAll(nodes => nodes.map(node => node.getAttribute('href')))).toEqual(expected);
       const illustrations = page.locator('main img');
-      await expect(illustrations).toHaveCount(7);
+      await expect(illustrations).toHaveCount(expected.length);
       await expect.poll(() => illustrations.evaluateAll(nodes => nodes.every(node => (node as HTMLImageElement).naturalWidth > 0))).toBe(true);
       for (const card of await cards.all()) {
         await expect(card).toHaveAccessibleName(/.+/);

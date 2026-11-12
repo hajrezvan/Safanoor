@@ -11,7 +11,23 @@ export const tokens = {
     line: 1.7,
   },
   motion: { duration: 200 },
-  artwork: { hero: 260, compact: 120, auth: 320, logo: 72, program: 176, programMobile: 120 },
+  charts: {
+    light: ['#7953B8', '#2B78BA', '#B87520', '#23977E', '#D26973'],
+    dark: ['#BDA0F3', '#7AB6EA', '#F2BE72', '#80DCB7', '#F19EAE'],
+    margin: { top: 16, right: 8, bottom: 8, left: 8 },
+    axisWidth: 68,
+    axisHeight: 44,
+    emptyHeight: 160,
+  },
+  artwork: {
+    hero: 260,
+    compact: 120,
+    auth: 320,
+    logo: 72,
+    logoMobile: 48,
+    program: 176,
+    programMobile: 120,
+  },
   joy: {
     light: {
       mint: { ink: '#126452', surface: '#E4F6EF', edge: '#C4E8DA' },

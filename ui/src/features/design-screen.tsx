@@ -55,8 +55,8 @@ export function DesignScreen() {
             <PreviewTheme key={mode} mode={mode}>
               <Text variant="subtitle">{t(mode)}</Text>
               <Hero name={t('example')} />
-              <QuickAccess />
-              <ProgramTiles />
+              <QuickAccess showCamps />
+              <ProgramTiles showCamps />
               <EmptyState title={t('campsEmpty')} hint={null} />
             </PreviewTheme>
           ))}

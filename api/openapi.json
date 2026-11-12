@@ -1972,6 +1972,228 @@
         ]
       }
     },
+    "/api/v1/dashboard/organization": {
+      "get": {
+        "operationId": "Dashboard_organization",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorSummaryDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
+    "/api/v1/dashboard/organization/people": {
+      "get": {
+        "operationId": "Dashboard_organizationPeople",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorPeoplePageDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
     "/api/v1/dashboard/mentor": {
       "get": {
         "operationId": "Dashboard_mentor",
@@ -8149,6 +8371,102 @@
         ]
       }
     },
+    "/api/v1/finance/demo": {
+      "get": {
+        "operationId": "Finance_demo",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinanceDemoDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Standard API error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "finance"
+        ]
+      }
+    },
     "/api/v1/groups/{id}/finance/destinations": {
       "get": {
         "operationId": "Finance_list",
@@ -8734,6 +9052,29 @@
         "operationId": "Album_listAlbums",
         "parameters": [
           {
+            "name": "myOnly",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "newest",
+              "type": "string",
+              "enum": [
+                "newest",
+                "oldest",
+                "most_photos"
+              ]
+            }
+          },
+          {
             "name": "page",
             "required": false,
             "in": "query",
@@ -8851,6 +9192,29 @@
       "get": {
         "operationId": "Album_list",
         "parameters": [
+          {
+            "name": "myOnly",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "newest",
+              "type": "string",
+              "enum": [
+                "newest",
+                "oldest",
+                "most_photos"
+              ]
+            }
+          },
           {
             "name": "page",
             "required": false,
@@ -12772,6 +13136,12 @@
       "MeCapabilitiesDto": {
         "type": "object",
         "properties": {
+          "viewCamps": {
+            "type": "boolean"
+          },
+          "viewOrganizationReports": {
+            "type": "boolean"
+          },
           "createGroups": {
             "type": "boolean"
           },
@@ -12798,6 +13168,8 @@
           }
         },
         "required": [
+          "viewCamps",
+          "viewOrganizationReports",
           "createGroups",
           "admin",
           "managePeople",
@@ -12833,6 +13205,7 @@
             "type": "string",
             "enum": [
               "technical_manager",
+              "director",
               "supervisor",
               "head_mentor",
               "mentor",
@@ -13135,6 +13508,88 @@
         "required": [
           "url",
           "expiresIn"
+        ]
+      },
+      "DirectorMetricDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "key",
+          "count"
+        ]
+      },
+      "DirectorSummaryDto": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string"
+          },
+          "metrics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DirectorMetricDto"
+            }
+          }
+        },
+        "required": [
+          "generatedAt",
+          "metrics"
+        ]
+      },
+      "DirectorPersonDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "orgLevel": {
+            "type": "string"
+          },
+          "groupName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "orgLevel",
+          "groupName"
+        ]
+      },
+      "DirectorPeoplePageDto": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DirectorPersonDto"
+            }
+          }
+        },
+        "required": [
+          "page",
+          "limit",
+          "total",
+          "items"
         ]
       },
       "DashboardWeekCountDto": {
@@ -14328,9 +14783,37 @@
           "percent"
         ]
       },
+      "ReadingDayDto": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string"
+          },
+          "pages": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "day",
+          "pages"
+        ]
+      },
       "StudyPathItemDto": {
         "type": "object",
         "properties": {
+          "totalPages": {
+            "type": "number",
+            "nullable": true
+          },
+          "currentPage": {
+            "type": "number"
+          },
+          "readingHistory": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReadingDayDto"
+            }
+          },
           "readingStatus": {
             "type": "string",
             "enum": [
@@ -14377,6 +14860,9 @@
           }
         },
         "required": [
+          "totalPages",
+          "currentPage",
+          "readingHistory",
           "readingStatus",
           "id",
           "pathId",
@@ -14461,6 +14947,14 @@
       "UpdateReadingDto": {
         "type": "object",
         "properties": {
+          "currentPage": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "confirmCompleted": {
+            "type": "boolean"
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -14489,6 +14983,11 @@
       "CreateStudyPathItemDto": {
         "type": "object",
         "properties": {
+          "totalPages": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100000
+          },
           "bookTitle": {
             "type": "string"
           },
@@ -14500,6 +14999,7 @@
           }
         },
         "required": [
+          "totalPages",
           "bookTitle"
         ]
       },
@@ -14521,6 +15021,11 @@
       "UpdateStudyPathItemDto": {
         "type": "object",
         "properties": {
+          "totalPages": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100000
+          },
           "bookTitle": {
             "type": "string"
           },
@@ -15379,6 +15884,9 @@
       "MemberFinanceDto": {
         "type": "object",
         "properties": {
+          "demoAvailable": {
+            "type": "boolean"
+          },
           "groupId": {
             "type": "string",
             "nullable": true
@@ -15399,6 +15907,120 @@
           "groupId",
           "canViewGroupFinance",
           "status"
+        ]
+      },
+      "FinanceDemoLineDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "title",
+          "amount"
+        ]
+      },
+      "FinanceDemoPaymentDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "date",
+          "amount"
+        ]
+      },
+      "FinanceDemoItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "paid": {
+            "type": "number"
+          },
+          "remaining": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "settled",
+              "partial",
+              "unpaid"
+            ]
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FinanceDemoLineDto"
+            }
+          },
+          "payments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FinanceDemoPaymentDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "date",
+          "amount",
+          "paid",
+          "remaining",
+          "status",
+          "lines",
+          "payments"
+        ]
+      },
+      "FinanceDemoDto": {
+        "type": "object",
+        "properties": {
+          "isDemo": {
+            "type": "boolean"
+          },
+          "total": {
+            "type": "number"
+          },
+          "paid": {
+            "type": "number"
+          },
+          "remaining": {
+            "type": "number"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FinanceDemoItemDto"
+            }
+          }
+        },
+        "required": [
+          "isDemo",
+          "total",
+          "paid",
+          "remaining",
+          "items"
         ]
       },
       "ProgramEventSummaryDto": {

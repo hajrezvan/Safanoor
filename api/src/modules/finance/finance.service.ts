@@ -10,6 +10,7 @@ import { AccessService } from '../access/access.service';
 import { Actor } from '../access/access.types';
 import { AuditService } from '../audit/audit.service';
 import {
+  FinanceDemoDto,
   CostItemDto,
   MemberFinanceDto,
   CreateCostItemDto,
@@ -64,9 +65,94 @@ export class FinanceService {
       [groupId],
     );
     return {
+      ...(process.env.NODE_ENV === 'development' &&
+      !actor.isParent &&
+      !actor.isAdmin &&
+      !actor.external
+        ? { demoAvailable: true }
+        : {}),
       groupId,
       canViewGroupFinance,
       status: result?.hasCosts ? 'costs_defined' : 'no_costs',
+    };
+  }
+
+  async demo(actor: Actor): Promise<FinanceDemoDto> {
+    if (
+      process.env.NODE_ENV !== 'development' ||
+      actor.isParent ||
+      actor.external ||
+      actor.isAdmin
+    )
+      throw new NotFoundException();
+    await this.access.require(
+      actor,
+      'read',
+      { type: 'member_finance', ownerId: actor.personId },
+      'detail',
+    );
+    const samples = [
+      {
+        id: 'sample-camp',
+        title: 'اردوی مشهد — نمونه',
+        date: '2026-11-06',
+        lines: [
+          { title: 'رفت‌وبرگشت', amount: 400000 },
+          { title: 'خوراک', amount: 500000 },
+          { title: 'اقامت', amount: 300000 },
+        ],
+        payments: [
+          { date: '2026-11-01', amount: 700000 },
+          { date: '2026-11-04', amount: 500000 },
+        ],
+      },
+      {
+        id: 'sample-trip',
+        title: 'برنامهٔ فرهنگی یک‌روزه — نمونه',
+        date: '2026-11-18',
+        lines: [
+          { title: 'رفت‌وبرگشت', amount: 300000 },
+          { title: 'ورودی و برنامه', amount: 250000 },
+          { title: 'خوراک', amount: 300000 },
+        ],
+        payments: [{ date: '2026-11-09', amount: 350000 }],
+      },
+      {
+        id: 'sample-books',
+        title: 'بستهٔ کتاب سیر مطالعاتی — نمونه',
+        date: '2026-11-10',
+        lines: [
+          { title: 'دو جلد کتاب', amount: 250000 },
+          { title: 'ارسال', amount: 30000 },
+        ],
+        payments: [],
+      },
+    ];
+    const items = samples.map((item) => {
+      const amount = item.lines.reduce((sum, line) => sum + line.amount, 0);
+      const paid = item.payments.reduce(
+        (sum, payment) => sum + payment.amount,
+        0,
+      );
+      return {
+        ...item,
+        amount,
+        paid,
+        remaining: amount - paid,
+        status:
+          paid === amount
+            ? ('settled' as const)
+            : paid > 0
+              ? ('partial' as const)
+              : ('unpaid' as const),
+      };
+    });
+    return {
+      isDemo: true,
+      items,
+      total: items.reduce((sum, item) => sum + item.amount, 0),
+      paid: items.reduce((sum, item) => sum + item.paid, 0),
+      remaining: items.reduce((sum, item) => sum + item.remaining, 0),
     };
   }
 

@@ -20,16 +20,51 @@ export function can(
   },
 ): AccessLevel {
   if (actor.status !== 'active') return 'none';
+  if (resource.type === 'camp' && actor.activeRoleKind === 'member')
+    return 'none';
   if (
     resource.status &&
     resource.status !== 'active' &&
     ['emergency', 'person_file', 'confidential_note'].includes(resource.type)
   )
     return 'none';
+  // A selected reporting role never inherits membership, grants or admin writes.
+  if (actor.activeRoleKind === 'director') {
+    const allowedSelfRead =
+      context.relations.self &&
+      ['person', 'avatar', 'consent', 'notification'].includes(resource.type);
+    if (
+      action !== 'read' ||
+      (resource.type !== 'organization_report' && !allowedSelfRead)
+    )
+      return 'none';
+    if (resource.type === 'organization_report') {
+      if (actor.isParent) return 'none';
+      return context.policies.some(
+        (policy) =>
+          policy.resourceType === resource.type &&
+          policy.action === 'read' &&
+          policy.ownerRole === '*' &&
+          policy.viewerRelation === 'director' &&
+          policy.level === 'detail',
+      )
+        ? 'detail'
+        : 'none';
+    }
+  }
   const relations = new Set<string>(actor.external ? [] : ['organization']);
   for (const [key, enabled] of Object.entries(context.relations))
     if (enabled) relations.add(key);
   if (actor.isAdmin) relations.add('admin');
+  if (
+    resource.type === 'camp' &&
+    context.relations.sameGroup &&
+    (actor.activeRoleKind === 'assistant' ||
+      (!actor.activeRoleKind &&
+        (context.relations.followingAssistant ||
+          context.relations.otherAssistant)))
+  )
+    relations.add('campStaff');
   if (actor.isParent) {
     relations.clear();
     if (context.relations.self) relations.add('self');
@@ -37,13 +72,15 @@ export function can(
   }
   if (context.relations.campLead && context.relations.campActive)
     relations.add('activeCampLead');
-  const activeGrant = context.grants?.some(
-    (grant) =>
-      grant.resourceType === resource.type &&
-      grant.resourceId === resource.id &&
-      grant.granteePersonId === actor.personId &&
-      !grant.revokedAt,
-  );
+  const activeGrant =
+    actor.activeRoleKind !== 'director' &&
+    context.grants?.some(
+      (grant) =>
+        grant.resourceType === resource.type &&
+        grant.resourceId === resource.id &&
+        grant.granteePersonId === actor.personId &&
+        !grant.revokedAt,
+    );
   if (
     activeGrant &&
     (!actor.isParent ||

@@ -1,10 +1,12 @@
 'use client';
 
+import { formatNumber, persianDigits } from '@safanoor/shared';
+
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import { styled, useTheme } from '@mui/material/styles';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { PieChart } from '@mui/x-charts/PieChart';
+import { styled, useTheme } from '@mui/material/styles';
 
 import { tokens } from 'src/theme/tokens';
 
@@ -15,7 +17,7 @@ const ChartCard = styled(Stack)(({ theme }) => ({
   padding: tokens.space.xl,
   border: `1px solid ${theme.palette.divider}`,
   boxShadow: tokens.shadow[theme.palette.mode],
-  backgroundColor: theme.palette.background.paper,
+  background: `linear-gradient(155deg, ${tokens.joy[theme.palette.mode].sky.surface}, ${theme.palette.background.paper} 60%)`,
   overflow: 'hidden',
 }));
 
@@ -25,7 +27,7 @@ const ChartEmpty = styled(Stack)(({ theme }) => ({
   gap: tokens.space.sm,
   padding: tokens.space.xl,
   color: theme.palette.text.secondary,
-  minHeight: 160,
+  minHeight: tokens.charts.emptyHeight,
   justifyContent: 'center',
 }));
 
@@ -52,6 +54,7 @@ export function BarSeriesChart({
   emptyTitle,
   emptyHint,
   height = 240,
+  integerTicks = false,
 }: {
   title: string;
   labels: string[];
@@ -59,8 +62,14 @@ export function BarSeriesChart({
   emptyTitle?: string;
   emptyHint?: string;
   height?: number;
+  integerTicks?: boolean;
 }) {
   const theme = useTheme();
+  const colors = [...tokens.charts[theme.palette.mode]];
+  const axisNumber = new Intl.NumberFormat('fa-IR', {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  });
   const hasData = values.some((value) => value > 0);
   return (
     <ChartCard>
@@ -76,13 +85,17 @@ export function BarSeriesChart({
         </ChartEmpty>
       ) : (
         <BarChart
+          skipAnimation
           height={height}
           borderRadius={tokens.radius.button / 2}
           hideLegend
           xAxis={[
             {
-              data: labels,
+              data: labels.map(persianDigits),
+              colorMap: { type: 'ordinal', colors },
+              valueFormatter: (value) => persianDigits(String(value)),
               scaleType: 'band',
+              height: tokens.charts.axisHeight,
               tickLabelStyle: {
                 fontFamily: tokens.type.font,
                 fontSize: tokens.type.caption,
@@ -92,6 +105,10 @@ export function BarSeriesChart({
           ]}
           yAxis={[
             {
+              min: 0,
+              width: tokens.charts.axisWidth,
+              ...(integerTicks ? { tickMinStep: 1 } : {}),
+              valueFormatter: (value: number) => axisNumber.format(value),
               tickLabelStyle: {
                 fontFamily: tokens.type.font,
                 fontSize: tokens.type.caption,
@@ -103,16 +120,19 @@ export function BarSeriesChart({
             {
               data: values,
               color: theme.palette.primary.main,
-              valueFormatter: (value) =>
-                new Intl.NumberFormat('fa-IR').format(value ?? 0),
+              valueFormatter: (value) => formatNumber(value ?? 0),
             },
           ]}
-          margin={{ top: 16, right: 8, bottom: 40, left: 44 }}
+          margin={tokens.charts.margin}
+          grid={{ horizontal: true }}
           sx={{
             '& .MuiChartsAxis-line, & .MuiChartsAxis-tick': {
               stroke: theme.palette.divider,
             },
-            '& .MuiChartsGrid-line': { stroke: theme.palette.divider },
+            '& .MuiChartsGrid-line': { stroke: theme.palette.divider, strokeDasharray: '4 4' },
+            '@media (prefers-reduced-motion: reduce)': {
+              '& *': { animation: 'none', transition: 'none' },
+            },
           }}
         />
       )}
@@ -134,16 +154,12 @@ export function DonutChart({
   height?: number;
 }) {
   const theme = useTheme();
-  const colors = [
-    theme.palette.primary.main,
-    theme.palette.warning.main,
-    theme.palette.secondary.main,
-  ];
+  const colors = tokens.charts[theme.palette.mode];
   const data = items
     .filter((item) => item.value > 0)
     .map((item, index) => ({
       id: item.id,
-      label: item.label,
+      label: persianDigits(item.label),
       value: item.value,
       color: colors[index % colors.length],
     }));
@@ -161,6 +177,7 @@ export function DonutChart({
         </ChartEmpty>
       ) : (
         <PieChart
+          skipAnimation
           height={height}
           series={[
             {
@@ -170,8 +187,7 @@ export function DonutChart({
               paddingAngle: 2,
               cornerRadius: 6,
               highlightScope: { fade: 'global', highlight: 'item' },
-              valueFormatter: ({ value }) =>
-                new Intl.NumberFormat('fa-IR').format(value),
+              valueFormatter: ({ value }) => formatNumber(value),
             },
           ]}
           margin={{ top: 8, bottom: 48, left: 8, right: 8 }}

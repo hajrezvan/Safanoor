@@ -1,6 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMinSize,
+  IsInt,
+  Min,
+  Max,
+  IsBoolean,
   IsArray,
   IsIn,
   IsOptional,
@@ -34,6 +38,11 @@ export class UpdateStudyPathDto {
 }
 
 export class CreateStudyPathItemDto {
+  @ApiProperty({ minimum: 1, maximum: 100000 })
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  totalPages!: number;
   @ApiProperty() @IsString() @Length(1, 300) bookTitle!: string;
   @ApiPropertyOptional()
   @IsOptional()
@@ -48,6 +57,12 @@ export class CreateStudyPathItemDto {
 }
 
 export class UpdateStudyPathItemDto {
+  @ApiPropertyOptional({ minimum: 1, maximum: 100000 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  totalPages?: number;
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -74,6 +89,13 @@ export class ReorderStudyPathItemsDto {
 }
 
 export class UpdateReadingDto {
+  @ApiPropertyOptional({ minimum: 0, maximum: 100000 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100000)
+  currentPage?: number;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() confirmCompleted?: boolean;
   @ApiProperty({ enum: ['not_started', 'reading', 'completed'] })
   @IsIn(['not_started', 'reading', 'completed'])
   status!: 'not_started' | 'reading' | 'completed';
@@ -86,7 +108,14 @@ export class StudyReadingProgressDto {
   @ApiProperty() percent!: number;
 }
 
+export class ReadingDayDto {
+  @ApiProperty() day!: string;
+  @ApiProperty() pages!: number;
+}
 export class StudyPathItemDto {
+  @ApiProperty({ nullable: true, type: Number }) totalPages!: number | null;
+  @ApiProperty() currentPage!: number;
+  @ApiProperty({ type: [ReadingDayDto] }) readingHistory!: ReadingDayDto[];
   @ApiProperty({ enum: ['not_started', 'reading', 'completed'] })
   readingStatus!: 'not_started' | 'reading' | 'completed';
   @ApiProperty() id!: string;

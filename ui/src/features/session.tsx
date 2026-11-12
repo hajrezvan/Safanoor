@@ -3,8 +3,8 @@
 import type { components } from 'src/api/generated/schema';
 
 import { useRouter, usePathname } from 'next/navigation';
-import { useEffect, useContext, useState, createContext } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect, useContext, createContext } from 'react';
 
 import { api, ApiError } from 'src/api/client';
 
@@ -15,6 +15,8 @@ type MeDto = components['schemas']['MeDto'];
 type SessionValue = {
   me: MeDto;
   logout: () => Promise<void>;
+  switchRole: (roleId: string) => Promise<void>;
+  roleBusy: boolean;
 };
 const SessionContext = createContext<SessionValue | null>(null);
 export function useSession() {
@@ -26,6 +28,12 @@ export function useLogout() {
   const session = useContext(SessionContext);
   if (!session) throw new Error('Session required');
   return session.logout;
+}
+
+export function useRoleSwitch() {
+  const session = useContext(SessionContext);
+  if (!session) throw new Error('Session required');
+  return { switchRole: session.switchRole, roleBusy: session.roleBusy };
 }
 
 function homeForRole(_me: MeDto): string {
@@ -62,9 +70,7 @@ export function Session({ children }: { children: React.ReactNode }) {
           key: 'communications',
           href: '/communications',
           icon: 'communications',
-          visible:
-            !me.isParent &&
-            ['mentor', 'assistant', 'member'].includes(me.person.orgLevel),
+          visible: !me.isParent && ['mentor', 'assistant', 'member'].includes(me.person.orgLevel),
         },
         {
           key: 'groups',
@@ -123,6 +129,8 @@ export function Session({ children }: { children: React.ReactNode }) {
   return (
     <Shell
       admin={path.startsWith('/admin')}
+      reportOnly={me?.capabilities.viewOrganizationReports ?? false}
+      showCamps={me?.capabilities.viewCamps ?? false}
       nav={nav}
       user={
         me
@@ -146,7 +154,9 @@ export function Session({ children }: { children: React.ReactNode }) {
     >
       <QueryState loading={query.isLoading} error={query.error} retry={() => void query.refetch()}>
         {me && (
-          <SessionContext.Provider value={{ me, logout }}>{children}</SessionContext.Provider>
+          <SessionContext.Provider value={{ me, logout, switchRole, roleBusy }}>
+            {children}
+          </SessionContext.Provider>
         )}
       </QueryState>
     </Shell>

@@ -1,4 +1,7 @@
-import { Controller, Get } from '@nestjs/common';
+import { DirectorService } from './director.service';
+import { DirectorSummaryDto, DirectorPeoplePageDto } from './director.dto';
+import { PaginationDto } from '../../libs/http/http.dto';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Actor } from '../access/access.types';
 import { CurrentActor, Policy } from '../access/policy.decorator';
@@ -9,7 +12,27 @@ import { DashboardService } from './dashboard.service';
 @ApiBearerAuth()
 @Controller('dashboard')
 export class DashboardController {
-  constructor(private readonly dashboard: DashboardService) {}
+  constructor(
+    private readonly dashboard: DashboardService,
+    private readonly director: DirectorService,
+  ) {}
+
+  @Get('organization')
+  @Policy('organization_report', 'read')
+  @ApiOkResponse({ type: DirectorSummaryDto })
+  organization(@CurrentActor() actor: Actor): Promise<DirectorSummaryDto> {
+    return this.director.summary(actor);
+  }
+
+  @Get('organization/people')
+  @Policy('organization_report', 'read')
+  @ApiOkResponse({ type: DirectorPeoplePageDto })
+  organizationPeople(
+    @CurrentActor() actor: Actor,
+    @Query() query: PaginationDto,
+  ): Promise<DirectorPeoplePageDto> {
+    return this.director.people(actor, query);
+  }
 
   @Get('mentor')
   @Policy('dashboard', 'read')

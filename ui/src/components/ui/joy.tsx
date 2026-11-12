@@ -27,7 +27,7 @@ export const JoyIllustration = styled('img')(({ theme }) => ({
 }));
 const Links = styled('div')(({ theme }) => ({
   display: 'grid',
-  gridTemplateColumns: 'repeat(4,minmax(0,1fr))',
+  gridTemplateColumns: `repeat(auto-fit,minmax(min(100%,${tokens.layout.profileFieldMin}px),1fr))`,
   gap: tokens.space.lg,
   [theme.breakpoints.down('lg')]: { gridTemplateColumns: 'repeat(2,minmax(0,1fr))' },
   [theme.breakpoints.down('sm')]: { gap: tokens.space.md },
@@ -106,7 +106,7 @@ const items = [
     icon: EventAvailableRounded,
   },
 ] as const;
-export function QuickAccess() {
+export function QuickAccess({ showCamps = false }: { showCamps?: boolean }) {
   const t = useFa();
   return (
     <section aria-label={t('quickAccess')}>
@@ -119,16 +119,18 @@ export function QuickAccess() {
         </Typography>
       </Intro>
       <Links>
-        {items.map(({ href, title, hint, tone, icon: Icon }) => (
-          <Shortcut key={href} href={href} $tone={tone}>
-            <ClayIcon $tone={tone}>
-              <Icon />
-            </ClayIcon>
-            <ShortcutTitle>{t(title)}</ShortcutTitle>
-            <ShortcutHint>{t(hint)}</ShortcutHint>
-            <ArrowBackRounded aria-hidden="true" />
-          </Shortcut>
-        ))}
+        {items
+          .filter((item) => item.href !== '/camp-attendance' || showCamps)
+          .map(({ href, title, hint, tone, icon: Icon }) => (
+            <Shortcut key={href} href={href} $tone={tone}>
+              <ClayIcon $tone={tone}>
+                <Icon />
+              </ClayIcon>
+              <ShortcutTitle>{t(title)}</ShortcutTitle>
+              <ShortcutHint>{t(hint)}</ShortcutHint>
+              <ArrowBackRounded aria-hidden="true" />
+            </Shortcut>
+          ))}
       </Links>
     </section>
   );

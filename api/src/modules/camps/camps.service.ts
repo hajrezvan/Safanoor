@@ -37,7 +37,8 @@ export class CampsService {
   async list(actor: Actor, query: CampsQueryDto): Promise<CampsPageDto> {
     if (actor.isParent || actor.external)
       throw new ForbiddenException('اجازهٔ دسترسی به این بخش را ندارید.');
-    const groupId = query.groupId;
+    await this.access.require(actor, 'read', { type: 'camp' }, 'detail');
+    const groupId = query.groupId ?? actor.activeGroupId ?? undefined;
     if (groupId) {
       await this.access.require(
         actor,
@@ -100,7 +101,8 @@ export class CampsService {
     );
     await this.requireOwnedGroup(actor, input.groupId);
     const title = normalizePersian(input.title.trim());
-    if (title.length < 2) throw new BadRequestException('عنوان اردو را وارد کن.');
+    if (title.length < 2)
+      throw new BadRequestException('عنوان اردو را وارد کن.');
     const startsOn = this.parseDate(input.startsOn, 'تاریخ شروع');
     const endsOn = this.parseDate(input.endsOn, 'تاریخ پایان');
     if (endsOn < startsOn)
@@ -172,7 +174,8 @@ export class CampsService {
       input.title !== undefined
         ? normalizePersian(input.title.trim())
         : current.title;
-    if (title.length < 2) throw new BadRequestException('عنوان اردو را وارد کن.');
+    if (title.length < 2)
+      throw new BadRequestException('عنوان اردو را وارد کن.');
     const startsOn =
       input.startsOn !== undefined
         ? this.parseDate(input.startsOn, 'تاریخ شروع')
@@ -359,11 +362,13 @@ export class CampsService {
     )`;
   }
 
-  private async loadDetail(
-    actor: Actor,
-    id: string,
-  ): Promise<CampDetailDto> {
-    const summary = await one<CampSummaryDto & { scheduleText: string | null; organizerPersonId: string }>(
+  private async loadDetail(actor: Actor, id: string): Promise<CampDetailDto> {
+    const summary = await one<
+      CampSummaryDto & {
+        scheduleText: string | null;
+        organizerPersonId: string;
+      }
+    >(
       this.db,
       `SELECT ${this.summarySelect(2)},
         c.schedule_text AS "scheduleText",
@@ -459,7 +464,9 @@ export class CampsService {
   private normalizeAmount(value: number | null | undefined): number | null {
     if (value === undefined || value === null) return null;
     if (!Number.isInteger(value) || value < 0)
-      throw new BadRequestException('هزینه باید عدد صحیح غیرمنفی (تومان) باشد.');
+      throw new BadRequestException(
+        'هزینه باید عدد صحیح غیرمنفی (تومان) باشد.',
+      );
     return value;
   }
 
@@ -512,11 +519,9 @@ export class CampsService {
 
   private async requireVisibleGroup(groupId: string): Promise<void> {
     if (
-      !(await one(
-        this.db,
-        'SELECT 1 FROM organization_group WHERE id=$1',
-        [groupId],
-      ))
+      !(await one(this.db, 'SELECT 1 FROM organization_group WHERE id=$1', [
+        groupId,
+      ]))
     )
       throw new NotFoundException();
   }

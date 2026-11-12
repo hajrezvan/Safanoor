@@ -260,6 +260,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/dashboard/organization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["Dashboard_organization"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dashboard/organization/people": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["Dashboard_organizationPeople"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dashboard/mentor": {
         parameters: {
             query?: never;
@@ -828,6 +860,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["Finance_mine"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/finance/demo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["Finance_demo"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1425,6 +1473,8 @@ export interface components {
             capabilities: components["schemas"]["PersonCapabilitiesDto"];
         };
         MeCapabilitiesDto: {
+            viewCamps: boolean;
+            viewOrganizationReports: boolean;
             createGroups: boolean;
             admin: boolean;
             managePeople: boolean;
@@ -1441,7 +1491,7 @@ export interface components {
         ActiveRoleDto: {
             id: string;
             /** @enum {string} */
-            kind: "technical_manager" | "supervisor" | "head_mentor" | "mentor" | "assistant" | "member";
+            kind: "technical_manager" | "director" | "supervisor" | "head_mentor" | "mentor" | "assistant" | "member";
             groupId?: string;
             groupName?: string;
             label: string;
@@ -1519,6 +1569,26 @@ export interface components {
         FileUrlDto: {
             url: string;
             expiresIn: number;
+        };
+        DirectorMetricDto: {
+            key: string;
+            count: number;
+        };
+        DirectorSummaryDto: {
+            generatedAt: string;
+            metrics: components["schemas"]["DirectorMetricDto"][];
+        };
+        DirectorPersonDto: {
+            id: string;
+            name: string;
+            orgLevel: string;
+            groupName: string;
+        };
+        DirectorPeoplePageDto: {
+            page: number;
+            limit: number;
+            total: number;
+            items: components["schemas"]["DirectorPersonDto"][];
         };
         DashboardWeekCountDto: {
             /** @description ISO date of week start (UTC) */
@@ -1834,7 +1904,14 @@ export interface components {
             totalCount: number;
             percent: number;
         };
+        ReadingDayDto: {
+            day: string;
+            pages: number;
+        };
         StudyPathItemDto: {
+            totalPages: number | null;
+            currentPage: number;
+            readingHistory: components["schemas"]["ReadingDayDto"][];
             /** @enum {string} */
             readingStatus: "not_started" | "reading" | "completed";
             id: string;
@@ -1866,6 +1943,8 @@ export interface components {
             items: components["schemas"]["StudyPathItemDto"][];
         };
         UpdateReadingDto: {
+            currentPage?: number;
+            confirmCompleted?: boolean;
             /** @enum {string} */
             status: "not_started" | "reading" | "completed";
         };
@@ -1874,6 +1953,7 @@ export interface components {
             description?: string | null;
         };
         CreateStudyPathItemDto: {
+            totalPages: number;
             bookTitle: string;
             bookAuthor?: string;
             notes?: string;
@@ -1882,6 +1962,7 @@ export interface components {
             itemIds: string[];
         };
         UpdateStudyPathItemDto: {
+            totalPages?: number;
             bookTitle?: string;
             bookAuthor?: string | null;
             notes?: string | null;
@@ -2104,10 +2185,38 @@ export interface components {
             sharedSummary?: string;
         };
         MemberFinanceDto: {
+            demoAvailable?: boolean;
             groupId: string | null;
             canViewGroupFinance: boolean;
             /** @enum {string} */
             status: "no_group" | "no_costs" | "costs_defined";
+        };
+        FinanceDemoLineDto: {
+            title: string;
+            amount: number;
+        };
+        FinanceDemoPaymentDto: {
+            date: string;
+            amount: number;
+        };
+        FinanceDemoItemDto: {
+            id: string;
+            title: string;
+            date: string;
+            amount: number;
+            paid: number;
+            remaining: number;
+            /** @enum {string} */
+            status: "settled" | "partial" | "unpaid";
+            lines: components["schemas"]["FinanceDemoLineDto"][];
+            payments: components["schemas"]["FinanceDemoPaymentDto"][];
+        };
+        FinanceDemoDto: {
+            isDemo: boolean;
+            total: number;
+            paid: number;
+            remaining: number;
+            items: components["schemas"]["FinanceDemoItemDto"][];
         };
         ProgramEventSummaryDto: {
             id: string;
@@ -4099,6 +4208,174 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FileUrlDto"];
+                };
+            };
+            /** @description Standard API error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    Dashboard_organization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectorSummaryDto"];
+                };
+            };
+            /** @description Standard API error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
+    Dashboard_organizationPeople: {
+        parameters: {
+            query?: {
+                page?: number;
+                limit?: number;
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectorPeoplePageDto"];
                 };
             };
             /** @description Standard API error */
@@ -8832,6 +9109,88 @@ export interface operations {
             };
         };
     };
+    Finance_demo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FinanceDemoDto"];
+                };
+            };
+            /** @description Standard API error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+            /** @description Standard API error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponseDto"];
+                };
+            };
+        };
+    };
     Finance_list: {
         parameters: {
             query?: {
@@ -9268,6 +9627,8 @@ export interface operations {
     Album_listAlbums: {
         parameters: {
             query?: {
+                myOnly?: boolean;
+                sort?: "newest" | "oldest" | "most_photos";
                 page?: number;
                 limit?: number;
             };
@@ -9353,6 +9714,8 @@ export interface operations {
     Album_list: {
         parameters: {
             query?: {
+                myOnly?: boolean;
+                sort?: "newest" | "oldest" | "most_photos";
                 page?: number;
                 limit?: number;
                 /** @description Album key from GET /album/albums (exact album title, or __other__ for untitled) */

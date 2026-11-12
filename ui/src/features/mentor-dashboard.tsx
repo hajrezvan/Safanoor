@@ -30,8 +30,9 @@ import {
   DonutChart,
   QuickAccess,
   BarSeriesChart,
-  ThreadsFeedGrid,
 } from 'src/components/ui';
+
+import { useSession } from './session';
 
 type MentorDashboard = components['schemas']['MentorDashboardDto'];
 
@@ -132,6 +133,7 @@ function MentorDashboardBody({ data }: { data: MentorDashboard }) {
       <Grid>
         <BarSeriesChart
           title={t('dashboardConsultationsChart')}
+          integerTicks
           labels={data.consultationsByWeek.map((week) => weekLabel(week.weekStart))}
           values={data.consultationsByWeek.map((week) => week.count)}
           emptyTitle={t('dashboardChartEmpty')}
@@ -232,20 +234,20 @@ function MentorDashboardBody({ data }: { data: MentorDashboard }) {
                   );
                 }
                 return (
-                  <ThreadsFeedGrid>
+                  <Stack>
                     {threadsWithMessages.map((thread) => (
                       <FeedItem
                         key={thread.id}
                         title={thread.title}
                         time={formatCompactStamp(thread.lastMessageAt!)}
                         unread={false}
-                        avatarsOnly
+                        preview={thread.preview ?? undefined}
                         onRead={() => {
                           router.push('/communications');
                         }}
                       />
                     ))}
-                  </ThreadsFeedGrid>
+                  </Stack>
                 );
               })()}
             </Stack>
@@ -277,6 +279,7 @@ function MentorDashboardBody({ data }: { data: MentorDashboard }) {
 }
 
 export function MentorHomeDashboard({ name }: { name: string }) {
+  const me = useSession();
   const query = useQuery({
     queryKey: ['dashboard', 'mentor'],
     queryFn: api.mentorDashboard,
@@ -285,7 +288,7 @@ export function MentorHomeDashboard({ name }: { name: string }) {
   return (
     <Section>
       <Hero name={name} />
-      <QuickAccess />
+      <QuickAccess showCamps={me.capabilities.viewCamps} />
       <QueryState loading={query.isLoading} error={query.error} retry={() => void query.refetch()}>
         {query.data && <MentorDashboardBody data={query.data} />}
       </QueryState>

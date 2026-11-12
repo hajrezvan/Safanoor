@@ -131,6 +131,8 @@ export class PersonDossierDto {
   sections!: PersonDossierSectionDto[];
 }
 export class MeCapabilitiesDto {
+  @ApiProperty() viewCamps!: boolean;
+  @ApiProperty() viewOrganizationReports!: boolean;
   @ApiProperty() createGroups!: boolean;
   @ApiProperty() admin!: boolean;
   @ApiProperty() managePeople!: boolean;
@@ -153,6 +155,7 @@ export class ActiveRoleDto {
   @ApiProperty({
     enum: [
       'technical_manager',
+      'director',
       'supervisor',
       'head_mentor',
       'mentor',
