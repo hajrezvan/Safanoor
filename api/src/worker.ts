@@ -21,6 +21,7 @@ async function main(): Promise<void> {
     for (const job of jobs) await imports.commit(job.data.id);
   });
   await boss.work('notification-deliver', async () => {
+    await notifications.remindFollowUps();
     await notifications.deliverPending();
   });
   await boss.work('age-transition', async () => {
@@ -33,6 +34,7 @@ async function main(): Promise<void> {
     { tz: 'Asia/Tehran' },
   );
   await boss.schedule('age-transition', '0 0 * * *', {}, { tz: 'UTC' });
+  await notifications.remindFollowUps();
   await notifications.deliverPending();
   await age.run();
 }

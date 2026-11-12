@@ -131,6 +131,7 @@ export class PersonDossierDto {
   sections!: PersonDossierSectionDto[];
 }
 export class MeCapabilitiesDto {
+  @ApiProperty() viewAssistantWorkspace!: boolean;
   @ApiProperty() viewCamps!: boolean;
   @ApiProperty() viewOrganizationReports!: boolean;
   @ApiProperty() createGroups!: boolean;

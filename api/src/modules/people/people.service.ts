@@ -359,6 +359,10 @@ export class PeopleService {
       this.access.level(actor, 'manage', { type: 'admin' }),
       this.access.level(actor, 'read', { type: 'organization_report' }),
       this.access.level(actor, 'read', { type: 'camp' }),
+      this.access.level(actor, 'read', {
+        type: 'assistant_workspace',
+        groupIds: actor.activeGroupId ? [actor.activeGroupId] : [],
+      }),
     ]);
     const children = actor.isParent
       ? await rows<{ id: string; name: string }>(
@@ -404,6 +408,7 @@ export class PeopleService {
       consentRequired: actor.consentRequired,
       capabilities: {
         viewOrganizationReports: checks[7] !== 'none',
+        viewAssistantWorkspace: checks[9] !== 'none',
         viewCamps: checks[8] !== 'none',
         createGroups: checks[2] !== 'none',
         admin: checks[0] !== 'none',

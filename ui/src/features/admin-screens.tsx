@@ -24,10 +24,10 @@ import {
   Stack,
   Avatar,
   Button,
-  CardNav,
   Dialog,
   Search,
   Select,
+  CardNav,
   Section,
   DataTable,
   FileInput,
@@ -41,13 +41,14 @@ import {
   PeopleCardBody,
   PeopleCardChips,
   PeopleCardsGrid,
-  PeopleCardActions,
   PeoplePersonCard,
+  PeopleCardActions,
 } from 'src/components/ui';
 
 import { useSession } from './session';
 import { PersonForm } from './member-screens';
 import { PersonPicker } from './person-picker';
+import { AssistantDashboard } from './assistant-dashboard';
 import { useWrite, BasicForm, Permission } from './shared';
 
 type Person = components['schemas']['PersonDto'];
@@ -158,6 +159,7 @@ export function PeopleScreen() {
     ? (query.data?.items ?? []).filter((person) => person.orgLevel === 'member')
     : (query.data?.items ?? []);
   const total = mentorView ? people.length : (query.data?.total ?? 0);
+  if (me.capabilities.viewAssistantWorkspace) return <AssistantDashboard />;
   return (
     <Permission allowed={me.capabilities.managePeople}>
       <PageHeader

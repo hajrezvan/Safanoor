@@ -64,7 +64,7 @@ export function Session({ children }: { children: React.ReactNode }) {
           href: '/admin/people',
           icon: 'people',
           // مدیر فنی does not use the people roster; mentors/assistants keep «اعضا» / «گروه من».
-          visible: !isTechManager && me.capabilities.managePeople,
+          visible: !isTechManager && (me.capabilities.managePeople || me.capabilities.viewAssistantWorkspace),
         },
         {
           key: 'communications',

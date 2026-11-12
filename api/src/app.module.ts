@@ -1,6 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { AssistantModule } from './modules/assistant/assistant.module';
 import { AppController } from './app.controller';
 import { ConfigModule } from './libs/config/config.module';
 import { DatabaseModule } from './libs/database/database.module';
@@ -39,6 +40,7 @@ import { PeopleModule } from './modules/people/people.module';
     AuthModule,
     PeopleModule,
     DashboardModule,
+    AssistantModule,
     GroupsModule,
     CampsModule,
     CommunicationsModule,

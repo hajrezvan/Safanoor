@@ -54,30 +54,29 @@ export class ConsultationsService {
            LIKE '%'||$${param}||'%'
       OR g.name LIKE '%'||$${param}||'%'
     )`;
-    const scope = actor.isAdmin
-      ? searchClause(1)
-      : `${this.visibleSql(1)} AND ${searchClause(2)}`;
+    const params = [actor.personId, search, actor.activeGroupId ?? null];
+    const scope = `${actor.isAdmin ? 'true' : this.visibleSql(1)} AND ${searchClause(2)} AND ($3::uuid IS NULL OR c.group_id=$3::uuid)`;
     const count = await one<{ count: string }>(
       this.db,
-      `SELECT count(*) FROM consultation c
-       JOIN organization_group g ON g.id=c.group_id
-       JOIN person author ON author.id=c.author_id
-       WHERE ${scope}`,
-      actor.isAdmin ? [search] : [actor.personId, search],
+      `SELECT count(*) FROM consultation c JOIN organization_group g ON g.id=c.group_id
+       JOIN person author ON author.id=c.author_id WHERE ${scope}`,
+      params,
     );
     const items = await rows<ConsultationSummaryDto>(
       this.db,
-      `SELECT ${this.summarySelect(actor.isAdmin ? 2 : 3)}
-       FROM consultation c
-       JOIN organization_group g ON g.id=c.group_id
-       JOIN person author ON author.id=c.author_id
-       WHERE ${scope}
-       ORDER BY c.held_at DESC, c.id
-       LIMIT $${actor.isAdmin ? 3 : 4} OFFSET $${actor.isAdmin ? 4 : 5}`,
-      actor.isAdmin
-        ? [search, actor.personId, query.limit, offset]
-        : [actor.personId, search, actor.personId, query.limit, offset],
+      `SELECT ${this.summarySelect(1)} FROM consultation c
+       JOIN organization_group g ON g.id=c.group_id JOIN person author ON author.id=c.author_id
+       WHERE ${scope} ORDER BY c.held_at DESC,c.id LIMIT $4 OFFSET $5`,
+      [...params, query.limit, offset],
     );
+    // Keep list visibility behind the same central policy as detail reads.
+    for (const item of items) {
+      await this.access.require(
+        actor,
+        'read',
+        await this.access.resolve('consultation', item.id, actor),
+      );
+    }
     return pageOf(items, query.page, query.limit, Number(count?.count ?? 0));
   }
 
@@ -416,8 +415,7 @@ export class ConsultationsService {
       return place || null;
     }
     const place = normalizePersian((value ?? '').trim());
-    if (!place)
-      throw new BadRequestException('مکان مشاوره حضوری را وارد کن.');
+    if (!place) throw new BadRequestException('مکان مشاوره حضوری را وارد کن.');
     return place;
   }
 

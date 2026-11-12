@@ -64,7 +64,7 @@ export function foundationPolicies(): PolicyRow[] {
   allow(
     'consultation_private_note',
     'read',
-    ['self', 'mentor'],
+    ['self', 'groupMentor'],
     'detail',
     'assistant',
   );
@@ -132,5 +132,12 @@ export function foundationPolicies(): PolicyRow[] {
   allow('camp', 'update', ['groupMentor']);
   allow('camp', 'manage', ['groupMentor']);
   allow('dashboard', 'read', ['groupMentor', 'admin']);
+  allow('camp_duty', 'update', ['responsibleAssistant', 'groupMentor']);
+  allow('session_attendance', 'create', ['groupMentor']);
+  allow('assistant_workspace', 'read', ['assistantRole']);
+  for (const type of ['follow_up_item', 'session_attendance']) {
+    allow(type, 'update', ['followingAssistant', 'groupMentor']);
+  }
+  allow('follow_up_item', 'create', ['followingAssistant', 'groupMentor']);
   return policies;
 }

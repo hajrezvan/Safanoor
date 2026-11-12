@@ -61,6 +61,7 @@ import { useWrite, BasicForm } from './shared';
 import { OpsHomeDashboard } from './ops-dashboard';
 import { useSession, useRoleSwitch } from './session';
 import { MentorHomeDashboard } from './mentor-dashboard';
+import { AssistantDashboard } from './assistant-dashboard';
 
 export function LoginScreen() {
   const t = useFa();
@@ -153,6 +154,7 @@ export function HomeScreen() {
   const me = useSession();
   const t = useFa();
   if (me.capabilities.viewOrganizationReports) return <DirectorReport />;
+  if (me.capabilities.viewAssistantWorkspace) return <AssistantDashboard />;
   if (me.activeRole?.kind === 'technical_manager') {
     return <OpsHomeDashboard />;
   }

@@ -28,10 +28,8 @@ export class AccessService {
     const subject = resource.memberId ?? resource.ownerId ?? actor.personId;
     const groups = resource.groupIds ?? [];
     const scoped = !!actor.activeRoleKind;
-    const allowMentor =
-      !scoped || actor.activeRoleKind === 'mentor';
-    const allowAssistant =
-      !scoped || actor.activeRoleKind === 'assistant';
+    const allowMentor = !scoped || actor.activeRoleKind === 'mentor';
+    const allowAssistant = !scoped || actor.activeRoleKind === 'assistant';
     const allowMember =
       !scoped ||
       actor.activeRoleKind === 'member' ||
@@ -262,6 +260,11 @@ export class AccessService {
     actor: Actor,
     groupId?: string,
   ): Promise<Resource> {
+    if (type === 'assistant_workspace')
+      return {
+        type,
+        groupIds: actor.activeGroupId ? [actor.activeGroupId] : [],
+      };
     if (type === 'person' && id) return this.personResource(id);
     if (type === 'group' && id) return { type, id, groupIds: [id] };
     if (type === 'assistant_invite' && id) {
@@ -436,8 +439,9 @@ export class AccessService {
       }>(
         this.db,
         `SELECT c.group_id AS "groupId", c.author_id AS "authorId",
-                p.org_level AS "authorLevel"
+                c.author_role AS "authorLevel"
          FROM consultation c
+         JOIN organization_group g ON g.id=c.group_id
          JOIN person p ON p.id=c.author_id
          WHERE c.id=$1`,
         [id],
@@ -452,9 +456,10 @@ export class AccessService {
         }>(
           this.db,
           `SELECT n.id, n.consultation_id AS "consultationId", n.author_id AS "authorId",
-                  p.org_level AS "authorLevel", c.group_id AS "groupId"
+                  c.author_role AS "authorLevel", c.group_id AS "groupId"
            FROM consultation_private_note n
            JOIN consultation c ON c.id=n.consultation_id
+           JOIN organization_group g ON g.id=c.group_id
            JOIN person p ON p.id=n.author_id
            WHERE n.id=$1`,
           [id],

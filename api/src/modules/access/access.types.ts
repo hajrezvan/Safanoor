@@ -39,6 +39,10 @@ export const RESOURCE_TYPES = [
   'camp',
   'dashboard',
   'organization_report',
+  'assistant_workspace',
+  'camp_duty',
+  'follow_up_item',
+  'session_attendance',
 ] as const;
 export type ResourceType = (typeof RESOURCE_TYPES)[number];
 export type Action =

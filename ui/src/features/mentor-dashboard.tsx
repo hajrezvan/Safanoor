@@ -33,6 +33,7 @@ import {
 } from 'src/components/ui';
 
 import { useSession } from './session';
+import { AssistantSessionCreator } from './assistant-dashboard';
 
 type MentorDashboard = components['schemas']['MentorDashboardDto'];
 
@@ -289,6 +290,7 @@ export function MentorHomeDashboard({ name }: { name: string }) {
     <Section>
       <Hero name={name} />
       <QuickAccess showCamps={me.capabilities.viewCamps} />
+      {me.activeRole?.kind==='mentor'&&<AssistantSessionCreator/>}
       <QueryState loading={query.isLoading} error={query.error} retry={() => void query.refetch()}>
         {query.data && <MentorDashboardBody data={query.data} />}
       </QueryState>

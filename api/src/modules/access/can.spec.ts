@@ -40,6 +40,10 @@ const relationMap: Record<(typeof columns)[number], Partial<Relations>> = {
   admin: {},
 };
 const matrix: Record<string, { action: Action; expected: string }> = {
+  camp_duty: { action: 'update', expected: 'N N N D N N N N N N' },
+  assistant_workspace: { action: 'read', expected: 'N N N N N N N N N N' },
+  follow_up_item: { action: 'create', expected: 'N D N D N N N N N N' },
+  session_attendance: { action: 'update', expected: 'N D N D N N N N N N' },
   organization_report: { action: 'read', expected: 'N N N N N N N N N N' },
   file: { action: 'read', expected: 'D N N N N N N N N N' },
   avatar: { action: 'read', expected: 'D N N N N N N N N N' },
@@ -243,7 +247,7 @@ describe('explicit organization policy matrix', () => {
         actor,
         'read',
         { type: 'consultation_private_note', ownerRole: 'assistant' },
-        { policies, relations: { ...emptyRelations, mentor: true } },
+        { policies, relations: { ...emptyRelations, groupMentor: true } },
       ),
     ).toBe('detail');
     expect(

@@ -40,6 +40,10 @@ import { IndependentAssistantGroup1792195200029 } from './migrations/17921952000
 import { ReadingPages1792195200030 } from './migrations/1792195200030-ReadingPages';
 import { DirectorReports1792195200031 } from './migrations/1792195200031-DirectorReports';
 import { CampStaffOnly1792195200032 } from './migrations/1792195200032-CampStaffOnly';
+import { AssistantWorkspace1792195200033 } from './migrations/1792195200033-AssistantWorkspace';
+import { AssistantNotePolicy1792195200034 } from './migrations/1792195200034-AssistantNotePolicy';
+import { AssistantScheduling1792195200035 } from './migrations/1792195200035-AssistantScheduling';
+import { ConsultationAuthorRole1792195200036 } from './migrations/1792195200036-ConsultationAuthorRole';
 config();
 export const databaseOptions = {
   type: 'postgres' as const,
@@ -81,6 +85,10 @@ export const databaseOptions = {
     ReadingPages1792195200030,
     DirectorReports1792195200031,
     CampStaffOnly1792195200032,
+    AssistantWorkspace1792195200033,
+    AssistantNotePolicy1792195200034,
+    AssistantScheduling1792195200035,
+    ConsultationAuthorRole1792195200036,
   ],
   logging: false,
   ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: true } : false,

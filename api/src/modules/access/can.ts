@@ -20,6 +20,20 @@ export function can(
   },
 ): AccessLevel {
   if (actor.status !== 'active') return 'none';
+  if (
+    actor.activeGroupId &&
+    resource.groupIds?.length &&
+    [
+      'consultation',
+      'consultation_private_note',
+      'chat_thread',
+      'follow_up_item',
+      'session_attendance',
+      'camp_duty',
+    ].includes(resource.type) &&
+    !resource.groupIds.includes(actor.activeGroupId)
+  )
+    return 'none';
   if (resource.type === 'camp' && actor.activeRoleKind === 'member')
     return 'none';
   if (
@@ -56,6 +70,15 @@ export function can(
   for (const [key, enabled] of Object.entries(context.relations))
     if (enabled) relations.add(key);
   if (actor.isAdmin) relations.add('admin');
+  if (
+    actor.activeRoleKind === 'assistant' &&
+    context.relations.otherAssistant &&
+    context.relations.self &&
+    resource.ownerId === actor.personId
+  )
+    relations.add('responsibleAssistant');
+  if (actor.activeRoleKind === 'assistant' && context.relations.otherAssistant)
+    relations.add('assistantRole');
   if (
     resource.type === 'camp' &&
     context.relations.sameGroup &&
